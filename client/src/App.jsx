@@ -8,7 +8,6 @@ import DashboardSummary from './components/Dashboard/Summary/DashboardSummary';
 import InsightsChart from './components/Dashboard/Charts/InsightsChart';
 import ActivityTable from './components/Dashboard/Activity/ActivityTable';
 import LoadingState from './components/UI/LoadingState';
-import './App.css';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
 
@@ -136,7 +135,7 @@ function App() {
   }
 
   return (
-    <div className="app-layout">
+    <div className="flex min-h-screen bg-bg-dark text-text-main font-outfit">
       {/* Premium Background Elements */}
       <div className="app-bg"></div>
       <div className="blob"></div>
@@ -149,25 +148,23 @@ function App() {
         setIsAdmin={setIsAdmin} 
       />
 
-      <main className="main-content">
+      <main className="flex-1 p-8 lg:p-12 z-10 overflow-y-auto">
         {!isAdmin && <UserProfileHeader user={user} />}
         
-        <header className="dashboard-header">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <header className="mb-12">
+          <div className="flex justify-between items-center">
             <div>
-              <h1>
+              <h1 className="text-4xl lg:text-5xl font-bold tracking-tight">
                 {isAdmin ? 'Admin' : 'Performance'} <span className="text-accent">Insights</span>
               </h1>
-              <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+              <p className="text-text-muted mt-2 text-lg">
                 {isAdmin ? 'System-wide analytics overview.' : 'Your personalized checklist performance data.'}
               </p>
             </div>
             {!isAdmin && (
-              <div className="ai-insights-box" style={{ margin: 0, padding: '1rem 1.5rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <Sparkles size={18} color="var(--accent)" />
-                  <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>AI Insight Active</span>
-                </div>
+              <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-2xl p-4 flex items-center gap-3">
+                <Sparkles size={20} className="text-accent" />
+                <span className="font-semibold text-sm">AI Insight Active</span>
               </div>
             )}
           </div>
@@ -176,16 +173,21 @@ function App() {
         {loading ? (
           <LoadingState />
         ) : error ? (
-          <div className="card" style={{ textAlign: 'center', padding: '4rem', color: 'var(--danger)' }}>
-            <p>{error}</p>
-            <button onClick={fetchData} className="feature-pill" style={{ margin: '1rem auto', cursor: 'pointer', border: 'none' }}>Retry</button>
+          <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-[2.5rem] p-16 text-center">
+            <p className="text-danger text-xl mb-6">{error}</p>
+            <button 
+              onClick={fetchData} 
+              className="px-8 py-3 bg-primary/20 hover:bg-primary/30 border border-primary/30 rounded-full text-primary font-semibold transition-all"
+            >
+              Retry
+            </button>
           </div>
         ) : (
-          <>
+          <div className="space-y-12">
             <DashboardSummary data={data} isAdmin={isAdmin} />
             <InsightsChart data={data} isAdmin={isAdmin} />
             {!isAdmin && <ActivityTable activities={data?.recentActivity} />}
-          </>
+          </div>
         )}
       </main>
     </div>

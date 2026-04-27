@@ -1,107 +1,83 @@
-:root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+@import "tailwindcss";
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+@theme {
+  --color-primary: #6366f1;
+  --color-primary-glow: rgba(99, 102, 241, 0.5);
+  --color-bg-dark: #020617;
+  --color-bg-card: rgba(15, 23, 42, 0.6);
+  --color-text-main: #f8fafc;
+  --color-text-muted: #94a3b8;
+  --color-accent: #c084fc;
+  --color-accent-glow: rgba(192, 132, 252, 0.4);
+  --color-danger: #f43f5e;
+  --color-success: #10b981;
+  --color-glass-border: rgba(255, 255, 255, 0.1);
+  
+  --width-sidebar: 280px;
+  
+  --font-outfit: "Outfit", "Inter", sans-serif;
+}
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
+@layer base {
+  body {
+    @apply m-0 font-outfit bg-bg-dark text-text-main overflow-x-hidden;
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
+/* Maintain special global animations and gradients that are hard to do with utility classes alone */
+.app-bg {
+  @apply fixed top-0 left-0 w-screen h-screen -z-20;
+  background: radial-gradient(circle at 50% 50%, #0f172a 0%, #020617 100%);
 }
 
-body {
-  margin: 0;
+.blob {
+  @apply fixed w-[600px] h-[600px] bg-primary-glow blur-[150px] rounded-full -z-10 -top-[200px] -left-[200px] opacity-60;
+  animation: move 25s infinite alternate;
 }
 
-#root {
-  width: 100%;
-  margin: 0;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
+.blob-2 {
+  @apply fixed bg-accent-glow w-[500px] h-[500px] blur-[150px] rounded-full -z-10 -bottom-[150px] -right-[150px] opacity-50;
+  animation: move 30s infinite alternate-reverse;
 }
 
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
+/* Premium Background & Effects */
+.mesh-gradient {
+  @apply fixed top-0 left-0 w-screen h-screen -z-10 opacity-50;
+  background-image: 
+    radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
+    radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%), 
+    radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%);
 }
 
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
-}
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
-}
-p {
-  margin: 0;
+.stars-overlay {
+  @apply fixed top-0 left-0 w-full h-full opacity-10 -z-10;
+  background-image: radial-gradient(1px 1px at 20px 30px, #fff, rgba(0,0,0,0)),
+                    radial-gradient(1px 1px at 40px 70px, #fff, rgba(0,0,0,0)),
+                    radial-gradient(1px 1px at 50px 160px, #fff, rgba(0,0,0,0));
+  background-size: 200px 200px;
 }
 
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
+@keyframes move {
+  from { transform: translate(0, 0) scale(1); }
+  to { transform: translate(150px, 100px) scale(1.1); }
 }
 
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+@keyframes shimmer {
+  to { left: 100%; }
+}
+
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-60px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(60px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.text-gradient {
+  background: linear-gradient(135deg, #fff 0%, #6366f1 50%, #c084fc 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }

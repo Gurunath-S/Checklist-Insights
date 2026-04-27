@@ -7,20 +7,20 @@ import {
 const InsightsChart = ({ data, isAdmin }) => {
   if (isAdmin) {
     return (
-      <div className="card" style={{ height: '400px', marginTop: '2rem' }}>
-        <h3 style={{ marginBottom: '2rem' }}>Submissions by Department</h3>
+      <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-[2.5rem] p-10 h-[450px] shadow-2xl shadow-black/10">
+        <h3 className="text-xl font-bold text-white mb-8">Submissions by Department</h3>
         <ResponsiveContainer width="100%" height="85%">
           <BarChart data={data?.departmentStats}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
             <XAxis dataKey="tag_name" stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} />
             <YAxis stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} />
             <Tooltip 
-              contentStyle={{ background: '#1e293b', border: 'none', borderRadius: '12px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.5)' }}
+              contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)' }}
               itemStyle={{ color: '#fff' }}
             />
             <Bar dataKey="submissions" radius={[10, 10, 0, 0]}>
               {data?.departmentStats?.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={index % 2 === 0 ? 'var(--primary)' : 'var(--accent)'} />
+                <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#6366f1' : '#c084fc'} />
               ))}
             </Bar>
           </BarChart>
@@ -31,17 +31,17 @@ const InsightsChart = ({ data, isAdmin }) => {
 
   // Mock data for breakdown if not provided
   const breakdownData = [
-    { name: 'No of Dashboards Updated', value: 77, color: '#99e2f2' },
+    { name: 'Dashboards Updated', value: 77, color: '#6366f1' },
     { name: 'Deploy to GIFT', value: 13, color: '#fba484' },
-    { name: 'No of Tasks Completed', value: 8, color: '#f88282' },
-    { name: 'No of dashboards created', value: 1, color: '#c084fc' },
+    { name: 'Tasks Completed', value: 8, color: '#f43f5e' },
+    { name: 'Dashboards Created', value: 2, color: '#c084fc' },
   ];
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '2rem', marginTop: '2rem' }}>
+    <div className="grid grid-cols-1 xl:grid-cols-[1.5fr_1fr] gap-8">
       {/* Line Chart with Area Fill */}
-      <div className="card" style={{ height: '400px' }}>
-        <h3 style={{ marginBottom: '2rem' }}>Task Completed (Recent Months)</h3>
+      <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-[2.5rem] p-10 h-[450px] shadow-2xl shadow-black/10">
+        <h3 className="text-xl font-bold text-white mb-8">Task Completed (Recent Months)</h3>
         <ResponsiveContainer width="100%" height="85%">
           <AreaChart data={data?.performanceTrend || [
             { week: 'Nov 2025', points: 16 },
@@ -53,54 +53,63 @@ const InsightsChart = ({ data, isAdmin }) => {
           ]}>
             <defs>
               <linearGradient id="colorPoints" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
-                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.2}/>
+                <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4}/>
+                <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
             <XAxis dataKey="week" stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} />
             <YAxis hide />
-            <Tooltip />
+            <Tooltip 
+              contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }}
+            />
             <Area 
               type="monotone" 
               dataKey="points" 
-              stroke="#3b82f6" 
-              strokeWidth={3}
+              stroke="#6366f1" 
+              strokeWidth={4}
               fillOpacity={1} 
               fill="url(#colorPoints)" 
-              label={{ position: 'top', fill: '#fff', fontSize: 14, fontWeight: 'bold' }}
+              dot={{ r: 4, fill: '#6366f1', strokeWidth: 2, stroke: '#fff' }}
+              activeDot={{ r: 6, fill: '#fff', strokeWidth: 0 }}
+              label={{ position: 'top', fill: '#fff', fontSize: 14, fontWeight: 'bold', offset: 10 }}
             />
           </AreaChart>
         </ResponsiveContainer>
       </div>
 
       {/* Donut Chart Breakdown */}
-      <div className="card" style={{ height: '400px' }}>
-        <h3 style={{ marginBottom: '2rem' }}>Contribution Breakdown</h3>
-        <ResponsiveContainer width="100%" height="85%">
-          <PieChart>
-            <Pie
-              data={breakdownData}
-              cx="50%"
-              cy="50%"
-              innerRadius={70}
-              outerRadius={100}
-              paddingAngle={5}
-              dataKey="value"
-            >
-              {breakdownData.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.color} />
-              ))}
-            </Pie>
-            <Tooltip />
-          </PieChart>
-        </ResponsiveContainer>
+      <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-[2.5rem] p-10 h-[450px] shadow-2xl shadow-black/10 flex flex-col">
+        <h3 className="text-xl font-bold text-white mb-4">Contribution Breakdown</h3>
+        <div className="flex-1 min-h-0">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={breakdownData}
+                cx="50%"
+                cy="50%"
+                innerRadius={70}
+                outerRadius={100}
+                paddingAngle={8}
+                dataKey="value"
+                stroke="none"
+              >
+                {breakdownData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip 
+                contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
         {/* Simple Legend */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginTop: '1rem', fontSize: '0.75rem' }}>
+        <div className="grid grid-cols-2 gap-3 mt-4 text-[0.7rem]">
           {breakdownData.map(d => (
-            <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: d.color }}></div>
-              <span style={{ color: 'var(--text-muted)' }}>{d.name} ({d.value}%)</span>
+            <div key={d.name} className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full" style={{ background: d.color }}></div>
+              <span className="text-text-muted font-medium truncate">{d.name} ({d.value}%)</span>
             </div>
           ))}
         </div>

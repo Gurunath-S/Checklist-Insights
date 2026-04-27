@@ -1,17 +1,13 @@
 import React from 'react';
 
 const LoadingState = () => (
-  <div className="loading-container">
-    <div className="shimmer-logo"></div>
-    <p style={{ marginTop: '1.5rem', color: 'var(--text-muted)', animation: 'pulse 2s infinite' }}>
+  <div className="flex flex-col items-center justify-center h-[60vh]">
+    <div className="w-16 h-16 bg-bg-card border border-glass-border rounded-2xl relative overflow-hidden">
+      <div className="absolute inset-0 -left-full w-[200%] h-full bg-linear-to-r from-transparent via-white/10 to-transparent animate-[shimmer_1.5s_infinite]"></div>
+    </div>
+    <p className="mt-6 text-text-muted font-medium animate-pulse tracking-wide">
       Synchronizing your insights...
     </p>
-    <style>{`
-      @keyframes pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.5; }
-      }
-    `}</style>
   </div>
 );
 
