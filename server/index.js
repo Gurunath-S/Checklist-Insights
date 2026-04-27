@@ -69,7 +69,7 @@ app.post('/api/auth/google', async (req, res) => {
     const sessionToken = jwt.sign(
       { userId: userData.id, email: userData.email },
       process.env.JWT_SECRET,
-      { expiresIn: '24h' }
+      { expiresIn: '6h' }
     );
 
     res.json({ token: sessionToken, user: userData });
@@ -79,9 +79,61 @@ app.post('/api/auth/google', async (req, res) => {
   }
 });
 
+// Middleware to protect routes
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) return res.status(401).json({ error: 'Access token required' });
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (err) return res.status(403).json({ error: 'Invalid or expired token' });
+    req.user = user;
+    next();
+  });
+};
+
+// Verify Session Route (Sliding Session)
+app.get('/api/auth/verify', authenticateToken, async (req, res) => {
+  try {
+    const user = await prisma.organisation_Users.findUnique({
+      where: { id: req.user.userId },
+      include: {
+        user: true // Get the actual user details (name, email, image)
+      }
+    });
+
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const userData = {
+      id: user.id,
+      realUserId: user.user.id,
+      name: user.user.name,
+      email: user.user.email,
+      image: user.user.image
+    };
+
+    // Issue a NEW token (Sliding Session)
+    const newToken = jwt.sign(
+      { userId: userData.id, email: userData.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '6h' }
+    );
+
+    res.json({ user: userData, token: newToken });
+  } catch (error) {
+    res.status(500).json({ error: 'Verification failed' });
+  }
+});
+
 // Individual User Insights
-app.get('/api/insights/personal/:userId', async (req, res) => {
+app.get('/api/insights/personal/:userId', authenticateToken, async (req, res) => {
+  // Ensure user is requesting their own data
   const userId = parseInt(req.params.userId);
+  if (req.user.userId !== userId) {
+    return res.status(403).json({ error: 'Unauthorized access to data' });
+  }
+  
   if (isNaN(userId)) return res.status(400).json({ error: 'Invalid User ID' });
   
   try {
@@ -143,7 +195,7 @@ app.get('/api/insights/personal/:userId', async (req, res) => {
 });
 
 // Admin Insights
-app.get('/api/insights/admin/summary', async (req, res) => {
+app.get('/api/insights/admin/summary', authenticateToken, async (req, res) => {
   try {
     const [userCount, submissionCount, templateCount] = await Promise.all([
       prisma.organisation_Users.count(),

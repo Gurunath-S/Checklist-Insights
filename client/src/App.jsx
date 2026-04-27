@@ -20,18 +20,65 @@ function App() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('user');
-    if (savedUser && savedUser !== 'undefined') {
-      try {
-        const parsed = JSON.parse(savedUser);
-        if (parsed && parsed.id) {
-          setUser(parsed);
-        }
-      } catch (e) {
-        console.error('Failed to parse user', e);
-        localStorage.removeItem('user');
+    // 1. Setup Axios Interceptors
+    const requestInterceptor = axios.interceptors.request.use((config) => {
+      const token = localStorage.getItem('token');
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
       }
-    }
+      return config;
+    });
+
+    const responseInterceptor = axios.interceptors.response.use(
+      (response) => {
+        // If the server sends a new token (Sliding Session), save it
+        if (response.data && response.data.token) {
+          localStorage.setItem('token', response.data.token);
+        }
+        return response;
+      },
+      (error) => {
+        if (error.response && error.response.status === 401) {
+          handleLogout();
+        }
+        return Promise.reject(error);
+      }
+    );
+
+    // 2. Professional Session Validation (Verify Token with Backend)
+    const validateSession = async () => {
+      const token = localStorage.getItem('token');
+      const savedUser = localStorage.getItem('user');
+      
+      if (!token || !savedUser) {
+        handleLogout();
+        return;
+      }
+
+      setLoading(true);
+      try {
+        // Call the new verify endpoint
+        const res = await axios.get(`${API_BASE}/auth/verify`);
+        const { user: verifiedUser, token: newToken } = res.data;
+        
+        setUser(verifiedUser);
+        localStorage.setItem('user', JSON.stringify(verifiedUser));
+        localStorage.setItem('token', newToken);
+      } catch (err) {
+        console.error('Session validation failed:', err);
+        handleLogout();
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    validateSession();
+
+    // Cleanup interceptors on unmount
+    return () => {
+      axios.interceptors.request.eject(requestInterceptor);
+      axios.interceptors.response.eject(responseInterceptor);
+    };
   }, []);
 
   useEffect(() => {
