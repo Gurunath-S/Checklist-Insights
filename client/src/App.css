@@ -331,31 +331,115 @@ body {
 
 .main-content {
   flex: 1;
-  padding: 2.5rem;
-  max-width: 1600px;
-  margin: 0 auto;
+  padding: 3rem 4rem;
   width: 100%;
+  max-width: 100%; /* Removed the 1600px limit for full-bleed feel */
   z-index: 1;
+  overflow-y: auto;
 }
 
-.grid-summary {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 2rem;
-  margin-bottom: 3rem;
-}
-
-.card {
+/* User Profile Header */
+.user-profile-header {
   background: var(--bg-card);
   backdrop-filter: blur(20px);
   border: 1px solid var(--glass-border);
-  border-radius: 2rem;
-  padding: 2rem;
-  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  border-radius: 2.5rem;
+  padding: 3rem;
+  margin-bottom: 3rem;
+  text-align: center;
 }
 
-.card:hover {
-  transform: translateY(-8px);
-  border-color: var(--primary);
-  box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+.user-profile-header h1 {
+  font-size: 3rem;
+  font-weight: 700;
+  margin-bottom: 2rem;
+}
+
+.profile-stats-bar {
+  display: flex;
+  justify-content: space-around;
+  border-top: 1px solid var(--glass-border);
+  padding-top: 2rem;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.stat-label {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.stat-value {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+/* Colorful Metric Cards */
+.colorful-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 3rem;
+}
+
+.colorful-card {
+  aspect-ratio: 1/0.8;
+  border-radius: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  color: #fff;
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: 0 15px 30px rgba(0,0,0,0.2);
+}
+
+.colorful-card:hover {
+  transform: translateY(-10px) scale(1.05);
+}
+
+.colorful-card .label {
+  font-size: 0.85rem;
+  opacity: 0.9;
+}
+
+.colorful-card .value {
+  font-size: 2.5rem;
+  font-weight: 800;
+}
+
+.card-blue { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
+.card-yellow { background: linear-gradient(135deg, #eab308, #ca8a04); }
+.card-purple { background: linear-gradient(135deg, #a855f7, #7e22ce); }
+.card-deep-blue { background: linear-gradient(135deg, #2563eb, #1e40af); }
+.card-orange { background: linear-gradient(135deg, #f97316, #ea580c); }
+
+.task-day-box {
+  background: #fff;
+  color: #000;
+  border: 2px solid #000;
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.task-day-box h4 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.task-day-box .value {
+  font-size: 3rem;
+  font-weight: 900;
 }

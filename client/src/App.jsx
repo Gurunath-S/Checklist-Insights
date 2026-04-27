@@ -3,6 +3,7 @@ import axios from 'axios';
 import { Sparkles } from 'lucide-react';
 import Sidebar from './components/Dashboard/Sidebar';
 import LoginPage from './components/Auth/LoginPage';
+import UserProfileHeader from './components/Dashboard/Summary/UserProfileHeader';
 import DashboardSummary from './components/Dashboard/Summary/DashboardSummary';
 import InsightsChart from './components/Dashboard/Charts/InsightsChart';
 import ActivityTable from './components/Dashboard/Activity/ActivityTable';
@@ -102,22 +103,26 @@ function App() {
       />
 
       <main className="main-content">
+        {!isAdmin && <UserProfileHeader user={user} />}
+        
         <header className="dashboard-header">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <h1>
-                {isAdmin ? 'Admin' : 'Personal'} <span className="text-accent">Insights</span>
+                {isAdmin ? 'Admin' : 'Performance'} <span className="text-accent">Insights</span>
               </h1>
               <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-                {isAdmin ? 'System-wide analytics overview.' : `Welcome back, ${user?.name?.split(' ')[0] || 'User'}!`}
+                {isAdmin ? 'System-wide analytics overview.' : 'Your personalized checklist performance data.'}
               </p>
             </div>
-            <div className="ai-insights-box" style={{ margin: 0, padding: '1rem 1.5rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <Sparkles size={18} color="var(--accent)" />
-                <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>AI Insight Active</span>
+            {!isAdmin && (
+              <div className="ai-insights-box" style={{ margin: 0, padding: '1rem 1.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <Sparkles size={18} color="var(--accent)" />
+                  <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>AI Insight Active</span>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </header>
 

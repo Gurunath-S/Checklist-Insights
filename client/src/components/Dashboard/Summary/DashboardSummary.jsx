@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, FileText, Layout, TrendingUp } from 'lucide-react';
+import { Users, FileText, Layout, TrendingUp, Send, CheckCircle, Rocket, RefreshCcw, Headphones } from 'lucide-react';
 
 const DashboardSummary = ({ data, isAdmin }) => {
   if (isAdmin) {
@@ -13,13 +13,30 @@ const DashboardSummary = ({ data, isAdmin }) => {
   }
 
   return (
-    <div className="grid-summary">
-      <SummaryCard icon={<FileText />} label="My Submissions" value={data?.summary?.totalSubmissions} trend="Ongoing" />
-      <SummaryCard icon={<TrendingUp />} label="Completion Rate" value="94%" trend="+2.4%" />
-      <SummaryCard icon={<Layout />} label="Active Tasks" value="12" trend="Normal" />
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 200px', gap: '1.5rem', marginBottom: '3rem' }}>
+      <div className="colorful-grid">
+        <ColorfulCard color="card-blue" icon={<Send />} label="Submissions" value="419" />
+        <ColorfulCard color="card-yellow" icon={<CheckCircle />} label="Completed" value="279" />
+        <ColorfulCard color="card-purple" icon={<Rocket />} label="Deploy to GIFT" value="217" />
+        <ColorfulCard color="card-deep-blue" icon={<RefreshCcw />} label="Updated / Day" value="28" />
+        <ColorfulCard color="card-orange" icon={<Headphones />} label="Interview" value="5" />
+      </div>
+      
+      <div className="task-day-box">
+        <h4>Task / Day</h4>
+        <span className="value">3</span>
+      </div>
     </div>
   );
 };
+
+const ColorfulCard = ({ color, icon, label, value }) => (
+  <div className={`colorful-card ${color}`}>
+    {React.cloneElement(icon, { size: 32 })}
+    <span className="label">{label}</span>
+    <span className="value">{value}</span>
+  </div>
+);
 
 const SummaryCard = ({ icon, label, value, trend }) => (
   <div className="card">
