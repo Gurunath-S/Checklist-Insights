@@ -12,8 +12,7 @@ const ActivityTable = ({ activities }) => {
             <tr className="border-b border-glass-border">
               <th className="text-left py-4 px-6 text-text-muted text-[0.7rem] uppercase tracking-widest font-bold">Checklist</th>
               <th className="text-left py-4 px-6 text-text-muted text-[0.7rem] uppercase tracking-widest font-bold">Date</th>
-              <th className="text-left py-4 px-6 text-text-muted text-[0.7rem] uppercase tracking-widest font-bold">Response</th>
-              <th className="text-left py-4 px-6 text-text-muted text-[0.7rem] uppercase tracking-widest font-bold text-right">Points</th>
+              <th className="text-left py-4 px-6 text-text-muted text-[0.7rem] uppercase tracking-widest font-bold text-right">Submission Response</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
@@ -23,13 +22,15 @@ const ActivityTable = ({ activities }) => {
                 <td className="py-6 px-6 text-text-muted text-sm italic">
                   {new Date(activity.date).toLocaleDateString()}
                 </td>
-                <td className="py-6 px-6">
-                  <span className="inline-flex px-4 py-1.5 rounded-full bg-white/5 border border-glass-border text-xs font-medium text-text-main shadow-inner">
-                    {activity.input}
-                  </span>
-                </td>
-                <td className="py-6 px-6 font-bold text-accent text-right text-lg">
-                  +{activity.points}
+                <td className="py-6 px-6 text-right">
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="inline-flex px-4 py-1.5 rounded-full bg-white/5 border border-glass-border text-sm font-bold text-accent shadow-inner">
+                      {activity.input}
+                    </span>
+                    <span className="text-[0.6rem] uppercase tracking-tighter text-text-muted font-bold">
+                      {activity.statusLabel}
+                    </span>
+                  </div>
                 </td>
               </tr>
             ))}

@@ -7,16 +7,25 @@ import UserProfileHeader from './components/Dashboard/Summary/UserProfileHeader'
 import DashboardSummary from './components/Dashboard/Summary/DashboardSummary';
 import InsightsChart from './components/Dashboard/Charts/InsightsChart';
 import ActivityTable from './components/Dashboard/Activity/ActivityTable';
+import DepartmentDashboard from './components/Dashboard/DepartmentDashboard';
 import LoadingState from './components/UI/LoadingState';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
 
 function App() {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    const saved = localStorage.getItem('user');
+    return saved ? JSON.parse(saved) : null;
+  });
   const [data, setData] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(!!localStorage.getItem('token')); // Start loading if we have a token to verify
   const [error, setError] = useState(null);
+  
+  // Admin Date Filters
+  const [adminStartDate, setAdminStartDate] = useState('');
+  const [adminEndDate, setAdminEndDate] = useState('');
+  const [selectedDepartment, setSelectedDepartment] = useState('Overview');
 
   useEffect(() => {
     // 1. Setup Axios Interceptors
@@ -46,6 +55,30 @@ function App() {
 
     // 2. Professional Session Validation (Verify Token with Backend)
     const validateSession = async () => {
+      // First, check if we just came back from a Microsoft redirect
+      const pendingMsalToken = sessionStorage.getItem('msal_pending_token');
+      if (pendingMsalToken) {
+        sessionStorage.removeItem('msal_pending_token');
+        setLoading(true);
+        try {
+          const res = await axios.post(`${API_BASE}/auth/microsoft`, { 
+            accessToken: pendingMsalToken 
+          });
+          const { token, user: loggedUser } = res.data;
+          
+          setUser(loggedUser);
+          localStorage.setItem('token', token);
+          localStorage.setItem('user', JSON.stringify(loggedUser));
+        } catch (err) {
+          console.error('Microsoft Login Failed:', err);
+          const errMsg = err.response?.data?.error || err.message;
+          alert(`Microsoft Login failed: ${errMsg}`);
+        } finally {
+          setLoading(false);
+        }
+        return;
+      }
+
       const token = localStorage.getItem('token');
       const savedUser = localStorage.getItem('user');
       
@@ -84,16 +117,27 @@ function App() {
     if (user && user.id) {
       fetchData();
     }
-  }, [isAdmin, user]);
+  }, [isAdmin, user, adminStartDate, adminEndDate]);
 
   const fetchData = async () => {
     if (!user || !user.id) return;
     setLoading(true);
     setError(null);
     try {
-      const endpoint = isAdmin ? `${API_BASE}/insights/admin/summary` : `${API_BASE}/insights/personal/${user.id}`;
-      const response = await axios.get(endpoint);
-      setData(response.data);
+      if (isAdmin) {
+        // Pass date filters to admin API
+        const params = {};
+        if (adminStartDate) params.startDate = adminStartDate;
+        if (adminEndDate) params.endDate = adminEndDate;
+        
+        const response = await axios.get(`${API_BASE}/insights/admin/summary`, {
+          params
+        });
+        setData(response.data);
+      } else {
+        const response = await axios.get(`${API_BASE}/insights/personal/${user.id}`);
+        setData(response.data);
+      }
     } catch (err) {
       console.error('Error fetching data:', err);
       setError('Failed to load insights. Please try again.');
@@ -104,8 +148,14 @@ function App() {
 
   const handleLoginSuccess = async (credentialResponse) => {
     try {
-      const { credential } = credentialResponse;
-      const res = await axios.post(`${API_BASE}/auth/google`, { token: credential });
+      const { credential, access_token } = credentialResponse;
+      const tokenToSend = credential || access_token;
+      const isAccessToken = !!access_token;
+      
+      const res = await axios.post(`${API_BASE}/auth/google`, { 
+        token: tokenToSend,
+        isAccessToken
+      });
       const { token, user: loggedUser } = res.data;
       
       setUser(loggedUser);
@@ -117,6 +167,24 @@ function App() {
     }
   };
 
+  const handleMicrosoftLoginSuccess = async (accessToken) => {
+    try {
+      const res = await axios.post(`${API_BASE}/auth/microsoft`, { 
+        accessToken 
+      });
+      const { token, user: loggedUser } = res.data;
+      
+      setUser(loggedUser);
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(loggedUser));
+    } catch (err) {
+      console.error('Microsoft Login Failed:', err);
+      const errMsg = err.response?.data?.error || err.message;
+      alert(`Microsoft Login failed: ${errMsg}`);
+    }
+  };
+
+
   const handleLogout = () => {
     setUser(null);
     setData(null);
@@ -124,11 +192,17 @@ function App() {
     localStorage.removeItem('user');
   };
 
+  // Prevent flash of login page while validating session
+  if (loading && !user) {
+    return <LoadingState />;
+  }
+
   // Login view is isolated to fix alignment issues
   if (!user || !user.id) {
     return (
       <LoginPage 
         onLoginSuccess={handleLoginSuccess} 
+        onMicrosoftLoginSuccess={handleMicrosoftLoginSuccess}
         onLoginError={() => alert('Login Failed')} 
       />
     );
@@ -182,11 +256,70 @@ function App() {
               Retry
             </button>
           </div>
+        ) : isAdmin ? (
+          <div className="flex flex-col lg:flex-row gap-8">
+            {/* Admin Left Sidebar for Departments */}
+            <div className="w-full lg:w-64 shrink-0 bg-bg-card backdrop-blur-xl border border-glass-border rounded-[2rem] p-6 shadow-xl h-[500px] lg:h-[calc(100vh-12rem)] sticky top-32 flex flex-col overflow-hidden">
+               <h3 className="text-sm font-bold text-white mb-4 text-center uppercase tracking-widest">Departments</h3>
+               <div className="overflow-y-auto pr-2 space-y-3 flex-1 custom-scrollbar">
+                  <div 
+                    onClick={() => setSelectedDepartment('Overview')}
+                    className={`w-full border rounded-full py-3 px-4 text-center text-xs font-semibold cursor-pointer truncate transition-all ${selectedDepartment === 'Overview' ? 'bg-primary text-white border-primary shadow-lg shadow-primary/30' : 'bg-white/5 border-glass-border text-white hover:bg-white/10'}`}
+                  >
+                    Overview
+                  </div>
+                  {data?.usersByPositionTags?.map(tag => (
+                    <div 
+                      key={tag.name}
+                      onClick={() => setSelectedDepartment(tag.name)}
+                      className={`w-full border rounded-full py-3 px-4 text-center text-xs font-semibold cursor-pointer truncate transition-all ${selectedDepartment === tag.name ? 'bg-primary text-white border-primary shadow-lg shadow-primary/30' : 'bg-white/5 border-glass-border text-white hover:bg-white/10'}`}
+                    >
+                      {tag.name.replace(/_/g, ' ')}
+                    </div>
+                  ))}
+               </div>
+            </div>
+            
+            {/* Main Admin Content Area */}
+            <div className="flex-1 w-full min-w-0">
+               {selectedDepartment === 'Overview' ? (
+                 <div className="space-y-12">
+                   <DashboardSummary 
+                     data={data} 
+                     isAdmin={isAdmin} 
+                     adminStartDate={adminStartDate}
+                     setAdminStartDate={setAdminStartDate}
+                     adminEndDate={adminEndDate}
+                     setAdminEndDate={setAdminEndDate}
+                     hideKPIs={false}
+                   />
+                   <InsightsChart data={data} isAdmin={isAdmin} />
+                 </div>
+               ) : (
+                 <div className="space-y-12">
+                   <DashboardSummary 
+                     data={data} 
+                     isAdmin={isAdmin} 
+                     adminStartDate={adminStartDate}
+                     setAdminStartDate={setAdminStartDate}
+                     adminEndDate={adminEndDate}
+                     setAdminEndDate={setAdminEndDate}
+                     hideKPIs={true}
+                   />
+                   <DepartmentDashboard 
+                     department={selectedDepartment} 
+                     adminStartDate={adminStartDate} 
+                     adminEndDate={adminEndDate} 
+                   />
+                 </div>
+               )}
+            </div>
+          </div>
         ) : (
           <div className="space-y-12">
             <DashboardSummary data={data} isAdmin={isAdmin} />
             <InsightsChart data={data} isAdmin={isAdmin} />
-            {!isAdmin && <ActivityTable activities={data?.recentActivity} />}
+            <ActivityTable activities={data?.recentActivity} />
           </div>
         )}
       </main>

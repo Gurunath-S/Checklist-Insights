@@ -8,11 +8,11 @@ const UserProfileHeader = ({ user }) => {
       <div className="flex justify-around border-t border-glass-border pt-8 mt-4 gap-4 flex-wrap">
         <div className="flex flex-col gap-1.5 min-w-[120px]">
           <span className="text-text-muted text-[0.7rem] uppercase tracking-widest font-bold">ID</span>
-          <span className="text-base font-semibold text-white">IBTEMP015</span>
+          <span className="text-base font-semibold text-white">{user?.employeeId || 'N/A'}</span>
         </div>
         <div className="flex flex-col gap-1.5 min-w-[120px]">
           <span className="text-text-muted text-[0.7rem] uppercase tracking-widest font-bold">Role</span>
-          <span className="text-base font-semibold text-white">Jr Business Analyst</span>
+          <span className="text-base font-semibold text-white">{user?.role || 'Team Member'}</span>
         </div>
         <div className="flex flex-col gap-1.5 min-w-[120px]">
           <span className="text-text-muted text-[0.7rem] uppercase tracking-widest font-bold">Email</span>
@@ -22,7 +22,9 @@ const UserProfileHeader = ({ user }) => {
         </div>
         <div className="flex flex-col gap-1.5 min-w-[120px]">
           <span className="text-text-muted text-[0.7rem] uppercase tracking-widest font-bold">DOJ</span>
-          <span className="text-base font-semibold text-white">02 Dec 2024</span>
+          <span className="text-base font-semibold text-white">
+            {user?.doj ? new Date(user.doj).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A'}
+          </span>
         </div>
       </div>
     </div>
