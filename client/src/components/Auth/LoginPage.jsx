@@ -1,14 +1,18 @@
 import React from 'react';
-import { useGoogleLogin } from '@react-oauth/google';
 import { useMsal } from '@azure/msal-react';
 import { loginRequest } from '../../authConfig';
 import { Sparkles, ShieldCheck, BarChart3, Zap, ArrowRight, CheckCircle2 } from 'lucide-react';
 
 const LoginPage = ({ onLoginSuccess, onMicrosoftLoginSuccess, onLoginError }) => {
-  const loginWithGoogle = useGoogleLogin({
-    onSuccess: onLoginSuccess,
-    onError: onLoginError,
-  });
+  const loginWithGoogle = () => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    const redirectUri = window.location.origin;
+    const scope = 'openid profile email';
+    const responseType = 'token';
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=${responseType}&scope=${encodeURIComponent(scope)}`;
+    
+    window.location.href = authUrl;
+  };
 
   const { instance } = useMsal();
 

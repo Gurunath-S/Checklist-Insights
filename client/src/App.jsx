@@ -55,6 +55,35 @@ function App() {
 
     // 2. Professional Session Validation (Verify Token with Backend)
     const validateSession = async () => {
+      // Check if we just came back from a Google OAuth redirect
+      const hash = window.location.hash.substring(1);
+      const hashParams = new URLSearchParams(hash);
+      const googleAccessToken = hashParams.get('access_token');
+      if (googleAccessToken) {
+        // Clean the hash so it doesn't linger in the URL bar
+        window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+        
+        setLoading(true);
+        try {
+          const res = await axios.post(`${API_BASE}/auth/google`, { 
+            token: googleAccessToken,
+            isAccessToken: true
+          });
+          const { token, user: loggedUser } = res.data;
+          
+          setUser(loggedUser);
+          localStorage.setItem('token', token);
+          localStorage.setItem('user', JSON.stringify(loggedUser));
+        } catch (err) {
+          console.error('Google Login Failed:', err);
+          const errMsg = err.response?.data?.error || err.message;
+          alert(`Google Login failed: ${errMsg}`);
+        } finally {
+          setLoading(false);
+        }
+        return;
+      }
+
       // First, check if we just came back from a Microsoft redirect
       const pendingMsalToken = sessionStorage.getItem('msal_pending_token');
       if (pendingMsalToken) {
