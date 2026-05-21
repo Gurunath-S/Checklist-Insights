@@ -21,7 +21,7 @@ const UserProfileHeader = ({ user }) => {
           </span>
         </div>
         <div className="flex flex-col gap-1.5 min-w-[120px]">
-          <span className="text-text-muted text-[0.7rem] uppercase tracking-widest font-bold">DOJ</span>
+          <span className="text-text-muted text-[0.7rem] uppercase tracking-widest font-bold">First Date of Entry</span>
           <span className="text-base font-semibold text-white">
             {user?.doj ? new Date(user.doj).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A'}
           </span>

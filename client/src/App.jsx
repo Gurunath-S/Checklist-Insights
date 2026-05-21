@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, LogOut } from 'lucide-react';
 import Sidebar from './components/Dashboard/Sidebar';
 import LoginPage from './components/Auth/LoginPage';
 import UserProfileHeader from './components/Dashboard/Summary/UserProfileHeader';
 import DashboardSummary from './components/Dashboard/Summary/DashboardSummary';
 import InsightsChart from './components/Dashboard/Charts/InsightsChart';
-import ActivityTable from './components/Dashboard/Activity/ActivityTable';
+import ActivityExplorer from './components/Dashboard/Activity/ActivityExplorer';
 import DepartmentDashboard from './components/Dashboard/DepartmentDashboard';
 import LoadingState from './components/UI/LoadingState';
+import SettingsPage from './components/Dashboard/SettingsPage';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
 
@@ -26,6 +27,23 @@ function App() {
   const [adminStartDate, setAdminStartDate] = useState('');
   const [adminEndDate, setAdminEndDate] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState('Overview');
+
+  // Multi-view navigation and Color Themes
+  const [currentView, setCurrentView] = useState('dashboard');
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem('theme') || 'classic';
+  });
+
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  useEffect(() => {
+    if (!user || !user.id) {
+      document.documentElement.setAttribute('data-theme', 'classic');
+    } else {
+      document.documentElement.setAttribute('data-theme', theme);
+    }
+    localStorage.setItem('theme', theme);
+  }, [theme, user]);
 
   useEffect(() => {
     // 1. Setup Axios Interceptors
@@ -246,112 +264,157 @@ function App() {
 
       <Sidebar 
         user={user}
-        onLogout={handleLogout} 
+        onLogout={() => setShowLogoutConfirm(true)} 
         isAdmin={isAdmin} 
         setIsAdmin={setIsAdmin} 
+        currentView={currentView}
+        setCurrentView={setCurrentView}
       />
 
       <main className="flex-1 p-8 lg:p-12 z-10 overflow-y-auto">
-        {!isAdmin && <UserProfileHeader user={user} />}
-        
-        <header className="mb-12">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-4xl lg:text-5xl font-bold tracking-tight">
-                {isAdmin ? 'Admin' : 'Performance'} <span className="text-accent">Insights</span>
-              </h1>
-              <p className="text-text-muted mt-2 text-lg">
-                {isAdmin ? 'System-wide analytics overview.' : 'Your personalized checklist performance data.'}
-              </p>
-            </div>
-            {!isAdmin && (
-              <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-2xl p-4 flex items-center gap-3">
-                <Sparkles size={20} className="text-accent" />
-                <span className="font-semibold text-sm">AI Insight Active</span>
+        {currentView === 'settings' ? (
+          <SettingsPage 
+            user={user} 
+            currentTheme={theme} 
+            onChangeTheme={setTheme} 
+          />
+        ) : (
+          <>
+            {!isAdmin && <UserProfileHeader user={user} />}
+            
+            <header className="mb-12">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h1 className="text-4xl lg:text-5xl font-bold tracking-tight">
+                    {isAdmin ? 'Admin' : 'Performance'} <span className="text-accent">Insights</span>
+                  </h1>
+                  <p className="text-text-muted mt-2 text-lg">
+                    {isAdmin ? 'System-wide analytics overview.' : 'Your personalized checklist performance data.'}
+                  </p>
+                </div>
+                {!isAdmin && (
+                  <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-2xl p-4 flex items-center gap-3">
+                    <Sparkles size={20} className="text-accent" />
+                    <span className="font-semibold text-sm">AI Insight Active</span>
+                  </div>
+                )}
+              </div>
+            </header>
+
+            {loading ? (
+              <LoadingState />
+            ) : error ? (
+              <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-[2.5rem] p-16 text-center">
+                <p className="text-danger text-xl mb-6">{error}</p>
+                <button 
+                  onClick={fetchData} 
+                  className="px-8 py-3 bg-primary/20 hover:bg-primary/30 border border-primary/30 rounded-full text-primary font-semibold transition-all"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : isAdmin ? (
+              <div className="flex flex-col lg:flex-row gap-8">
+                {/* Admin Left Sidebar for Departments */}
+                <div className="w-full lg:w-64 shrink-0 bg-bg-card backdrop-blur-xl border border-glass-border rounded-[2rem] p-6 shadow-xl h-[500px] lg:h-[calc(100vh-12rem)] sticky top-32 flex flex-col overflow-hidden">
+                   <h3 className="text-sm font-bold text-white mb-4 text-center uppercase tracking-widest">Departments</h3>
+                   <div className="overflow-y-auto pr-2 space-y-3 flex-1 custom-scrollbar">
+                      <div 
+                        onClick={() => setSelectedDepartment('Overview')}
+                        className={`w-full border rounded-full py-3 px-4 text-center text-xs font-semibold cursor-pointer truncate transition-all ${selectedDepartment === 'Overview' ? 'bg-primary text-white border-primary shadow-lg shadow-primary/30' : 'bg-white/5 border-glass-border text-white hover:bg-white/10'}`}
+                      >
+                        Overview
+                      </div>
+                      {data?.usersByPositionTags?.map(tag => (
+                        <div 
+                          key={tag.name}
+                          onClick={() => setSelectedDepartment(tag.name)}
+                          className={`w-full border rounded-full py-3 px-4 text-center text-xs font-semibold cursor-pointer truncate transition-all ${selectedDepartment === tag.name ? 'bg-primary text-white border-primary shadow-lg shadow-primary/30' : 'bg-white/5 border-glass-border text-white hover:bg-white/10'}`}
+                        >
+                          {tag.name.replace(/_/g, ' ')}
+                        </div>
+                      ))}
+                   </div>
+                </div>
+                
+                {/* Main Admin Content Area */}
+                <div className="flex-1 w-full min-w-0">
+                   {selectedDepartment === 'Overview' ? (
+                     <div className="space-y-12">
+                       <DashboardSummary 
+                         data={data} 
+                         isAdmin={isAdmin} 
+                         adminStartDate={adminStartDate}
+                         setAdminStartDate={setAdminStartDate}
+                         adminEndDate={adminEndDate}
+                         setAdminEndDate={setAdminEndDate}
+                         hideKPIs={false}
+                       />
+                       <InsightsChart data={data} isAdmin={isAdmin} />
+                     </div>
+                   ) : (
+                     <div className="space-y-12">
+                       <DashboardSummary 
+                         data={data} 
+                         isAdmin={isAdmin} 
+                         adminStartDate={adminStartDate}
+                         setAdminStartDate={setAdminStartDate}
+                         adminEndDate={adminEndDate}
+                         setAdminEndDate={setAdminEndDate}
+                         hideKPIs={true}
+                       />
+                       <DepartmentDashboard 
+                         department={selectedDepartment} 
+                         adminStartDate={adminStartDate} 
+                         adminEndDate={adminEndDate} 
+                       />
+                     </div>
+                   )}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-12">
+                <DashboardSummary data={data} isAdmin={isAdmin} />
+                <InsightsChart data={data} isAdmin={isAdmin} />
+                <ActivityExplorer user={user} />
               </div>
             )}
-          </div>
-        </header>
-
-        {loading ? (
-          <LoadingState />
-        ) : error ? (
-          <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-[2.5rem] p-16 text-center">
-            <p className="text-danger text-xl mb-6">{error}</p>
-            <button 
-              onClick={fetchData} 
-              className="px-8 py-3 bg-primary/20 hover:bg-primary/30 border border-primary/30 rounded-full text-primary font-semibold transition-all"
-            >
-              Retry
-            </button>
-          </div>
-        ) : isAdmin ? (
-          <div className="flex flex-col lg:flex-row gap-8">
-            {/* Admin Left Sidebar for Departments */}
-            <div className="w-full lg:w-64 shrink-0 bg-bg-card backdrop-blur-xl border border-glass-border rounded-[2rem] p-6 shadow-xl h-[500px] lg:h-[calc(100vh-12rem)] sticky top-32 flex flex-col overflow-hidden">
-               <h3 className="text-sm font-bold text-white mb-4 text-center uppercase tracking-widest">Departments</h3>
-               <div className="overflow-y-auto pr-2 space-y-3 flex-1 custom-scrollbar">
-                  <div 
-                    onClick={() => setSelectedDepartment('Overview')}
-                    className={`w-full border rounded-full py-3 px-4 text-center text-xs font-semibold cursor-pointer truncate transition-all ${selectedDepartment === 'Overview' ? 'bg-primary text-white border-primary shadow-lg shadow-primary/30' : 'bg-white/5 border-glass-border text-white hover:bg-white/10'}`}
-                  >
-                    Overview
-                  </div>
-                  {data?.usersByPositionTags?.map(tag => (
-                    <div 
-                      key={tag.name}
-                      onClick={() => setSelectedDepartment(tag.name)}
-                      className={`w-full border rounded-full py-3 px-4 text-center text-xs font-semibold cursor-pointer truncate transition-all ${selectedDepartment === tag.name ? 'bg-primary text-white border-primary shadow-lg shadow-primary/30' : 'bg-white/5 border-glass-border text-white hover:bg-white/10'}`}
-                    >
-                      {tag.name.replace(/_/g, ' ')}
-                    </div>
-                  ))}
-               </div>
-            </div>
-            
-            {/* Main Admin Content Area */}
-            <div className="flex-1 w-full min-w-0">
-               {selectedDepartment === 'Overview' ? (
-                 <div className="space-y-12">
-                   <DashboardSummary 
-                     data={data} 
-                     isAdmin={isAdmin} 
-                     adminStartDate={adminStartDate}
-                     setAdminStartDate={setAdminStartDate}
-                     adminEndDate={adminEndDate}
-                     setAdminEndDate={setAdminEndDate}
-                     hideKPIs={false}
-                   />
-                   <InsightsChart data={data} isAdmin={isAdmin} />
-                 </div>
-               ) : (
-                 <div className="space-y-12">
-                   <DashboardSummary 
-                     data={data} 
-                     isAdmin={isAdmin} 
-                     adminStartDate={adminStartDate}
-                     setAdminStartDate={setAdminStartDate}
-                     adminEndDate={adminEndDate}
-                     setAdminEndDate={setAdminEndDate}
-                     hideKPIs={true}
-                   />
-                   <DepartmentDashboard 
-                     department={selectedDepartment} 
-                     adminStartDate={adminStartDate} 
-                     adminEndDate={adminEndDate} 
-                   />
-                 </div>
-               )}
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-12">
-            <DashboardSummary data={data} isAdmin={isAdmin} />
-            <InsightsChart data={data} isAdmin={isAdmin} />
-            <ActivityTable activities={data?.recentActivity} />
-          </div>
+          </>
         )}
       </main>
+
+      {/* Premium Sign Out Warning Modal (Perfect Screen Centering) */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-md">
+          <div className="bg-bg-card backdrop-blur-2xl border border-glass-border rounded-[2rem] p-8 max-w-md w-full shadow-2xl shadow-black/80">
+            <div className="flex flex-col items-center text-center mb-6">
+              <div className="w-12 h-12 rounded-2xl bg-danger/20 border border-danger/30 flex items-center justify-center text-danger mb-4 shrink-0">
+                <LogOut size={24} />
+              </div>
+              <h4 className="text-xl font-bold text-white">Sign Out</h4>
+              <p className="text-sm text-text-muted mt-1 font-medium">Are you sure you want to end your session?</p>
+            </div>
+            
+            <div className="flex gap-4">
+              <button 
+                onClick={() => setShowLogoutConfirm(false)}
+                className="flex-1 py-3 px-4 rounded-xl border border-glass-border bg-white/5 text-sm font-bold text-white hover:bg-white/10 transition-all cursor-pointer hover:scale-[1.02]"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  setShowLogoutConfirm(false);
+                  handleLogout();
+                }}
+                className="flex-1 py-3 px-4 rounded-xl bg-danger text-sm font-bold text-white hover:bg-danger/90 hover:scale-[1.02] shadow-lg shadow-danger/20 transition-all cursor-pointer"
+              >
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
