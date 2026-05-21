@@ -56,12 +56,12 @@ const TemplateList = ({ userId, onSelect }) => {
         <button
           key={t.template_id}
           onClick={() => onSelect(t)}
-          className="group w-full text-left bg-white/5 hover:bg-primary/10 border border-glass-border hover:border-primary/40 rounded-2xl p-6 transition-all duration-300 hover:shadow-lg hover:shadow-primary/10 hover:-translate-y-0.5 cursor-pointer"
+          className="group w-full text-left bg-white/5 hover:bg-primary/10 border border-glass-border hover:border-primary/40 rounded-xl p-4 transition-all duration-300 hover:shadow-lg hover:shadow-primary/10 hover:-translate-y-0.5 cursor-pointer"
         >
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3 flex-1 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-primary/15 border border-primary/25 flex items-center justify-center text-primary shrink-0">
-                <ClipboardList size={18} />
+              <div className="w-8 h-8 rounded-lg bg-primary/15 border border-primary/25 flex items-center justify-center text-primary shrink-0">
+                <ClipboardList size={16} />
               </div>
               <div className="min-w-0">
                 <p className="text-sm font-bold text-white truncate leading-tight">
@@ -72,10 +72,10 @@ const TemplateList = ({ userId, onSelect }) => {
                 </p>
               </div>
             </div>
-            <ChevronRight size={18} className="text-text-muted group-hover:text-primary group-hover:translate-x-1 transition-all shrink-0 mt-1" />
+            <ChevronRight size={16} className="text-text-muted group-hover:text-primary group-hover:translate-x-1 transition-all shrink-0 mt-0.5" />
           </div>
-          <div className="mt-4 flex items-center gap-2">
-            <span className="text-[0.65rem] uppercase tracking-widest font-bold text-text-muted bg-white/5 px-2.5 py-1 rounded-full border border-glass-border">
+          <div className="mt-3 flex items-center gap-2">
+            <span className="text-[0.6rem] uppercase tracking-widest font-bold text-text-muted bg-white/5 px-2 py-0.5 rounded-full border border-glass-border">
               {t.total_responses} responses
             </span>
           </div>
@@ -124,20 +124,20 @@ const DateList = ({ userId, template, onSelect }) => {
           <button
             key={i}
             onClick={() => onSelect(d)}
-            className="group w-full text-left bg-white/5 hover:bg-primary/10 border border-glass-border hover:border-primary/40 rounded-2xl px-6 py-4 flex items-center gap-4 transition-all duration-200 hover:-translate-x-1 cursor-pointer"
+            className="group w-full text-left bg-white/5 hover:bg-primary/10 border border-glass-border hover:border-primary/40 rounded-xl px-4 py-2.5 flex items-center gap-3 transition-all duration-200 hover:-translate-x-1 cursor-pointer"
           >
             {/* Date icon */}
-            <div className="w-10 h-10 rounded-xl bg-white/5 border border-glass-border flex items-center justify-center text-text-muted group-hover:text-primary shrink-0 transition-colors">
-              {isBackdated ? <CalendarClock size={17} /> : <Calendar size={17} />}
+            <div className="w-8 h-8 rounded-lg bg-white/5 border border-glass-border flex items-center justify-center text-text-muted group-hover:text-primary shrink-0 transition-colors">
+              {isBackdated ? <CalendarClock size={15} /> : <Calendar size={15} />}
             </div>
 
             {/* Date info */}
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-white">
+              <p className="text-xs font-bold text-white">
                 {submittedStr}
               </p>
               {isBackdated && (
-                <p className="text-xs text-amber-400 font-medium mt-0.5 flex items-center gap-1">
+                <p className="text-[0.7rem] text-amber-400 font-medium mt-0.5 flex items-center gap-1">
                   <CalendarClock size={11} />
                   For: {selectedStr}
                 </p>
@@ -146,10 +146,10 @@ const DateList = ({ userId, template, onSelect }) => {
 
             {/* Completion badge */}
             <div className="flex flex-col items-end gap-1 shrink-0">
-              <span className="text-xs font-bold text-white">
+              <span className="text-[0.7rem] font-bold text-white">
                 {d.completed_count}/{d.items_count} done
               </span>
-              <div className="w-24 h-1.5 bg-white/10 rounded-full overflow-hidden">
+              <div className="w-20 h-1 bg-white/10 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-primary rounded-full transition-all duration-500"
                   style={{ width: `${completionPct}%` }}
@@ -157,7 +157,7 @@ const DateList = ({ userId, template, onSelect }) => {
               </div>
             </div>
 
-            <ChevronRight size={16} className="text-text-muted group-hover:text-primary group-hover:translate-x-1 transition-all shrink-0" />
+            <ChevronRight size={14} className="text-text-muted group-hover:text-primary group-hover:translate-x-1 transition-all shrink-0" />
           </button>
         );
       })}
@@ -204,21 +204,21 @@ const ResponseDetail = ({ userId, template, dateRow }) => {
         return (
           <div
             key={i}
-            className="bg-white/5 border border-glass-border rounded-2xl px-6 py-4"
+            className="bg-white/5 border border-glass-border rounded-xl px-4 py-2.5"
           >
             <div className="flex items-start justify-between gap-4">
               {/* Left: icon + name */}
               <div className="flex items-start gap-3 flex-1 min-w-0">
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${isDone ? 'bg-success/15 text-success border border-success/25' : 'bg-white/5 text-text-muted border border-glass-border'}`}>
-                  {isNumeric ? <Hash size={14} /> : <ToggleLeft size={14} />}
+                <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 mt-0.5 ${isDone ? 'bg-success/15 text-success border border-success/25' : 'bg-white/5 text-text-muted border border-glass-border'}`}>
+                  {isNumeric ? <Hash size={13} /> : <ToggleLeft size={13} />}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-white leading-snug">
+                  <p className="text-xs font-semibold text-white leading-snug">
                     {item.checklist_name}
                   </p>
                   {hasComment && (
-                    <p className="text-xs text-text-muted mt-1.5 flex items-start gap-1.5">
-                      <MessageSquare size={11} className="shrink-0 mt-0.5 text-accent" />
+                    <p className="text-[0.7rem] text-text-muted mt-1 flex items-start gap-1">
+                      <MessageSquare size={10} className="shrink-0 mt-0.5 text-accent" />
                       <span className="italic leading-relaxed">{item.comments}</span>
                     </p>
                   )}
@@ -226,22 +226,22 @@ const ResponseDetail = ({ userId, template, dateRow }) => {
               </div>
 
               {/* Right: value chip + status */}
-              <div className="flex flex-col items-end gap-2 shrink-0">
+              <div className="flex flex-col items-end gap-1.5 shrink-0">
                 {/* Value */}
                 {isNumeric ? (
-                  <span className="text-lg font-extrabold text-accent leading-none">
+                  <span className="text-sm font-bold text-accent leading-none">
                     {item.input ?? '—'}
                   </span>
                 ) : (
-                  <span className={`flex items-center gap-1 text-sm font-bold ${isDone ? 'text-success' : 'text-text-muted'}`}>
+                  <span className={`flex items-center gap-1 text-xs font-bold ${isDone ? 'text-success' : 'text-text-muted'}`}>
                     {isDone
-                      ? <><CheckCircle2 size={16} /> Done</>
-                      : <><Circle size={16} /> Pending</>
+                      ? <><CheckCircle2 size={14} /> Done</>
+                      : <><Circle size={14} /> Pending</>
                     }
                   </span>
                 )}
                 {/* Type label */}
-                <span className="text-[0.6rem] uppercase tracking-widest font-bold text-text-muted">
+                <span className="text-[0.55rem] uppercase tracking-widest font-bold text-text-muted">
                   {isNumeric ? 'numeric' : 'boolean'}
                 </span>
               </div>
@@ -279,26 +279,26 @@ const ActivityExplorer = ({ user }) => {
   if (!userId) return null;
 
   return (
-    <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-[2.5rem] p-10 shadow-2xl shadow-black/10 mt-12">
+    <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-6 shadow-2xl shadow-black/10 mt-8">
 
       {/* ─ Header ─ */}
-      <div className="flex items-center gap-4 mb-8">
+      <div className="flex items-center gap-4 mb-6">
         {level > 1 && (
           <button
             onClick={goBack}
-            className="w-9 h-9 rounded-xl bg-white/5 border border-glass-border flex items-center justify-center text-text-muted hover:text-white hover:bg-white/10 transition-all cursor-pointer shrink-0"
+            className="w-8 h-8 rounded-lg bg-white/5 border border-glass-border flex items-center justify-center text-text-muted hover:text-white hover:bg-white/10 transition-all cursor-pointer shrink-0"
           >
-            <ChevronLeft size={18} />
+            <ChevronLeft size={16} />
           </button>
         )}
         <div className="flex-1 min-w-0">
-          <h3 className="text-xl font-bold text-white">
+          <h3 className="text-lg font-bold text-white">
             {level === 1 && 'Recent Activity'}
             {level === 2 && selectedTemplate?.template_name}
             {level === 3 && `${fmt(selectedDateRow?.submitted_day)}`}
           </h3>
           {/* Breadcrumb */}
-          <p className="text-xs text-text-muted mt-1 flex items-center gap-1.5 flex-wrap">
+          <p className="text-[0.7rem] text-text-muted mt-1 flex items-center gap-1.5 flex-wrap">
             <span
               className={`cursor-pointer hover:text-white transition-colors ${level === 1 ? 'text-white font-semibold' : ''}`}
               onClick={() => { setLevel(1); setSelectedTemplate(null); }}
@@ -307,7 +307,7 @@ const ActivityExplorer = ({ user }) => {
             </span>
             {level >= 2 && (
               <>
-                <ChevronRight size={11} />
+                <ChevronRight size={10} />
                 <span
                   className={`cursor-pointer hover:text-white transition-colors ${level === 2 ? 'text-white font-semibold' : ''}`}
                   onClick={() => level === 3 && setLevel(2)}
@@ -318,7 +318,7 @@ const ActivityExplorer = ({ user }) => {
             )}
             {level === 3 && (
               <>
-                <ChevronRight size={11} />
+                <ChevronRight size={10} />
                 <span className="text-white font-semibold">
                   {fmt(selectedDateRow?.submitted_day)}
                   {selectedDateRow?.is_backdated && (

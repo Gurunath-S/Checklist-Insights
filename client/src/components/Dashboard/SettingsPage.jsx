@@ -50,22 +50,22 @@ const SettingsPage = ({ user, currentTheme, onChangeTheme }) => {
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.8fr] gap-10">
         
         {/* Left Side: Profile Card */}
-        <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-[2.5rem] p-8 shadow-xl flex flex-col items-center text-center h-fit">
-          <div className="relative mb-6">
+        <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-6 shadow-xl flex flex-col items-center text-center h-fit">
+          <div className="relative mb-4">
             <img 
               src={user?.image || `https://ui-avatars.com/api/?name=${user?.name || 'User'}&background=6366f1&color=fff`} 
               alt="User Avatar" 
-              className="w-28 h-28 rounded-3xl object-cover border-4 border-glass-border shadow-2xl shadow-primary/20" 
+              className="w-20 h-20 rounded-2xl object-cover border-2 border-glass-border shadow-2xl shadow-primary/20" 
             />
             <div className="absolute -bottom-2 -right-2 bg-primary text-white p-2 rounded-xl shadow-lg border border-glass-border">
               <User size={16} />
             </div>
           </div>
 
-          <h3 className="text-2xl font-bold text-white mb-1">{user?.name || 'User'}</h3>
+          <h3 className="text-lg font-bold text-white mb-1">{user?.name || 'User'}</h3>
           <p className="text-sm text-text-muted mb-6">{user?.email || 'user@example.com'}</p>
 
-          <div className="w-full space-y-4 pt-6 border-t border-glass-border text-left">
+          <div className="w-full space-y-3 pt-4 border-t border-glass-border text-left">
             <div className="flex justify-between items-center text-sm">
               <span className="text-text-muted">Employee ID</span>
               <span className="font-semibold text-white">{user?.employeeId || 'N/A'}</span>
@@ -84,7 +84,7 @@ const SettingsPage = ({ user, currentTheme, onChangeTheme }) => {
         </div>
 
         {/* Right Side: Theme Switcher */}
-        <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-[2.5rem] p-10 shadow-xl space-y-8">
+        <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-6 shadow-xl space-y-6">
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-primary/15 border border-primary/25 rounded-xl text-primary">
               <Palette size={20} />
@@ -95,14 +95,14 @@ const SettingsPage = ({ user, currentTheme, onChangeTheme }) => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {themes.map((theme) => {
               const isActive = currentTheme === theme.id;
               return (
                 <div 
                   key={theme.id}
                   onClick={() => onChangeTheme(theme.id)}
-                  className={`relative flex flex-col p-6 rounded-[2rem] border cursor-pointer select-none transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl ${
+                  className={`relative flex flex-col p-4 rounded-2xl border cursor-pointer select-none transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl ${
                     isActive 
                       ? 'border-primary bg-primary/10 shadow-lg shadow-primary/5 scale-[1.02]' 
                       : 'border-glass-border bg-white/5 hover:bg-white/10'

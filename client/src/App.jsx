@@ -23,10 +23,16 @@ function App() {
   const [loading, setLoading] = useState(!!localStorage.getItem('token')); // Start loading if we have a token to verify
   const [error, setError] = useState(null);
   
-  // Admin Date Filters
-  const [adminStartDate, setAdminStartDate] = useState('');
-  const [adminEndDate, setAdminEndDate] = useState('');
+  // Global Date Filters
+  const [datePreset, setDatePreset] = useState('all-time');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState('Overview');
+
+  // Department-Specific Date Filters
+  const [deptDatePreset, setDeptDatePreset] = useState('all-time');
+  const [deptStartDate, setDeptStartDate] = useState('');
+  const [deptEndDate, setDeptEndDate] = useState('');
 
   // Multi-view navigation and Color Themes
   const [currentView, setCurrentView] = useState('dashboard');
@@ -35,6 +41,15 @@ function App() {
   });
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [selectedMetrics, setSelectedMetrics] = useState([]);
+
+  useEffect(() => {
+    if (!isAdmin && data?.itemStats && data.itemStats.length > 0) {
+      // Auto-initialize to the top 4 checklist items
+      const defaultMetrics = data.itemStats.slice(0, 4).map(item => item.name);
+      setSelectedMetrics(defaultMetrics);
+    }
+  }, [data, isAdmin]);
 
   useEffect(() => {
     if (!user || !user.id) {
@@ -160,29 +175,126 @@ function App() {
     };
   }, []);
 
+  const getDatesForPreset = (preset) => {
+    if (preset === 'custom') {
+      return { start: '', end: '' };
+    }
+
+    const now = new Date();
+    let start = null;
+    let end = null;
+
+    switch (preset) {
+      case 'today':
+        start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+        break;
+      case 'yesterday':
+        const yesterday = new Date(now);
+        yesterday.setDate(now.getDate() - 1);
+        start = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
+        end = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 23, 59, 59, 999);
+        break;
+      case 'this-week': {
+        const day = now.getDay();
+        const diff = now.getDate() - day; 
+        start = new Date(now.getFullYear(), now.getMonth(), diff);
+        end = new Date(now.getFullYear(), now.getMonth(), diff + 6, 23, 59, 59, 999);
+        break;
+      }
+      case 'last-week': {
+        const day = now.getDay();
+        const diff = now.getDate() - day - 7;
+        start = new Date(now.getFullYear(), now.getMonth(), diff);
+        end = new Date(now.getFullYear(), now.getMonth(), diff + 6, 23, 59, 59, 999);
+        break;
+      }
+      case 'this-month':
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+        end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+        break;
+      case 'last-month':
+        start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+        break;
+      case 'this-year':
+        start = new Date(now.getFullYear(), 0, 1);
+        end = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
+        break;
+      case 'last-year':
+        start = new Date(now.getFullYear() - 1, 0, 1);
+        end = new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59, 999);
+        break;
+      default:
+        start = null;
+        end = null;
+    }
+
+    const formatDate = (d) => {
+      if (!d) return '';
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    };
+
+    return {
+      start: formatDate(start),
+      end: formatDate(end)
+    };
+  };
+
+  const handlePresetChange = (preset) => {
+    setDatePreset(preset);
+    if (preset === 'custom') {
+      return;
+    }
+    const { start, end } = getDatesForPreset(preset);
+    setStartDate(start);
+    setEndDate(end);
+  };
+
+  const handleDeptPresetChange = (preset) => {
+    setDeptDatePreset(preset);
+    if (preset === 'custom') {
+      return;
+    }
+    const { start, end } = getDatesForPreset(preset);
+    setDeptStartDate(start);
+    setDeptEndDate(end);
+  };
+
+  useEffect(() => {
+    // Reset department filters back to all-time when changing departments
+    setDeptDatePreset('all-time');
+    setDeptStartDate('');
+    setDeptEndDate('');
+  }, [selectedDepartment]);
+
   useEffect(() => {
     if (user && user.id) {
       fetchData();
     }
-  }, [isAdmin, user, adminStartDate, adminEndDate]);
+  }, [isAdmin, user, startDate, endDate]);
 
   const fetchData = async () => {
     if (!user || !user.id) return;
     setLoading(true);
     setError(null);
     try {
+      const params = {};
+      if (startDate) params.startDate = startDate;
+      if (endDate) params.endDate = endDate;
+
       if (isAdmin) {
-        // Pass date filters to admin API
-        const params = {};
-        if (adminStartDate) params.startDate = adminStartDate;
-        if (adminEndDate) params.endDate = adminEndDate;
-        
         const response = await axios.get(`${API_BASE}/insights/admin/summary`, {
           params
         });
         setData(response.data);
       } else {
-        const response = await axios.get(`${API_BASE}/insights/personal/${user.id}`);
+        const response = await axios.get(`${API_BASE}/insights/personal/${user.id}`, {
+          params
+        });
         setData(response.data);
       }
     } catch (err) {
@@ -271,7 +383,7 @@ function App() {
         setCurrentView={setCurrentView}
       />
 
-      <main className="flex-1 p-8 lg:p-12 z-10 overflow-y-auto">
+      <main className="flex-1 p-6 lg:p-8 z-10 overflow-y-auto">
         {currentView === 'settings' ? (
           <SettingsPage 
             user={user} 
@@ -282,22 +394,16 @@ function App() {
           <>
             {!isAdmin && <UserProfileHeader user={user} />}
             
-            <header className="mb-12">
-              <div className="flex justify-between items-center">
+            <header className="mb-8">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                  <h1 className="text-4xl lg:text-5xl font-bold tracking-tight">
+                  <h1 className="text-2xl lg:text-3xl font-extrabold tracking-tight">
                     {isAdmin ? 'Admin' : 'Performance'} <span className="text-accent">Insights</span>
                   </h1>
-                  <p className="text-text-muted mt-2 text-lg">
+                  <p className="text-text-muted mt-1 text-sm">
                     {isAdmin ? 'System-wide analytics overview.' : 'Your personalized checklist performance data.'}
                   </p>
                 </div>
-                {!isAdmin && (
-                  <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-2xl p-4 flex items-center gap-3">
-                    <Sparkles size={20} className="text-accent" />
-                    <span className="font-semibold text-sm">AI Insight Active</span>
-                  </div>
-                )}
               </div>
             </header>
 
@@ -316,7 +422,7 @@ function App() {
             ) : isAdmin ? (
               <div className="flex flex-col lg:flex-row gap-8">
                 {/* Admin Left Sidebar for Departments */}
-                <div className="w-full lg:w-64 shrink-0 bg-bg-card backdrop-blur-xl border border-glass-border rounded-[2rem] p-6 shadow-xl h-[500px] lg:h-[calc(100vh-12rem)] sticky top-32 flex flex-col overflow-hidden">
+                <div className="w-full lg:w-60 shrink-0 bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-4 shadow-xl h-[400px] lg:h-[calc(100vh-8rem)] sticky top-24 flex flex-col overflow-hidden">
                    <h3 className="text-sm font-bold text-white mb-4 text-center uppercase tracking-widest">Departments</h3>
                    <div className="overflow-y-auto pr-2 space-y-3 flex-1 custom-scrollbar">
                       <div 
@@ -339,43 +445,63 @@ function App() {
                 
                 {/* Main Admin Content Area */}
                 <div className="flex-1 w-full min-w-0">
-                   {selectedDepartment === 'Overview' ? (
+                    {selectedDepartment === 'Overview' ? (
                      <div className="space-y-12">
                        <DashboardSummary 
                          data={data} 
                          isAdmin={isAdmin} 
-                         adminStartDate={adminStartDate}
-                         setAdminStartDate={setAdminStartDate}
-                         adminEndDate={adminEndDate}
-                         setAdminEndDate={setAdminEndDate}
                          hideKPIs={false}
+                         datePreset={datePreset}
+                         startDate={startDate}
+                         endDate={endDate}
+                         handlePresetChange={handlePresetChange}
+                         setStartDate={setStartDate}
+                         setEndDate={setEndDate}
                        />
                        <InsightsChart data={data} isAdmin={isAdmin} />
                      </div>
                    ) : (
-                     <div className="space-y-12">
-                       <DashboardSummary 
-                         data={data} 
-                         isAdmin={isAdmin} 
-                         adminStartDate={adminStartDate}
-                         setAdminStartDate={setAdminStartDate}
-                         adminEndDate={adminEndDate}
-                         setAdminEndDate={setAdminEndDate}
-                         hideKPIs={true}
-                       />
-                       <DepartmentDashboard 
-                         department={selectedDepartment} 
-                         adminStartDate={adminStartDate} 
-                         adminEndDate={adminEndDate} 
-                       />
-                     </div>
+                      <div className="space-y-12">
+                        <DashboardSummary 
+                          data={data} 
+                          isAdmin={isAdmin} 
+                          hideKPIs={true}
+                          selectedDepartment={selectedDepartment}
+                          datePreset={deptDatePreset}
+                          startDate={deptStartDate}
+                          endDate={deptEndDate}
+                          handlePresetChange={handleDeptPresetChange}
+                          setStartDate={setDeptStartDate}
+                          setEndDate={setDeptEndDate}
+                        />
+                        <DepartmentDashboard 
+                          department={selectedDepartment} 
+                          adminStartDate={deptStartDate} 
+                          adminEndDate={deptEndDate} 
+                        />
+                      </div>
                    )}
                 </div>
               </div>
             ) : (
               <div className="space-y-12">
-                <DashboardSummary data={data} isAdmin={isAdmin} />
-                <InsightsChart data={data} isAdmin={isAdmin} />
+                <DashboardSummary 
+                  data={data} 
+                  isAdmin={isAdmin} 
+                  selectedMetrics={selectedMetrics}
+                  setSelectedMetrics={setSelectedMetrics}
+                  datePreset={datePreset}
+                  startDate={startDate}
+                  endDate={endDate}
+                  handlePresetChange={handlePresetChange}
+                  setStartDate={setStartDate}
+                  setEndDate={setEndDate}
+                />
+                <InsightsChart 
+                  data={data} 
+                  isAdmin={isAdmin} 
+                  selectedMetrics={selectedMetrics}
+                />
                 <ActivityExplorer user={user} />
               </div>
             )}
@@ -386,7 +512,7 @@ function App() {
       {/* Premium Sign Out Warning Modal (Perfect Screen Centering) */}
       {showLogoutConfirm && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-md">
-          <div className="bg-bg-card backdrop-blur-2xl border border-glass-border rounded-[2rem] p-8 max-w-md w-full shadow-2xl shadow-black/80">
+          <div className="bg-bg-card backdrop-blur-2xl border border-glass-border rounded-3xl p-6 max-w-md w-full shadow-2xl shadow-black/80">
             <div className="flex flex-col items-center text-center mb-6">
               <div className="w-12 h-12 rounded-2xl bg-danger/20 border border-danger/30 flex items-center justify-center text-danger mb-4 shrink-0">
                 <LogOut size={24} />

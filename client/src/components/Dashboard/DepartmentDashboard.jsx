@@ -56,56 +56,56 @@ const DepartmentDashboard = ({ department, adminStartDate, adminEndDate }) => {
   return (
     <div className="space-y-8 animate-fade-in">
       <div className="flex items-center justify-between mb-2">
-        <h2 className="text-3xl font-bold text-white capitalize">{department.replace(/_/g, ' ')}</h2>
+        <h2 className="text-xl font-bold text-white capitalize">{department.replace(/_/g, ' ')}</h2>
       </div>
 
       {/* KPI Cards Row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-[2rem] p-5 shadow-xl flex items-center justify-between gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-4 shadow-xl flex items-center justify-between gap-4">
           <div className="flex flex-col">
             <span className="text-text-muted text-xs font-bold uppercase tracking-widest mb-1">Submissions</span>
-            <h3 className="text-4xl font-black text-primary leading-none">{data.submissionsCount}</h3>
+            <h3 className="text-2xl font-black text-primary leading-none">{data.submissionsCount}</h3>
           </div>
-          <div className="text-primary opacity-80 p-3 bg-white/5 rounded-2xl border border-white/10">
-            <Book size={32} strokeWidth={1.5} />
+          <div className="text-primary opacity-80 p-2 bg-white/5 rounded-2xl border border-white/10">
+            <Book size={24} strokeWidth={1.5} />
           </div>
         </div>
 
         {data.topKPIs?.map((kpi, idx) => (
-          <div key={idx} className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-[2rem] p-5 shadow-xl flex items-center justify-between gap-4">
+          <div key={idx} className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-4 shadow-xl flex items-center justify-between gap-4">
             <div className="flex flex-col">
               <span className="text-text-muted text-xs font-bold uppercase tracking-widest mb-1 line-clamp-1" title={kpi.label}>{kpi.label}</span>
-              <h3 className="text-4xl font-black text-[#f59e0b] leading-none">{kpi.value}</h3>
+              <h3 className="text-2xl font-black text-[#f59e0b] leading-none">{kpi.value}</h3>
             </div>
-            <div className="text-[#f59e0b] opacity-80 p-3 bg-white/5 rounded-2xl border border-white/10">
-              <CheckCircle size={32} strokeWidth={1.5} />
+            <div className="text-[#f59e0b] opacity-80 p-2 bg-white/5 rounded-2xl border border-white/10">
+              <CheckCircle size={24} strokeWidth={1.5} />
             </div>
           </div>
         ))}
 
-        <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-[2rem] p-5 shadow-xl flex items-center justify-between gap-4">
+        <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-4 shadow-xl flex items-center justify-between gap-4">
           <div className="flex flex-col">
             <span className="text-text-muted text-xs font-bold uppercase tracking-widest mb-1">Latest Date</span>
-            <h3 className="text-lg font-black text-white leading-none mt-2">{formatDate(data.latestSubmissionDate)}</h3>
+            <h3 className="text-sm font-black text-white leading-none mt-2">{formatDate(data.latestSubmissionDate)}</h3>
           </div>
-          <div className="text-[#10b981] opacity-80 p-3 bg-white/5 rounded-2xl border border-white/10">
-            <Calendar size={32} strokeWidth={1.5} />
+          <div className="text-[#10b981] opacity-80 p-2 bg-white/5 rounded-2xl border border-white/10">
+            <Calendar size={24} strokeWidth={1.5} />
           </div>
         </div>
       </div>
 
       {/* Charts Row */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 h-[450px]">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 h-[380px]">
         {/* Checklist by Inputs */}
-        <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-[2rem] p-6 shadow-xl flex flex-col h-full">
-          <h3 className="text-lg font-bold text-white mb-6 text-center">Checklist by Inputs</h3>
+        <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-4 shadow-xl flex flex-col h-full">
+          <h3 className="text-base font-bold text-white mb-4 text-center">Checklist by Inputs</h3>
           <div className="flex-1 w-full min-h-0">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={data.checklistInputs} margin={{ top: 20, right: 30, left: 0, bottom: 40 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                 <XAxis 
                   dataKey="name" 
-                  stroke="var(--text-muted)" 
+                  stroke="var(--color-text-muted)" 
                   fontSize={10} 
                   tickLine={false} 
                   axisLine={false} 
@@ -131,8 +131,8 @@ const DepartmentDashboard = ({ department, adminStartDate, adminEndDate }) => {
         </div>
 
         {/* Submissions (Recent Months) */}
-        <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-[2rem] p-6 shadow-xl flex flex-col h-full">
-          <h3 className="text-lg font-bold text-white mb-6 text-center">Submissions (Recent Months)</h3>
+        <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-4 shadow-xl flex flex-col h-full">
+          <h3 className="text-base font-bold text-white mb-4 text-center">Submissions (Recent Months)</h3>
           <div className="flex-1 w-full min-h-0">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={data.recentMonths} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
@@ -143,7 +143,7 @@ const DepartmentDashboard = ({ department, adminStartDate, adminEndDate }) => {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} />
+                <XAxis dataKey="name" stroke="var(--color-text-muted)" fontSize={11} tickLine={false} axisLine={false} minTickGap={30} />
                 <YAxis stroke="#fff" fontSize={11} tickLine={false} axisLine={false} />
                 <RechartsTooltip 
                   contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }}

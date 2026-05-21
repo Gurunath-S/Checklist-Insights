@@ -34,41 +34,41 @@ const LoginPage = ({ onLoginSuccess, onMicrosoftLoginSuccess, onLoginError }) =>
       <div className="blob-2"></div>
       <div className="stars-overlay"></div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-24 w-full max-w-7xl px-8 items-center z-10">
+      <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-12 w-full max-w-6xl px-8 items-center z-10">
         {/* Left Side: Brand & Value Prop */}
         <div className="animate-[slideInLeft_0.8s_cubic-bezier(0.23,1,0.32,1)]">
-          <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 px-4 py-2 rounded-full text-sm font-semibold text-primary mb-8">
+          <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 px-3 py-1 rounded-full text-xs font-semibold text-primary mb-6">
             <Sparkles size={14} />
             <span>Next-Gen Analytics Platform</span>
           </div>
           
-          <h1 className="text-6xl lg:text-7xl font-extrabold leading-[1.1] tracking-tight text-white mb-8">
+          <h1 className="text-4xl lg:text-5xl font-extrabold leading-[1.1] tracking-tight text-white mb-6">
             Unlock the Power of <br />
             <span className="text-gradient">Checklist Genie</span>
           </h1>
           
-          <p className="text-xl leading-relaxed text-text-muted max-w-lg mb-14">
+          <p className="text-base leading-relaxed text-text-muted max-w-md mb-8">
             Transform your manual checklists into actionable insights. 
             Automate tracking, identify trends, and boost team performance with 
             AI-powered analytics.
           </p>
 
-          <div className="flex flex-col gap-8">
-            <div className="flex items-center gap-6">
-              <div className="w-12 h-12 bg-white/5 border border-glass-border rounded-2xl flex items-center justify-center text-accent shadow-xl shadow-accent/5">
-                <BarChart3 size={20} />
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 bg-white/5 border border-glass-border rounded-xl flex items-center justify-center text-accent shadow-xl shadow-accent/5">
+                <BarChart3 size={18} />
               </div>
               <div>
-                <h4 className="text-lg font-semibold text-white mb-1">Smart Visualization</h4>
+                <h4 className="text-base font-semibold text-white mb-1">Smart Visualization</h4>
                 <p className="text-sm text-text-muted">Interactive charts that tell your data's story.</p>
               </div>
             </div>
-            <div className="flex items-center gap-6">
-              <div className="w-12 h-12 bg-white/5 border border-glass-border rounded-2xl flex items-center justify-center text-accent shadow-xl shadow-accent/5">
-                <Zap size={20} />
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 bg-white/5 border border-glass-border rounded-xl flex items-center justify-center text-accent shadow-xl shadow-accent/5">
+                <Zap size={18} />
               </div>
               <div>
-                <h4 className="text-lg font-semibold text-white mb-1">Real-time Tracking</h4>
+                <h4 className="text-base font-semibold text-white mb-1">Real-time Tracking</h4>
                 <p className="text-sm text-text-muted">Instant updates on every checklist submission.</p>
               </div>
             </div>
@@ -76,19 +76,19 @@ const LoginPage = ({ onLoginSuccess, onMicrosoftLoginSuccess, onLoginError }) =>
         </div>
 
         {/* Right Side: Login Card */}
-        <div className="bg-slate-900/40 backdrop-blur-[40px] border border-white/10 rounded-[3.5rem] p-16 shadow-2xl shadow-black/50 text-center animate-[slideInRight_0.8s_cubic-bezier(0.23,1,0.32,1)]">
-          <div className="mb-12">
-            <div className="w-16 h-16 bg-linear-to-br from-primary to-accent rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-xl shadow-primary/30">
-              <ShieldCheck size={32} className="text-white" />
+        <div className="bg-slate-900/40 backdrop-blur-[40px] border border-white/10 rounded-3xl p-8 lg:p-10 shadow-2xl shadow-black/50 text-center animate-[slideInRight_0.8s_cubic-bezier(0.23,1,0.32,1)]">
+          <div className="mb-8">
+            <div className="w-12 h-12 bg-linear-to-br from-primary to-accent rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-xl shadow-primary/30">
+              <ShieldCheck size={24} className="text-white" />
             </div>
-            <h3 className="text-3xl font-bold text-white mb-2">Get Started</h3>
+            <h3 className="text-2xl font-bold text-white mb-1">Get Started</h3>
             <p className="text-text-muted">Experience the future of reporting</p>
           </div>
 
           <div className="flex flex-col gap-4 mb-4">
             <button 
               onClick={() => loginWithGoogle()}
-              className="w-full flex items-center justify-center gap-3 px-6 py-3.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full transition-all duration-300 group shadow-lg"
+              className="w-full flex items-center justify-center gap-3 px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full transition-all duration-300 group shadow-lg"
             >
               <svg className="w-5 h-5" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.7 17.74 9.5 24 9.5z"/>
@@ -102,7 +102,7 @@ const LoginPage = ({ onLoginSuccess, onMicrosoftLoginSuccess, onLoginError }) =>
 
             <button 
               onClick={handleMicrosoftLogin}
-              className="w-full flex items-center justify-center gap-3 px-6 py-3.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full transition-all duration-300 group shadow-lg"
+              className="w-full flex items-center justify-center gap-3 px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full transition-all duration-300 group shadow-lg"
             >
               <svg className="w-5 h-5" viewBox="0 0 23 23" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M0 0H10.8V10.8H0V0Z" fill="#F25022"/>
@@ -114,13 +114,13 @@ const LoginPage = ({ onLoginSuccess, onMicrosoftLoginSuccess, onLoginError }) =>
             </button>
           </div>
 
-          <div className="mt-8 flex items-center gap-4 text-white/20">
+          <div className="mt-6 flex items-center gap-4 text-white/20">
             <div className="flex-1 h-px bg-current"></div>
             <span className="text-xs uppercase tracking-widest font-bold">Secure Access</span>
             <div className="flex-1 h-px bg-current"></div>
           </div>
 
-          <div className="pt-8">
+          <div className="pt-6">
             <div className="flex items-center justify-center gap-2 text-success text-sm font-semibold">
               <CheckCircle2 size={14} />
               <span>Enterprise Grade Security</span>
