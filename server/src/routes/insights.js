@@ -262,13 +262,43 @@ router.get('/admin/department/:department', authenticateToken, async (req, res) 
     const { department } = req.params;
     const { startDate, endDate } = req.query;
 
-    let query = `
+    let dateFilterSql = '';
+    const queryParams = [department];
+
+    if (startDate) {
+      dateFilterSql += ` AND r.created_at >= ?`;
+      queryParams.push(new Date(startDate));
+    }
+    if (endDate) {
+      dateFilterSql += ` AND r.created_at <= ?`;
+      queryParams.push(new Date(endDate));
+    }
+
+    const summaryQuery = `
       SELECT 
-        ci.checklist_name,
-        ci.input_type,
-        r.input,
-        r.created_at,
-        r.status
+        COUNT(r.id) AS submissionsCount,
+        MAX(r.created_at) AS latestSubmissionDate
+      FROM checklist_item_response r
+      JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+      JOIN checklist_template_version v ON li.template_version_id = v.version_id
+      JOIN checklist_template ct ON v.checklist_template_id = ct.id
+      JOIN tags t ON ct.tag_id = t.id
+      WHERE t.user_position = ?
+      ${dateFilterSql}
+    `;
+
+    const inputsQuery = `
+      SELECT 
+        ci.checklist_name AS name,
+        ci.input_type AS type,
+        SUM(CASE 
+          WHEN ci.input_type = 'Numeric' THEN CAST(COALESCE(NULLIF(r.input, ''), '0') AS DECIMAL(10,2))
+          ELSE 0 
+        END) AS numeric_sum,
+        SUM(CASE 
+          WHEN ci.input_type = 'Boolean' AND (r.input = 'Yes' OR r.input = '1' OR r.input = 'true' OR r.status = 1) THEN 1
+          ELSE 0 
+        END) AS boolean_count
       FROM checklist_item_response r
       JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
       JOIN checklist_items ci ON li.checklist_item_id = ci.id
@@ -276,65 +306,47 @@ router.get('/admin/department/:department', authenticateToken, async (req, res) 
       JOIN checklist_template ct ON v.checklist_template_id = ct.id
       JOIN tags t ON ct.tag_id = t.id
       WHERE t.user_position = ?
+      ${dateFilterSql}
+      GROUP BY ci.checklist_name, ci.input_type
     `;
-    const queryParams = [department];
 
-    if (startDate) {
-      query += ` AND r.created_at >= ?`;
-      queryParams.push(new Date(startDate));
-    }
-    if (endDate) {
-      query += ` AND r.created_at <= ?`;
-      queryParams.push(new Date(endDate));
-    }
+    const trendQuery = `
+      SELECT 
+        DATE_FORMAT(r.created_at, '%b %Y') AS name,
+        COUNT(r.id) AS submissions,
+        DATE_FORMAT(r.created_at, '%Y-%m') AS sortKey
+      FROM checklist_item_response r
+      JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+      JOIN checklist_template_version v ON li.template_version_id = v.version_id
+      JOIN checklist_template ct ON v.checklist_template_id = ct.id
+      JOIN tags t ON ct.tag_id = t.id
+      WHERE t.user_position = ?
+      ${dateFilterSql}
+      GROUP BY DATE_FORMAT(r.created_at, '%b %Y'), DATE_FORMAT(r.created_at, '%Y-%m')
+      ORDER BY sortKey ASC
+    `;
 
-    const responses = await prisma.$queryRawUnsafe(query, ...queryParams);
+    const [summaryResult, inputsResult, trendResult] = await Promise.all([
+      prisma.$queryRawUnsafe(summaryQuery, ...queryParams),
+      prisma.$queryRawUnsafe(inputsQuery, ...queryParams),
+      prisma.$queryRawUnsafe(trendQuery, ...queryParams)
+    ]);
 
-    let submissionsCount = responses.length;
-    let latestSubmissionDate = null;
-    let inputsAggregation = {};
-    let monthsAggregation = {};
+    const submissionsCount = Number(summaryResult[0]?.submissionsCount || 0);
+    const latestSubmissionDate = summaryResult[0]?.latestSubmissionDate || null;
 
-    responses.forEach(r => {
-       if (!latestSubmissionDate || new Date(r.created_at) > latestSubmissionDate) {
-         latestSubmissionDate = new Date(r.created_at);
-       }
-       
-       const name = r.checklist_name;
-       if (!inputsAggregation[name]) inputsAggregation[name] = 0;
-       
-       if (r.input_type === 'Numeric') {
-         inputsAggregation[name] += parseFloat(r.input) || 0;
-       } else {
-         const isChecked = r.input === 'Yes' || r.input === '1' || r.input === 'true' || r.status === true || r.status === 1;
-         if (isChecked) {
-           inputsAggregation[name] += 1;
-         }
-       }
+    const checklistInputs = inputsResult.map(row => {
+      const value = row.type === 'Numeric' ? Number(row.numeric_sum) : Number(row.boolean_count);
+      return {
+        name: row.name,
+        value
+      };
+    }).sort((a, b) => b.value - a.value);
 
-       const dateObj = new Date(r.created_at);
-       const monthYear = dateObj.toLocaleString('default', { month: 'short', year: 'numeric' });
-       const sortKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
-       
-       if (!monthsAggregation[monthYear]) {
-         monthsAggregation[monthYear] = { count: 0, sortKey };
-       }
-       monthsAggregation[monthYear].count += 1;
-    });
-
-    const checklistInputs = Object.keys(inputsAggregation).map(name => ({
-      name,
-      value: inputsAggregation[name]
-    })).sort((a,b) => b.value - a.value);
-
-    const recentMonths = Object.keys(monthsAggregation)
-      .map(month => ({
-        name: month,
-        submissions: monthsAggregation[month].count,
-        sortKey: monthsAggregation[month].sortKey
-      }))
-      .sort((a, b) => a.sortKey.localeCompare(b.sortKey))
-      .map(({ sortKey, ...rest }) => rest);
+    const recentMonths = trendResult.map(row => ({
+      name: row.name,
+      submissions: Number(row.submissions)
+    }));
 
     const topKPIs = checklistInputs.slice(0, 3).map(input => ({
       label: input.name,
