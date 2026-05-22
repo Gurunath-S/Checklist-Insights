@@ -161,6 +161,100 @@ router.get('/personal/:userId', authenticateToken, async (req, res) => {
   }
 });
 
+// Paginated Chart Data for User
+router.get('/personal/:userId/chart-data', authenticateToken, async (req, res) => {
+  const userId = parseInt(req.params.userId);
+  const authUserId = parseInt(req.user.userId);
+
+  if (authUserId !== userId) {
+    return res.status(403).json({ error: 'Unauthorized access to data' });
+  }
+
+  try {
+    const { startDate, endDate, page = 1, limit = 10 } = req.query;
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const offset = (pageNum - 1) * limitNum;
+
+    let query = `
+      SELECT 
+        ci.checklist_name AS name,
+        ci.input_type AS type,
+        SUM(CASE 
+          WHEN ci.input_type = 'Numeric' THEN CAST(COALESCE(NULLIF(r.input, ''), '0') AS DECIMAL(10,2))
+          ELSE 0 
+        END) AS numeric_sum,
+        SUM(CASE 
+          WHEN ci.input_type = 'Boolean' AND (r.input = 'Yes' OR r.input = '1' OR r.input = 'true' OR r.status = 1) THEN 1
+          ELSE 0 
+        END) AS boolean_count
+      FROM checklist_item_response r
+      JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+      JOIN checklist_items ci ON li.checklist_item_id = ci.id
+      WHERE r.organisation_user_id = ?
+    `;
+    const queryParams = [userId];
+
+    if (startDate) {
+      query += ` AND r.created_at >= ?`;
+      queryParams.push(new Date(startDate));
+    }
+    if (endDate) {
+      query += ` AND r.created_at <= ?`;
+      queryParams.push(new Date(endDate));
+    }
+    query += ` GROUP BY ci.checklist_name, ci.input_type`;
+
+    const paginatedQuery = `
+      SELECT * FROM (${query}) as sub
+      ORDER BY 
+        CASE WHEN type = 'Numeric' THEN numeric_sum ELSE boolean_count END DESC
+      LIMIT ? OFFSET ?
+    `;
+    
+    const countQuery = `
+      SELECT COUNT(*) as total FROM (
+        SELECT ci.checklist_name 
+        FROM checklist_item_response r
+        JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+        JOIN checklist_items ci ON li.checklist_item_id = ci.id
+        WHERE r.organisation_user_id = ?
+        ${startDate ? ' AND r.created_at >= ?' : ''}
+        ${endDate ? ' AND r.created_at <= ?' : ''}
+        GROUP BY ci.checklist_name, ci.input_type
+      ) as sub
+    `;
+    
+    const countParams = [userId];
+    if (startDate) countParams.push(new Date(startDate));
+    if (endDate) countParams.push(new Date(endDate));
+
+    const [paginatedStats, totalResult] = await Promise.all([
+      prisma.$queryRawUnsafe(paginatedQuery, ...queryParams, limitNum, offset),
+      prisma.$queryRawUnsafe(countQuery, ...countParams)
+    ]);
+
+    const total = Number(totalResult[0]?.total || 0);
+
+    const data = paginatedStats.map(row => {
+      const name = row.name;
+      const type = row.type;
+      const value = type === 'Numeric' ? Number(row.numeric_sum) : Number(row.boolean_count);
+      return { name, value, type };
+    });
+
+    res.json({
+      data,
+      total,
+      page: pageNum,
+      totalPages: Math.ceil(total / limitNum)
+    });
+  } catch (error) {
+    console.error('Personal insights chart-data error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 // Admin Insights Summary
 router.get('/admin/summary', authenticateToken, async (req, res) => {
   try {

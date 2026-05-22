@@ -12,7 +12,7 @@
   --color-danger: var(--color-danger);
   --color-success: var(--color-success);
   --color-glass-border: var(--color-glass-border);
-  
+
   --width-sidebar: 240px;
   --font-outfit: "Outfit", "Inter", sans-serif;
 }
@@ -34,26 +34,36 @@
 }
 
 [data-theme="genie"] {
-  --color-primary: #d946ef; /* Magical Pink/Magenta */
+  --color-primary: #d946ef;
+  /* Magical Pink/Magenta */
   --color-primary-glow: rgba(217, 70, 239, 0.45);
-  --color-bg-dark: #080315; /* Deep Indigo Magical Night */
+  --color-bg-dark: #080315;
+  /* Deep Indigo Magical Night */
   --color-bg-card: rgba(20, 10, 36, 0.65);
-  --color-text-main: #fffbeb; /* Warm golden white */
-  --color-text-muted: #a78bfa; /* Soft Lavender */
-  --color-accent: #fbbf24; /* Lamp Gold */
+  --color-text-main: #fffbeb;
+  /* Warm golden white */
+  --color-text-muted: #a78bfa;
+  /* Soft Lavender */
+  --color-accent: #fbbf24;
+  /* Lamp Gold */
   --color-accent-glow: rgba(251, 191, 36, 0.35);
   --color-glass-border: rgba(167, 139, 250, 0.18);
   --gradient-main: linear-gradient(135deg, #ffe082 0%, #d946ef 50%, #fbbf24 100%);
 }
 
 [data-theme="sapphire"] {
-  --color-primary: #3b82f6; /* Electric Sapphire */
+  --color-primary: #3b82f6;
+  /* Electric Sapphire */
   --color-primary-glow: rgba(59, 130, 246, 0.4);
-  --color-bg-dark: #030712; /* Deep Navy Midnight */
+  --color-bg-dark: #030712;
+  /* Deep Navy Midnight */
   --color-bg-card: rgba(11, 22, 51, 0.65);
-  --color-text-main: #f1f5f9; /* Ice White */
-  --color-text-muted: #94a3b8; /* Cool Slate */
-  --color-accent: #06b6d4; /* Electric Cyan */
+  --color-text-main: #f1f5f9;
+  /* Ice White */
+  --color-text-muted: #94a3b8;
+  /* Cool Slate */
+  --color-accent: #06b6d4;
+  /* Electric Cyan */
   --color-accent-glow: rgba(6, 182, 212, 0.35);
   --color-glass-border: rgba(59, 130, 246, 0.15);
   --gradient-main: linear-gradient(135deg, #00f2fe 0%, #4f46e5 50%, #3b82f6 100%);
@@ -73,7 +83,7 @@
 }
 
 /* Light Theme Visibility Overrides */
-[data-theme="light"] .text-white, 
+[data-theme="light"] .text-white,
 [data-theme="light"] .text-white\/80 {
   color: var(--color-text-main) !important;
 }
@@ -124,7 +134,7 @@
   border-color: var(--color-glass-border) !important;
 }
 
-[data-theme="light"] .divide-white\/5 > :not([hidden]) ~ :not([hidden]) {
+[data-theme="light"] .divide-white\/5> :not([hidden])~ :not([hidden]) {
   border-color: var(--color-glass-border) !important;
 }
 
@@ -200,42 +210,70 @@
 /* Premium Background & Effects */
 .mesh-gradient {
   @apply fixed top-0 left-0 w-screen h-screen -z-10 opacity-40 transition-all duration-500;
-  background-image: 
-    radial-gradient(at 0% 0%, var(--color-bg-dark) 0, transparent 50%), 
-    radial-gradient(at 50% 0%, var(--color-primary-glow) 0, transparent 50%), 
+  background-image:
+    radial-gradient(at 0% 0%, var(--color-bg-dark) 0, transparent 50%),
+    radial-gradient(at 50% 0%, var(--color-primary-glow) 0, transparent 50%),
     radial-gradient(at 100% 0%, var(--color-accent-glow) 0, transparent 50%);
 }
 
 .stars-overlay {
   @apply fixed top-0 left-0 w-full h-full opacity-10 -z-10;
-  background-image: radial-gradient(1px 1px at 20px 30px, var(--color-text-main), rgba(0,0,0,0)),
-                    radial-gradient(1px 1px at 40px 70px, var(--color-text-main), rgba(0,0,0,0)),
-                    radial-gradient(1px 1px at 50px 160px, var(--color-text-main), rgba(0,0,0,0));
+  background-image: radial-gradient(1px 1px at 20px 30px, var(--color-text-main), rgba(0, 0, 0, 0)),
+    radial-gradient(1px 1px at 40px 70px, var(--color-text-main), rgba(0, 0, 0, 0)),
+    radial-gradient(1px 1px at 50px 160px, var(--color-text-main), rgba(0, 0, 0, 0));
   background-size: 200px 200px;
 }
 
 @keyframes move {
-  from { transform: translate(0, 0) scale(1); }
-  to { transform: translate(150px, 100px) scale(1.1); }
+  from {
+    transform: translate(0, 0) scale(1);
+  }
+
+  to {
+    transform: translate(150px, 100px) scale(1.1);
+  }
 }
 
 @keyframes shimmer {
-  to { left: 100%; }
+  to {
+    left: 100%;
+  }
 }
 
 @keyframes slideInLeft {
-  from { opacity: 0; transform: translateX(-60px); }
-  to { opacity: 1; transform: translateX(0); }
+  from {
+    opacity: 0;
+    transform: translateX(-60px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 @keyframes slideInRight {
-  from { opacity: 0; transform: translateX(60px); }
-  to { opacity: 1; transform: translateX(0); }
+  from {
+    opacity: 0;
+    transform: translateX(60px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .text-gradient {

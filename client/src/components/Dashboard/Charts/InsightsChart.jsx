@@ -1,11 +1,51 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
   BarChart, Bar, Cell, PieChart, Pie
 } from 'recharts';
-import { Activity } from 'lucide-react';
+import { Activity, ChevronDown, BarChart2, LineChart, List } from 'lucide-react';
 
-const InsightsChart = ({ data, isAdmin, selectedMetrics = [] }) => {
+const InsightsChart = ({ data, isAdmin, selectedMetrics = [], user, startDate, endDate }) => {
+  const [activeChart, setActiveChart] = useState('checklist');
+  const [isChartDropdownOpen, setIsChartDropdownOpen] = useState(false);
+  const [isLimitDropdownOpen, setIsLimitDropdownOpen] = useState(false);
+  
+  // Pagination State
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [chartData, setChartData] = useState([]);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loadingChart, setLoadingChart] = useState(false);
+
+  useEffect(() => {
+    if (isAdmin || activeChart !== 'checklist' || !user?.id) return;
+    
+    const fetchChartData = async () => {
+      setLoadingChart(true);
+      try {
+        const token = localStorage.getItem('token');
+        const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
+        const params = { page, limit };
+        if (startDate) params.startDate = startDate;
+        if (endDate) params.endDate = endDate;
+        
+        const res = await axios.get(`${API_BASE}/insights/personal/${user.id}/chart-data`, {
+          headers: { Authorization: `Bearer ${token}` },
+          params
+        });
+        setChartData(res.data.data || []);
+        setTotalPages(res.data.totalPages || 1);
+      } catch (err) {
+        console.error('Error fetching paginated chart data:', err);
+      } finally {
+        setLoadingChart(false);
+      }
+    };
+    
+    fetchChartData();
+  }, [activeChart, page, limit, startDate, endDate, user?.id, isAdmin]);
+
   if (isAdmin) {
     const COLORS = ['#6366f1', '#ec4899', '#8b5cf6', '#14b8a6', '#f59e0b', '#ef4444', '#3b82f6', '#10b981'];
     
@@ -126,44 +166,177 @@ const InsightsChart = ({ data, isAdmin, selectedMetrics = [] }) => {
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-[1.5fr_1fr] gap-6">
-      {/* Line Chart with Area Fill */}
-      <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-6 h-[380px] min-h-[380px] shadow-2xl shadow-black/10 flex flex-col">
-        <h3 className="text-lg font-bold text-white mb-4">Work done (Weekly Submissions)</h3>
+      {/* Toggleable Chart: Checklist by Inputs / Weekly Submissions */}
+      <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-6 h-[380px] min-h-[380px] shadow-2xl shadow-black/10 flex flex-col relative">
+        <div className="flex justify-between items-center mb-4">
+          <div className="relative">
+            <button 
+              onClick={() => setIsChartDropdownOpen(!isChartDropdownOpen)}
+              className="flex items-center gap-2 px-3 py-1.5 bg-bg-card backdrop-blur-xl border border-glass-border rounded-xl text-[12px] font-bold text-white shadow-lg hover:bg-white/10 transition-all active:scale-95 cursor-pointer"
+            >
+              {activeChart === 'checklist' ? <BarChart2 size={14} className="text-accent" /> : <LineChart size={14} className="text-accent" />}
+              <span>{activeChart === 'checklist' ? 'Checklist by Inputs' : 'Work done (Weekly Submissions)'}</span>
+              <ChevronDown size={14} className={`transition-transform duration-300 ${isChartDropdownOpen ? 'rotate-180' : ''}`} />
+            </button>
+            
+            {isChartDropdownOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setIsChartDropdownOpen(false)}></div>
+                <div className="absolute left-0 mt-2 w-64 bg-bg-card backdrop-blur-2xl border border-glass-border rounded-2xl p-2 shadow-2xl z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="text-[10px] font-bold text-white/40 px-2.5 py-1.5 uppercase tracking-wider border-b border-glass-border/30 mb-1">
+                    Select Chart
+                  </div>
+                  <button
+                    onClick={() => { setActiveChart('checklist'); setIsChartDropdownOpen(false); }}
+                    className={`w-full text-left px-2.5 py-2 rounded-xl text-xs transition-colors flex items-center gap-2 ${activeChart === 'checklist' ? 'bg-primary/10 text-white font-semibold' : 'text-text-muted hover:bg-white/5 hover:text-white'}`}
+                  >
+                    <BarChart2 size={14} />
+                    <span>Checklist by Inputs</span>
+                  </button>
+                  <button
+                    onClick={() => { setActiveChart('work'); setIsChartDropdownOpen(false); }}
+                    className={`w-full text-left px-2.5 py-2 rounded-xl text-xs transition-colors flex items-center gap-2 ${activeChart === 'work' ? 'bg-primary/10 text-white font-semibold' : 'text-text-muted hover:bg-white/5 hover:text-white'}`}
+                  >
+                    <LineChart size={14} />
+                    <span>Work done (Weekly Submissions)</span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+          
+          {activeChart === 'checklist' && (
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <button 
+                  onClick={() => setIsLimitDropdownOpen(!isLimitDropdownOpen)}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-bg-card backdrop-blur-xl border border-glass-border rounded-xl text-[11px] font-bold text-white shadow-lg hover:bg-white/10 transition-all active:scale-95 cursor-pointer"
+                >
+                  <List size={12} className="text-accent" />
+                  <span>Top {limit}</span>
+                  <ChevronDown size={12} className={`transition-transform duration-300 ${isLimitDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+                
+                {isLimitDropdownOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setIsLimitDropdownOpen(false)}></div>
+                    <div className="absolute right-0 mt-2 w-32 bg-bg-card backdrop-blur-2xl border border-glass-border rounded-2xl p-2 shadow-2xl z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                      <div className="text-[10px] font-bold text-white/40 px-2.5 py-1.5 uppercase tracking-wider border-b border-glass-border/30 mb-1">
+                        Show Rows
+                      </div>
+                      {[5, 10, 20, 50].map((val) => (
+                        <button
+                          key={val}
+                          onClick={() => { setLimit(val); setPage(1); setIsLimitDropdownOpen(false); }}
+                          className={`w-full text-left px-2.5 py-1.5 rounded-xl text-xs transition-colors flex items-center justify-between ${limit === val ? 'bg-primary/10 text-white font-semibold' : 'text-text-muted hover:bg-white/5 hover:text-white'}`}
+                        >
+                          <span>Top {val}</span>
+                          {limit === val && <div className="w-1.5 h-1.5 rounded-full bg-accent"></div>}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+              
+              <div className="flex items-center gap-1 bg-bg-card backdrop-blur-xl border border-glass-border rounded-xl px-1 py-1 shadow-lg">
+                <button 
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  className="px-2 py-0.5 text-xs font-bold text-white disabled:opacity-30 hover:bg-white/10 rounded-lg cursor-pointer transition-all"
+                >
+                  &lt;
+                </button>
+                <span className="text-[10px] font-bold px-1 text-white/70 min-w-[36px] text-center">
+                  {page} / {totalPages || 1}
+                </span>
+                <button 
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages}
+                  className="px-2 py-0.5 text-xs font-bold text-white disabled:opacity-30 hover:bg-white/10 rounded-lg cursor-pointer transition-all"
+                >
+                  &gt;
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+        
         <div className="flex-1 w-full min-h-0">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data?.performanceTrend || [
-              { week: 'Nov 2025', points: 4 },
-              { week: 'Dec 2025', points: 12 },
-              { week: 'Jan 2026', points: 8 },
-              { week: 'Feb 2026', points: 5 },
-              { week: 'Mar 2026', points: 11 },
-              { week: 'Apr 2026', points: 3 },
-            ]}>
-              <defs>
-                <linearGradient id="colorPoints" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4}/>
-                  <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-              <XAxis dataKey="week" stroke="var(--color-text-muted)" fontSize={10} tickLine={false} axisLine={false} minTickGap={30} />
-              <YAxis hide />
-              <RechartsTooltip 
-                contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }}
-                formatter={(value) => [value, 'Submissions']}
-              />
-              <Area 
-                type="monotone" 
-                dataKey="points" 
-                stroke="#6366f1" 
-                strokeWidth={4}
-                fillOpacity={1} 
-                fill="url(#colorPoints)" 
-                dot={{ r: 4, fill: '#6366f1', strokeWidth: 2, stroke: '#fff' }}
-                activeDot={{ r: 6, fill: '#fff', strokeWidth: 0 }}
-                label={{ position: 'top', fill: '#fff', fontSize: 12, fontWeight: 'bold', offset: 10 }}
-              />
-            </AreaChart>
+            {activeChart === 'work' ? (
+              <AreaChart data={data?.performanceTrend || [
+                { week: 'Nov 2025', points: 4 },
+                { week: 'Dec 2025', points: 12 },
+                { week: 'Jan 2026', points: 8 },
+                { week: 'Feb 2026', points: 5 },
+                { week: 'Mar 2026', points: 11 },
+                { week: 'Apr 2026', points: 3 },
+              ]}>
+                <defs>
+                  <linearGradient id="colorPoints" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4}/>
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                <XAxis dataKey="week" stroke="var(--color-text-muted)" fontSize={10} tickLine={false} axisLine={false} minTickGap={30} />
+                <YAxis hide />
+                <RechartsTooltip 
+                  contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }}
+                  formatter={(value) => [value, 'Submissions']}
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="points" 
+                  stroke="#6366f1" 
+                  strokeWidth={4}
+                  fillOpacity={1} 
+                  fill="url(#colorPoints)" 
+                  dot={{ r: 4, fill: '#6366f1', strokeWidth: 2, stroke: '#fff' }}
+                  activeDot={{ r: 6, fill: '#fff', strokeWidth: 0 }}
+                  label={{ position: 'top', fill: '#fff', fontSize: 12, fontWeight: 'bold', offset: 10 }}
+                />
+              </AreaChart>
+            ) : loadingChart ? (
+              <div className="w-full h-full flex flex-col items-center justify-center text-text-muted">
+                <Activity size={32} className="opacity-30 animate-pulse text-primary mb-2" />
+                <span className="text-xs font-bold">Loading Data...</span>
+              </div>
+            ) : chartData.length === 0 ? (
+              <div className="w-full h-full flex items-center justify-center text-text-muted text-xs">
+                No data available for this range.
+              </div>
+            ) : (
+              <BarChart 
+                data={chartData} 
+                margin={{ top: 20, right: 30, left: 0, bottom: 40 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                <XAxis 
+                  dataKey="name" 
+                  stroke="var(--color-text-muted)" 
+                  fontSize={10} 
+                  tickLine={false} 
+                  axisLine={false} 
+                  angle={-45}
+                  textAnchor="end"
+                  interval={0}
+                  tickFormatter={(val) => val.length > 15 ? val.substring(0, 15) + '...' : val}
+                />
+                <YAxis stroke="#fff" fontSize={11} tickLine={false} axisLine={false} />
+                <RechartsTooltip 
+                  contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)' }}
+                  itemStyle={{ color: '#fff' }}
+                  cursor={{fill: 'rgba(255,255,255,0.05)'}}
+                />
+                <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={40}>
+                  {chartData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={index === 0 && page === 1 ? '#f59e0b' : '#3b82f6'} />
+                  ))}
+                </Bar>
+              </BarChart>
+            )}
           </ResponsiveContainer>
         </div>
       </div>

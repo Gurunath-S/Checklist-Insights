@@ -458,7 +458,7 @@ function App() {
                          setStartDate={setStartDate}
                          setEndDate={setEndDate}
                        />
-                       <InsightsChart data={data} isAdmin={isAdmin} />
+                       <InsightsChart data={data} isAdmin={isAdmin} user={user} startDate={startDate} endDate={endDate} />
                      </div>
                    ) : (
                       <div className="space-y-12">
@@ -501,6 +501,9 @@ function App() {
                   data={data} 
                   isAdmin={isAdmin} 
                   selectedMetrics={selectedMetrics}
+                  user={user}
+                  startDate={startDate}
+                  endDate={endDate}
                 />
                 <ActivityExplorer user={user} />
               </div>
