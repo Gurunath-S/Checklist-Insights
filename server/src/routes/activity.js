@@ -9,7 +9,12 @@ router.get('/templates/:userId', authenticateToken, async (req, res) => {
   const userId = parseInt(req.params.userId);
   if (req.user.userId !== userId) return res.status(403).json({ error: 'Unauthorized' });
   try {
-    const rows = await prisma.$queryRaw`
+    const { page = 1, limit = 5, startDate, endDate } = req.query;
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const offset = (pageNum - 1) * limitNum;
+
+    let dataQuery = `
       SELECT
         ct.id              AS template_id,
         ct.template_name,
@@ -23,17 +28,67 @@ router.get('/templates/:userId', authenticateToken, async (req, res) => {
         ON li.template_version_id = v.version_id
       JOIN checklist_template ct
         ON v.checklist_template_id = ct.id
-      WHERE cir.organisation_user_id = ${userId}
+      WHERE cir.organisation_user_id = ?
+    `;
+
+    const queryParams = [userId];
+    const countParams = [userId];
+
+    if (startDate) {
+      dataQuery += ` AND cir.created_at >= ?`;
+      queryParams.push(new Date(startDate));
+      countParams.push(new Date(startDate));
+    }
+    if (endDate) {
+      dataQuery += ` AND cir.created_at <= ?`;
+      queryParams.push(new Date(endDate));
+      countParams.push(new Date(endDate));
+    }
+
+    dataQuery += `
       GROUP BY ct.id, ct.template_name
       ORDER BY last_submitted DESC
+      LIMIT ? OFFSET ?
     `;
-    res.json(rows.map(r => ({
+
+    const countQuery = `
+      SELECT COUNT(*) as total FROM (
+        SELECT ct.id
+        FROM checklist_item_response cir
+        JOIN checklist_template_linked_items li
+          ON cir.checklist_template_linked_items_id = li.id
+        JOIN checklist_template_version v
+          ON li.template_version_id = v.version_id
+        JOIN checklist_template ct
+          ON v.checklist_template_id = ct.id
+        WHERE cir.organisation_user_id = ?
+        ${startDate ? ' AND cir.created_at >= ?' : ''}
+        ${endDate ? ' AND cir.created_at <= ?' : ''}
+        GROUP BY ct.id
+      ) sub
+    `;
+
+    const [rows, totalResult] = await Promise.all([
+      prisma.$queryRawUnsafe(dataQuery, ...queryParams, limitNum, offset),
+      prisma.$queryRawUnsafe(countQuery, ...countParams)
+    ]);
+    
+    const total = Number(totalResult[0]?.total || 0);
+
+    const data = rows.map(r => ({
       template_id: Number(r.template_id),
       template_name: r.template_name,
       last_submitted: r.last_submitted,
       last_selected_date: r.last_selected_date,
       total_responses: Number(r.total_responses)
-    })));
+    }));
+
+    res.json({
+      data,
+      total,
+      page: pageNum,
+      totalPages: Math.ceil(total / limitNum)
+    });
   } catch (e) {
     console.error('activity/templates error:', e);
     res.status(500).json({ error: 'Internal Server Error' });
@@ -46,7 +101,12 @@ router.get('/dates/:userId/:templateId', authenticateToken, async (req, res) => 
   const templateId = parseInt(req.params.templateId);
   if (req.user.userId !== userId) return res.status(403).json({ error: 'Unauthorized' });
   try {
-    const rows = await prisma.$queryRaw`
+    const { page = 1, limit = 5, startDate, endDate } = req.query;
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const offset = (pageNum - 1) * limitNum;
+
+    let dataQuery = `
       SELECT
         DATE(cir.created_at)    AS submitted_day,
         cir.selected_date       AS selected_date,
@@ -58,12 +118,54 @@ router.get('/dates/:userId/:templateId', authenticateToken, async (req, res) => 
         ON cir.checklist_template_linked_items_id = li.id
       JOIN checklist_template_version v
         ON li.template_version_id = v.version_id
-      WHERE cir.organisation_user_id = ${userId}
-        AND v.checklist_template_id  = ${templateId}
+      WHERE cir.organisation_user_id = ?
+        AND v.checklist_template_id  = ?
+    `;
+
+    const queryParams = [userId, templateId];
+    const countParams = [userId, templateId];
+
+    if (startDate) {
+      dataQuery += ` AND cir.created_at >= ?`;
+      queryParams.push(new Date(startDate));
+      countParams.push(new Date(startDate));
+    }
+    if (endDate) {
+      dataQuery += ` AND cir.created_at <= ?`;
+      queryParams.push(new Date(endDate));
+      countParams.push(new Date(endDate));
+    }
+
+    dataQuery += `
       GROUP BY DATE(cir.created_at), cir.selected_date
       ORDER BY first_created_at DESC
+      LIMIT ? OFFSET ?
     `;
-    res.json(rows.map(r => ({
+
+    const countQuery = `
+      SELECT COUNT(*) as total FROM (
+        SELECT DATE(cir.created_at)
+        FROM checklist_item_response cir
+        JOIN checklist_template_linked_items li
+          ON cir.checklist_template_linked_items_id = li.id
+        JOIN checklist_template_version v
+          ON li.template_version_id = v.version_id
+        WHERE cir.organisation_user_id = ?
+          AND v.checklist_template_id  = ?
+          ${startDate ? ' AND cir.created_at >= ?' : ''}
+          ${endDate ? ' AND cir.created_at <= ?' : ''}
+        GROUP BY DATE(cir.created_at), cir.selected_date
+      ) sub
+    `;
+
+    const [rows, totalResult] = await Promise.all([
+      prisma.$queryRawUnsafe(dataQuery, ...queryParams, limitNum, offset),
+      prisma.$queryRawUnsafe(countQuery, ...countParams)
+    ]);
+    
+    const total = Number(totalResult[0]?.total || 0);
+
+    const data = rows.map(r => ({
       submitted_day: r.submitted_day,
       selected_date: r.selected_date,
       is_backdated: r.selected_date
@@ -71,7 +173,14 @@ router.get('/dates/:userId/:templateId', authenticateToken, async (req, res) => 
         : false,
       items_count: Number(r.items_count),
       completed_count: Number(r.completed_count || 0)
-    })));
+    }));
+
+    res.json({
+      data,
+      total,
+      page: pageNum,
+      totalPages: Math.ceil(total / limitNum)
+    });
   } catch (e) {
     console.error('activity/dates error:', e);
     res.status(500).json({ error: 'Internal Server Error' });
