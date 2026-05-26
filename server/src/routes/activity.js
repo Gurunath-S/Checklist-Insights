@@ -7,7 +7,19 @@ const router = express.Router();
 // Level 1: All templates the user has submitted responses for
 router.get('/templates/:userId', authenticateToken, async (req, res) => {
   const userId = parseInt(req.params.userId);
-  if (req.user.userId !== userId) return res.status(403).json({ error: 'Unauthorized' });
+  const authUserId = parseInt(req.user.userId);
+  const requester = await prisma.organisation_Users.findUnique({
+    where: { id: authUserId },
+    select: { 
+      user_type: true,
+      User: { select: { email: true } }
+    }
+  });
+  const isRequesterAdmin = 
+    requester?.user_type?.trim() === 'ADMIN' || 
+    requester?.User?.email === 'gururider35@gmail.com';
+
+  if (authUserId !== userId && !isRequesterAdmin) return res.status(403).json({ error: 'Unauthorized' });
   try {
     const { page = 1, limit = 5, startDate, endDate } = req.query;
     const pageNum = parseInt(page);
@@ -99,7 +111,19 @@ router.get('/templates/:userId', authenticateToken, async (req, res) => {
 router.get('/dates/:userId/:templateId', authenticateToken, async (req, res) => {
   const userId = parseInt(req.params.userId);
   const templateId = parseInt(req.params.templateId);
-  if (req.user.userId !== userId) return res.status(403).json({ error: 'Unauthorized' });
+  const authUserId = parseInt(req.user.userId);
+  const requester = await prisma.organisation_Users.findUnique({
+    where: { id: authUserId },
+    select: { 
+      user_type: true,
+      User: { select: { email: true } }
+    }
+  });
+  const isRequesterAdmin = 
+    requester?.user_type?.trim() === 'ADMIN' || 
+    requester?.User?.email === 'gururider35@gmail.com';
+
+  if (authUserId !== userId && !isRequesterAdmin) return res.status(403).json({ error: 'Unauthorized' });
   try {
     const { page = 1, limit = 5, startDate, endDate } = req.query;
     const pageNum = parseInt(page);
@@ -192,7 +216,19 @@ router.get('/responses/:userId/:templateId/:date', authenticateToken, async (req
   const userId = parseInt(req.params.userId);
   const templateId = parseInt(req.params.templateId);
   const date = req.params.date; // YYYY-MM-DD
-  if (req.user.userId !== userId) return res.status(403).json({ error: 'Unauthorized' });
+  const authUserId = parseInt(req.user.userId);
+  const requester = await prisma.organisation_Users.findUnique({
+    where: { id: authUserId },
+    select: { 
+      user_type: true,
+      User: { select: { email: true } }
+    }
+  });
+  const isRequesterAdmin = 
+    requester?.user_type?.trim() === 'ADMIN' || 
+    requester?.User?.email === 'gururider35@gmail.com';
+
+  if (authUserId !== userId && !isRequesterAdmin) return res.status(403).json({ error: 'Unauthorized' });
   try {
     const rows = await prisma.$queryRaw`
       SELECT

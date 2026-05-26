@@ -297,31 +297,71 @@ const DashboardSummary = ({
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
           <ColorfulCard color="from-indigo-600 to-indigo-800" icon={<Send />} label="Submissions" value={summary.totalSubmissions || 0} />
           
-          {displayedMetrics.map((metric, idx) => {
-            const cardColors = [
-              'from-emerald-500 to-emerald-700',
-              'from-purple-500 to-purple-700',
-              'from-amber-500 to-amber-700',
-              'from-rose-500 to-rose-700',
-              'from-cyan-500 to-cyan-700',
-              'from-fuchsia-500 to-fuchsia-700',
-              'from-sky-500 to-sky-700',
-              'from-teal-500 to-teal-700',
-              'from-indigo-500 to-indigo-700',
-              'from-orange-500 to-orange-700',
-              'from-lime-500 to-lime-700',
-              'from-pink-500 to-pink-700'
-            ];
+          {(() => {
+            // Find Daily Clock In and Daily Clock Out metrics
+            const clockInMetric = displayedMetrics.find(m => m.name.toLowerCase() === 'daily clock in' || m.name.toLowerCase() === 'clock in');
+            const clockOutMetric = displayedMetrics.find(m => m.name.toLowerCase() === 'daily clock out' || m.name.toLowerCase() === 'clock out');
+
+            // Render combined attendance card if both are present and at least one is non-zero
+            const showCombinedAttendance = clockInMetric && clockOutMetric && (Number(clockInMetric.value) > 0 || Number(clockOutMetric.value) > 0);
+
+            // Filter out combined items from displayed list
+            const metricsToRender = displayedMetrics.filter(m => {
+              if (Number(m.value) === 0) return false;
+              if (showCombinedAttendance) {
+                return m.name !== clockInMetric.name && m.name !== clockOutMetric.name;
+              }
+              return true;
+            });
+
             return (
-              <ColorfulCard 
-                key={metric.name}
-                color={cardColors[idx % cardColors.length]} 
-                icon={getMetricIcon(metric.name)} 
-                label={metric.name} 
-                value={metric.value} 
-              />
+              <>
+                {showCombinedAttendance && (
+                  <DoubleMetricCard
+                    color="from-cyan-400 to-blue-600"
+                    icon={<Clock />}
+                    label="Attendance Rate"
+                    val1Label="Clock In"
+                    val1={`${clockInMetric.value}%`}
+                    val2Label="Clock Out"
+                    val2={`${clockOutMetric.value}%`}
+                  />
+                )}
+
+                {metricsToRender.map((metric, idx) => {
+                  const cardColors = [
+                    'from-purple-500 to-purple-700',
+                    'from-amber-500 to-amber-700',
+                    'from-rose-500 to-rose-700',
+                    'from-fuchsia-500 to-fuchsia-700',
+                    'from-orange-500 to-orange-700',
+                    'from-pink-500 to-pink-700',
+                    'from-emerald-500 to-emerald-700',
+                    'from-teal-500 to-teal-700'
+                  ];
+
+                  let displayValue = metric.value;
+                  if (metric.isPercentage || metric.type === 'Boolean') {
+                    displayValue = `${metric.value}%`;
+                  } else if (metric.isTimeAverage || ['time', 'hour', 'duration', 'clock', 'minutes'].some(k => metric.name.toLowerCase().includes(k))) {
+                    displayValue = `${metric.value} hrs`;
+                  } else if (metric.isTaskAverage || ['tasks worked', 'task worked'].some(k => metric.name.toLowerCase().includes(k))) {
+                    displayValue = `${metric.value} tasks/day`;
+                  }
+
+                  return (
+                    <ColorfulCard 
+                      key={metric.name}
+                      color={cardColors[idx % cardColors.length]} 
+                      icon={getMetricIcon(metric.name)} 
+                      label={metric.name} 
+                      value={displayValue} 
+                    />
+                  );
+                })}
+              </>
             );
-          })}
+          })()}
 
           <div 
             className="bg-white/5 border border-glass-border border-dashed rounded-2xl p-4 flex flex-col items-center justify-center gap-1 text-text-muted hover:bg-white/10 hover:border-accent/40 hover:text-white transition-all cursor-pointer aspect-square lg:aspect-auto min-h-[90px]"
@@ -353,6 +393,26 @@ const ColorfulCard = ({ color, icon, label, value }) => (
     {React.cloneElement(icon, { size: 24, className: "opacity-90" })}
     <span className="text-[0.7rem] font-bold uppercase tracking-wide opacity-80 text-center truncate w-full" title={label}>{label}</span>
     <span className="text-xl font-extrabold">{value}</span>
+  </div>
+);
+
+const DoubleMetricCard = ({ color, icon, label, val1Label, val1, val2Label, val2 }) => (
+  <div className={`bg-linear-to-br ${color} rounded-2xl p-4 flex flex-col justify-between text-white shadow-xl shadow-black/20 hover:-translate-y-2 hover:scale-105 transition-all duration-300 cursor-default aspect-square lg:aspect-auto`}>
+    <div className="flex items-center justify-between gap-2 w-full mb-1">
+      <span className="text-[0.7rem] font-bold uppercase tracking-wide opacity-80 truncate" title={label}>{label}</span>
+      {React.cloneElement(icon, { size: 16, className: "opacity-90 shrink-0" })}
+    </div>
+    <div className="flex items-center justify-between gap-2 mt-auto w-full">
+      <div className="flex flex-col items-center flex-1 min-w-0">
+        <span className="text-[8px] font-semibold uppercase opacity-75 tracking-wider mb-0.5 truncate w-full text-center" title={val1Label}>{val1Label}</span>
+        <span className="text-base font-black truncate">{val1}</span>
+      </div>
+      <div className="w-[1px] h-7 bg-white/20 shrink-0"></div>
+      <div className="flex flex-col items-center flex-1 min-w-0">
+        <span className="text-[8px] font-semibold uppercase opacity-75 tracking-wider mb-0.5 truncate w-full text-center" title={val2Label}>{val2Label}</span>
+        <span className="text-base font-black truncate">{val2}</span>
+      </div>
+    </div>
   </div>
 );
 

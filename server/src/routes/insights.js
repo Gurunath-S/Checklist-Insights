@@ -17,7 +17,18 @@ router.get('/personal/:userId', authenticateToken, async (req, res) => {
   const userId = parseInt(req.params.userId);
   const authUserId = parseInt(req.user.userId);
 
-  if (authUserId !== userId) {
+  const requester = await prisma.organisation_Users.findUnique({
+    where: { id: authUserId },
+    select: { 
+      user_type: true,
+      User: { select: { email: true } }
+    }
+  });
+  const isRequesterAdmin = 
+    requester?.user_type?.trim() === 'ADMIN' || 
+    requester?.User?.email === 'gururider35@gmail.com';
+
+  if (authUserId !== userId && !isRequesterAdmin) {
     return res.status(403).json({ error: 'Unauthorized access to data' });
   }
   
@@ -50,6 +61,7 @@ router.get('/personal/:userId', authenticateToken, async (req, res) => {
       SELECT 
         ci.checklist_name AS name,
         ci.input_type AS type,
+        COUNT(r.id) AS total_count,
         SUM(CASE 
           WHEN ci.input_type = 'Numeric' THEN CAST(COALESCE(NULLIF(r.input, ''), '0') AS DECIMAL(10,2))
           ELSE 0 
@@ -76,6 +88,66 @@ router.get('/personal/:userId', authenticateToken, async (req, res) => {
     query += ` GROUP BY ci.checklist_name, ci.input_type`;
 
     const aggregatedStats = await prisma.$queryRawUnsafe(query, ...queryParams);
+
+    // Yes/No average and Time-related average calculations
+    let yesNoQuery = `
+      SELECT 
+        COUNT(r.id) AS total_boolean,
+        SUM(CASE WHEN (r.input = 'Yes' OR r.input = '1' OR r.input = 'true' OR r.status = 1) THEN 1 ELSE 0 END) AS yes_count
+      FROM checklist_item_response r
+      JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+      JOIN checklist_items ci ON li.checklist_item_id = ci.id
+      WHERE ci.input_type = 'Boolean'
+        AND r.organisation_user_id = ?
+    `;
+    const yesNoParams = [userId];
+
+    if (startDate) {
+      yesNoQuery += ` AND r.created_at >= ?`;
+      yesNoParams.push(new Date(startDate));
+    }
+    if (endDate) {
+      yesNoQuery += ` AND r.created_at <= ?`;
+      yesNoParams.push(new Date(endDate));
+    }
+
+    let timeQuery = `
+      SELECT 
+        AVG(CAST(COALESCE(NULLIF(r.input, ''), '0') AS DECIMAL(10,2))) AS avg_value
+      FROM checklist_item_response r
+      JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+      JOIN checklist_items ci ON li.checklist_item_id = ci.id
+      WHERE ci.input_type = 'Numeric'
+        AND (
+          LOWER(ci.checklist_name) LIKE '%time%' OR
+          LOWER(ci.checklist_name) LIKE '%hour%' OR
+          LOWER(ci.checklist_name) LIKE '%duration%' OR
+          LOWER(ci.checklist_name) LIKE '%clock%' OR
+          LOWER(ci.checklist_name) LIKE '%minutes%'
+        )
+        AND r.organisation_user_id = ?
+    `;
+    const timeParams = [userId];
+
+    if (startDate) {
+      timeQuery += ` AND r.created_at >= ?`;
+      timeParams.push(new Date(startDate));
+    }
+    if (endDate) {
+      timeQuery += ` AND r.created_at <= ?`;
+      timeParams.push(new Date(endDate));
+    }
+
+    const [yesNoResult, timeResult] = await Promise.all([
+      prisma.$queryRawUnsafe(yesNoQuery, ...yesNoParams),
+      prisma.$queryRawUnsafe(timeQuery, ...timeParams)
+    ]);
+
+    const totalBoolean = Number(yesNoResult[0]?.total_boolean || 0);
+    const yesCount = Number(yesNoResult[0]?.yes_count || 0);
+    const yesNoAvg = totalBoolean > 0 ? Number(((yesCount / totalBoolean) * 100).toFixed(1)) : 0;
+
+    const timeRelatedAvg = timeResult[0]?.avg_value ? Number(Number(timeResult[0].avg_value).toFixed(1)) : 0;
 
     // 3. Fetch ONLY the top 15 recent response records for activity feed (optimization)
     const recentResponses = await prisma.checklist_item_response.findMany({
@@ -115,21 +187,47 @@ router.get('/personal/:userId', authenticateToken, async (req, res) => {
     const itemStats = aggregatedStats.map(row => {
       const name = row.name;
       const type = row.type;
-      const value = type === 'Numeric' ? Number(row.numeric_sum) : Number(row.boolean_count);
+      const totalCount = Number(row.total_count || 0);
+      const booleanCount = Number(row.boolean_count || 0);
+      const numericSum = Number(row.numeric_sum || 0);
 
+      // Keep absolute values for totals
       const lowercaseName = name.toLowerCase();
-      if (lowercaseName.includes('tasks worked')) totalTasksWorked += value;
-      if (lowercaseName.includes('tasks completed')) totalTasksCompleted += value;
-      if (lowercaseName.includes('time saved using ai')) totalAiTimeSaved += value;
-      if (lowercaseName.includes('bugs fixed')) totalBugsFixed += value;
+      if (lowercaseName.includes('tasks worked')) totalTasksWorked += (type === 'Numeric' ? numericSum : booleanCount);
+      if (lowercaseName.includes('tasks completed')) totalTasksCompleted += (type === 'Numeric' ? numericSum : booleanCount);
+      if (lowercaseName.includes('time saved using ai')) totalAiTimeSaved += (type === 'Numeric' ? numericSum : booleanCount);
+      if (lowercaseName.includes('bugs fixed')) totalBugsFixed += (type === 'Numeric' ? numericSum : booleanCount);
 
-      return { name, value, type };
+      let value = 0;
+      let isPercentage = false;
+      let isTimeAverage = false;
+      let isTaskAverage = false;
+
+      if (type === 'Boolean') {
+        value = totalCount > 0 ? Number(((booleanCount / totalCount) * 100).toFixed(1)) : 0;
+        isPercentage = true;
+      } else {
+        const isTimeRelated = ['time', 'hour', 'duration', 'clock', 'minutes'].some(k => lowercaseName.includes(k));
+        const isTaskRelated = ['tasks worked', 'task worked'].some(k => lowercaseName.includes(k));
+        
+        if (isTimeRelated) {
+          value = totalCount > 0 ? Number((numericSum / totalCount).toFixed(1)) : 0;
+          isTimeAverage = true;
+        } else if (isTaskRelated) {
+          value = totalCount > 0 ? Math.round(numericSum / totalCount) : 0;
+          isTaskAverage = true;
+        } else {
+          value = numericSum;
+        }
+      }
+
+      return { name, value, type, isPercentage, isTimeAverage, isTaskAverage };
     }).sort((a, b) => b.value - a.value);
 
     const performanceTrend = Object.entries(trendMap)
       .map(([week, points]) => ({ week, points }))
       .sort((a, b) => b.week.localeCompare(a.week))
-      .slice(0, 12)
+      .slice(0, 52)
       .reverse();
 
     const formattedActivities = recentResponses.map(r => ({
@@ -149,7 +247,9 @@ router.get('/personal/:userId', authenticateToken, async (req, res) => {
         totalAiTimeSaved,
         totalBugsFixed,
         todaySubmitted,
-        recentActivityCount: recentResponses.length
+        recentActivityCount: recentResponses.length,
+        yesNoAvg,
+        timeRelatedAvg
       },
       performanceTrend,
       recentActivity: formattedActivities,
@@ -166,7 +266,18 @@ router.get('/personal/:userId/chart-data', authenticateToken, async (req, res) =
   const userId = parseInt(req.params.userId);
   const authUserId = parseInt(req.user.userId);
 
-  if (authUserId !== userId) {
+  const requester = await prisma.organisation_Users.findUnique({
+    where: { id: authUserId },
+    select: { 
+      user_type: true,
+      User: { select: { email: true } }
+    }
+  });
+  const isRequesterAdmin = 
+    requester?.user_type?.trim() === 'ADMIN' || 
+    requester?.User?.email === 'gururider35@gmail.com';
+
+  if (authUserId !== userId && !isRequesterAdmin) {
     return res.status(403).json({ error: 'Unauthorized access to data' });
   }
 
@@ -457,6 +568,160 @@ router.get('/admin/department/:department', authenticateToken, async (req, res) 
     });
   } catch (error) {
     console.error('Admin department error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// Paginated Chart Data for Admin Department
+router.get('/admin/department/:department/chart-data', authenticateToken, async (req, res) => {
+  try {
+    const { department } = req.params;
+    const { startDate, endDate, page = 1, limit = 10 } = req.query;
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const offset = (pageNum - 1) * limitNum;
+
+    let dateFilterSql = '';
+    const queryParams = [department];
+
+    if (startDate) {
+      dateFilterSql += ` AND r.created_at >= ?`;
+      queryParams.push(new Date(startDate));
+    }
+    if (endDate) {
+      dateFilterSql += ` AND r.created_at <= ?`;
+      queryParams.push(new Date(endDate));
+    }
+
+    const query = `
+      SELECT 
+        ci.checklist_name AS name,
+        ci.input_type AS type,
+        SUM(CASE 
+          WHEN ci.input_type = 'Numeric' THEN CAST(COALESCE(NULLIF(r.input, ''), '0') AS DECIMAL(10,2))
+          ELSE 0 
+        END) AS numeric_sum,
+        SUM(CASE 
+          WHEN ci.input_type = 'Boolean' AND (r.input = 'Yes' OR r.input = '1' OR r.input = 'true' OR r.status = 1) THEN 1
+          ELSE 0 
+        END) AS boolean_count
+      FROM checklist_item_response r
+      JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+      JOIN checklist_items ci ON li.checklist_item_id = ci.id
+      JOIN checklist_template_version v ON li.template_version_id = v.version_id
+      JOIN checklist_template ct ON v.checklist_template_id = ct.id
+      JOIN tags t ON ct.tag_id = t.id
+      WHERE t.user_position = ?
+      ${dateFilterSql}
+      GROUP BY ci.checklist_name, ci.input_type
+    `;
+
+    const paginatedQuery = `
+      SELECT * FROM (${query}) as sub
+      ORDER BY 
+        CASE WHEN type = 'Numeric' THEN numeric_sum ELSE boolean_count END DESC
+      LIMIT ? OFFSET ?
+    `;
+
+    const countQuery = `
+      SELECT COUNT(*) as total FROM (
+        SELECT ci.checklist_name 
+        FROM checklist_item_response r
+        JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+        JOIN checklist_items ci ON li.checklist_item_id = ci.id
+        JOIN checklist_template_version v ON li.template_version_id = v.version_id
+        JOIN checklist_template ct ON v.checklist_template_id = ct.id
+        JOIN tags t ON ct.tag_id = t.id
+        WHERE t.user_position = ?
+        ${dateFilterSql}
+        GROUP BY ci.checklist_name, ci.input_type
+      ) as sub
+    `;
+
+    const [paginatedStats, totalResult] = await Promise.all([
+      prisma.$queryRawUnsafe(paginatedQuery, ...queryParams, limitNum, offset),
+      prisma.$queryRawUnsafe(countQuery, ...queryParams)
+    ]);
+
+    const total = Number(totalResult[0]?.total || 0);
+
+    const data = paginatedStats.map(row => {
+      const name = row.name;
+      const type = row.type;
+      const value = type === 'Numeric' ? Number(row.numeric_sum) : Number(row.boolean_count);
+      return { name, value, type };
+    });
+
+    res.json({
+      data,
+      total,
+      page: pageNum,
+      totalPages: Math.ceil(total / limitNum)
+    });
+  } catch (error) {
+    console.error('Admin department chart-data error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// Get all users for admin user selector
+router.get('/admin/users', authenticateToken, async (req, res) => {
+  try {
+    const authUserId = parseInt(req.user.userId);
+    const requester = await prisma.organisation_Users.findUnique({
+      where: { id: authUserId },
+      select: { 
+        user_type: true,
+        User: { select: { email: true } }
+      }
+    });
+    
+    const isRequesterAdmin = 
+      requester?.user_type?.trim() === 'ADMIN' || 
+      requester?.User?.email === 'gururider35@gmail.com';
+
+    if (!isRequesterAdmin) {
+      return res.status(403).json({ error: 'Only admins can fetch user directory' });
+    }
+
+    const users = await prisma.organisation_Users.findMany({
+      select: {
+        id: true,
+        user_type: true,
+        User: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          }
+        },
+        Organisation_User_position: {
+          select: {
+            user_position: true
+          }
+        }
+      }
+    });
+
+    const formatted = users.map(u => {
+      const positions = u.Organisation_User_position?.map(p => p.user_position) || [];
+      const nonPublicPosition = positions.find(p => p !== 'PUBLIC');
+      const mainPosition = nonPublicPosition || positions[0] || 'PUBLIC';
+
+      return {
+        id: u.id,
+        realUserId: u.User?.id || 0,
+        name: u.User?.name || 'User',
+        email: u.User?.email || '',
+        user_type: u.user_type?.trim() || 'USER',
+        user_position: mainPosition,
+        all_positions: positions
+      };
+    }).sort((a, b) => a.name.localeCompare(b.name));
+
+    res.json(formatted);
+  } catch (error) {
+    console.error('Admin users endpoint error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });

@@ -18,6 +18,28 @@ const InsightsChart = ({ data, isAdmin, selectedMetrics = [], user, startDate, e
   const [totalPages, setTotalPages] = useState(1);
   const [loadingChart, setLoadingChart] = useState(false);
 
+  // States for Contribution Breakdown Custom Filters & Local Metrics Choice
+  const [breakdownSelectedMetrics, setBreakdownSelectedMetrics] = useState([]);
+  const [isBreakdownDropdownOpen, setIsBreakdownDropdownOpen] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState('all'); // 'all', 'boolean', 'numeric'
+  const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
+  const [topLimit, setTopLimit] = useState('all'); // 'all', '3', '5', '10'
+  const [isTopLimitDropdownOpen, setIsTopLimitDropdownOpen] = useState(false);
+
+  // New States: Metric Search and Weekly Submission Limit Filters
+  const [metricSearch, setMetricSearch] = useState('');
+  const [weeksLimit, setWeeksLimit] = useState(6); // Default to last 6 weeks
+  const [isWeeksDropdownOpen, setIsWeeksDropdownOpen] = useState(false);
+
+  // Sync breakdownSelectedMetrics with the main metrics initially
+  useEffect(() => {
+    if (selectedMetrics && selectedMetrics.length > 0) {
+      setBreakdownSelectedMetrics(selectedMetrics);
+    } else if (data?.itemStats) {
+      setBreakdownSelectedMetrics(data.itemStats.map(m => m.name));
+    }
+  }, [selectedMetrics, data?.itemStats]);
+
   useEffect(() => {
     if (isAdmin || activeChart !== 'checklist' || !user?.id) return;
     
@@ -135,9 +157,24 @@ const InsightsChart = ({ data, isAdmin, selectedMetrics = [], user, startDate, e
     );
   }
 
-  // Generate dynamic Contribution Breakdown data from user's selected metrics
-  const selectedMetricsData = data?.itemStats?.filter(item => selectedMetrics.includes(item.name)) || [];
-  const totalValue = selectedMetricsData.reduce((acc, curr) => acc + curr.value, 0);
+  // Generate dynamic Contribution Breakdown data from user's selected metrics and filters
+  const filteredMetricsData = (data?.itemStats || [])
+    .filter(item => {
+      // 1. Only include metrics locally selected for this chart
+      if (!breakdownSelectedMetrics.includes(item.name)) return false;
+      
+      // 2. Filter by Category Type
+      if (categoryFilter === 'boolean') return item.type === 'Boolean';
+      if (categoryFilter === 'numeric') return item.type === 'Numeric';
+      return true;
+    });
+
+  // Sort descending by default to show highest data first
+  const sortedMetricsData = [...filteredMetricsData].sort((a, b) => b.value - a.value);
+
+  // Apply Top Limit slice
+  const slicedMetricsData = topLimit === 'all' ? sortedMetricsData : sortedMetricsData.slice(0, Number(topLimit));
+  const totalValue = slicedMetricsData.reduce((acc, curr) => acc + curr.value, 0);
 
   const colors = [
     '#10b981', // Emerald
@@ -154,7 +191,7 @@ const InsightsChart = ({ data, isAdmin, selectedMetrics = [], user, startDate, e
     '#ec4899'  // Pink
   ];
 
-  const breakdownData = selectedMetricsData.map((item, index) => {
+  const breakdownData = slicedMetricsData.map((item, index) => {
     const percentage = totalValue > 0 ? Math.round((item.value / totalValue) * 100) : 0;
     return {
       name: item.name,
@@ -163,6 +200,15 @@ const InsightsChart = ({ data, isAdmin, selectedMetrics = [], user, startDate, e
       color: colors[index % colors.length]
     };
   });
+
+  const slicedPerformanceTrend = [...(data?.performanceTrend || [
+    { week: 'Nov 2025', points: 4 },
+    { week: 'Dec 2025', points: 12 },
+    { week: 'Jan 2026', points: 8 },
+    { week: 'Feb 2026', points: 5 },
+    { week: 'Mar 2026', points: 11 },
+    { week: 'Apr 2026', points: 3 },
+  ])].slice(-weeksLimit);
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-[1.5fr_1fr] gap-6">
@@ -260,19 +306,48 @@ const InsightsChart = ({ data, isAdmin, selectedMetrics = [], user, startDate, e
               </div>
             </div>
           )}
+          
+          {activeChart === 'work' && (
+            <div className="flex items-center gap-2 animate-in fade-in">
+              <div className="relative">
+                <button 
+                  onClick={() => setIsWeeksDropdownOpen(!isWeeksDropdownOpen)}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-bg-card backdrop-blur-xl border border-glass-border rounded-xl text-[11px] font-bold text-white shadow-lg hover:bg-white/10 transition-all active:scale-95 cursor-pointer"
+                >
+                  <List size={12} className="text-accent" />
+                  <span>Last {weeksLimit} Weeks</span>
+                  <ChevronDown size={12} className={`transition-transform duration-300 ${isWeeksDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+                
+                {isWeeksDropdownOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setIsWeeksDropdownOpen(false)}></div>
+                    <div className="absolute right-0 mt-2 w-36 bg-bg-card backdrop-blur-2xl border border-glass-border rounded-2xl p-2 shadow-2xl z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                      <div className="text-[10px] font-bold text-white/40 px-2.5 py-1.5 uppercase tracking-wider border-b border-glass-border/30 mb-1">
+                        Select Period
+                      </div>
+                      {[6, 12, 24, 52].map((num) => (
+                        <button
+                          key={num}
+                          onClick={() => { setWeeksLimit(num); setIsWeeksDropdownOpen(false); }}
+                          className={`w-full text-left px-2.5 py-1.5 rounded-xl text-xs transition-colors flex items-center justify-between ${weeksLimit === num ? 'bg-primary/10 text-white font-semibold' : 'text-text-muted hover:bg-white/5 hover:text-white'}`}
+                        >
+                          <span>Last {num} Weeks</span>
+                          {weeksLimit === num && <div className="w-1.5 h-1.5 rounded-full bg-accent"></div>}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
         </div>
         
         <div className="flex-1 w-full min-h-0">
           <ResponsiveContainer width="100%" height="100%">
             {activeChart === 'work' ? (
-              <AreaChart data={data?.performanceTrend || [
-                { week: 'Nov 2025', points: 4 },
-                { week: 'Dec 2025', points: 12 },
-                { week: 'Jan 2026', points: 8 },
-                { week: 'Feb 2026', points: 5 },
-                { week: 'Mar 2026', points: 11 },
-                { week: 'Apr 2026', points: 3 },
-              ]}>
+              <AreaChart data={slicedPerformanceTrend}>
                 <defs>
                   <linearGradient id="colorPoints" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4}/>
@@ -342,8 +417,133 @@ const InsightsChart = ({ data, isAdmin, selectedMetrics = [], user, startDate, e
       </div>
 
       {/* Donut Chart Breakdown */}
-      <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-6 h-[380px] min-h-[380px] shadow-2xl shadow-black/10 flex flex-col">
-        <h3 className="text-lg font-bold text-white mb-2">Contribution Breakdown</h3>
+      <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-6 h-[380px] min-h-[380px] shadow-2xl shadow-black/10 flex flex-col relative">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-sm font-bold text-white uppercase tracking-wider">Contribution</h3>
+          <div className="flex items-center gap-2">
+            {/* Top Values Dropdown */}
+            <div className="relative">
+              <button 
+                onClick={() => setIsTopLimitDropdownOpen(!isTopLimitDropdownOpen)}
+                className="flex items-center gap-2 px-3 py-1.5 bg-bg-card backdrop-blur-xl border border-glass-border rounded-xl text-[11px] font-bold text-white shadow-lg hover:bg-white/10 transition-all active:scale-95 cursor-pointer"
+              >
+                <List size={12} className="text-accent" />
+                <span>{topLimit === 'all' ? 'Show All' : `Top ${topLimit}`}</span>
+                <ChevronDown size={12} className={`transition-transform duration-300 ${isTopLimitDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+              
+              {isTopLimitDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setIsTopLimitDropdownOpen(false)}></div>
+                  <div className="absolute right-0 mt-2 w-32 bg-bg-card backdrop-blur-2xl border border-glass-border rounded-2xl p-2 shadow-2xl z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="text-[10px] font-bold text-white/40 px-2.5 py-1.5 uppercase tracking-wider border-b border-glass-border/30 mb-1">
+                      Show Rows
+                    </div>
+                    {['all', '5', '10', '20'].map((val) => (
+                      <button
+                        key={val}
+                        onClick={() => { setTopLimit(val); setIsTopLimitDropdownOpen(false); }}
+                        className={`w-full text-left px-2.5 py-1.5 rounded-xl text-xs transition-colors flex items-center justify-between ${topLimit === val ? 'bg-primary/10 text-white font-semibold' : 'text-text-muted hover:bg-white/5 hover:text-white'}`}
+                      >
+                        <span>{val === 'all' ? 'Show All' : `Top ${val}`}</span>
+                        {topLimit === val && <div className="w-1.5 h-1.5 rounded-full bg-accent"></div>}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Category Filter Dropdown */}
+            <div className="relative">
+              <button 
+                onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
+                className="flex items-center gap-1.5 px-2 py-1 bg-bg-card backdrop-blur-xl border border-glass-border rounded-xl text-[10px] font-bold text-white shadow-lg hover:bg-white/10 transition-all cursor-pointer"
+              >
+                <span>Type: {categoryFilter === 'all' ? 'All' : categoryFilter === 'boolean' ? 'Yes/No' : 'Numeric'}</span>
+                <ChevronDown size={10} className={`transition-transform duration-300 ${isCategoryDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+              
+              {isCategoryDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setIsCategoryDropdownOpen(false)}></div>
+                  <div className="absolute right-0 mt-2 w-36 bg-bg-card backdrop-blur-2xl border border-glass-border rounded-2xl p-2 shadow-2xl z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="text-[9px] font-bold text-white/40 px-2.5 py-1.5 uppercase tracking-wider border-b border-glass-border/30 mb-1">
+                      Filter by Type
+                    </div>
+                    {['all', 'boolean', 'numeric'].map((type) => (
+                      <button
+                        key={type}
+                        onClick={() => { setCategoryFilter(type); setIsCategoryDropdownOpen(false); }}
+                        className={`w-full text-left px-2 py-1.5 rounded-xl text-[11px] transition-colors flex items-center justify-between ${categoryFilter === type ? 'bg-primary/10 text-white font-semibold' : 'text-text-muted hover:bg-white/5 hover:text-white'}`}
+                      >
+                        <span>{type === 'all' ? 'All' : type === 'boolean' ? 'Yes/No Only' : 'Numeric Only'}</span>
+                        {categoryFilter === type && <div className="w-1 h-1 rounded-full bg-accent"></div>}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Custom Metrics Selector Dropdown */}
+            <div className="relative">
+              <button 
+                onClick={() => setIsBreakdownDropdownOpen(!isBreakdownDropdownOpen)}
+                className="flex items-center gap-1.5 px-2 py-1 bg-bg-card backdrop-blur-xl border border-glass-border rounded-xl text-[10px] font-bold text-white shadow-lg hover:bg-white/10 transition-all cursor-pointer"
+              >
+                <span>Select Metrics</span>
+                <ChevronDown size={10} className={`transition-transform duration-300 ${isBreakdownDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+              
+              {isBreakdownDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => { setIsBreakdownDropdownOpen(false); setMetricSearch(''); }}></div>
+                  <div className="absolute right-0 mt-2 w-56 bg-bg-card backdrop-blur-3xl border border-glass-border rounded-2xl p-2 shadow-2xl z-50 max-h-60 overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="text-[10px] font-bold text-white/40 px-2.5 py-1.5 uppercase tracking-wider border-b border-glass-border/30 mb-1 sticky top-0 bg-bg-card z-20">
+                      Chart Metrics
+                    </div>
+                    {/* Sticky Search Box */}
+                    <div className="p-1 mb-1 sticky top-[28px] bg-bg-card z-20">
+                      <input
+                        type="text"
+                        placeholder="Search metrics..."
+                        value={metricSearch}
+                        onChange={(e) => setMetricSearch(e.target.value)}
+                        className="w-full bg-white/5 border border-glass-border rounded-xl px-2.5 py-1 text-xs text-white placeholder-white/30 focus:outline-none focus:border-accent/40"
+                      />
+                    </div>
+                    {(data?.itemStats || [])
+                      .filter(item => item.name.toLowerCase().includes(metricSearch.toLowerCase()))
+                      .map((item) => {
+                      const isChecked = breakdownSelectedMetrics.includes(item.name);
+                      return (
+                        <label
+                          key={item.name}
+                          className="flex items-center gap-2 px-2.5 py-1.5 hover:bg-white/5 rounded-xl cursor-pointer select-none text-[11px] text-text-muted hover:text-white transition-colors"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {
+                              if (isChecked) {
+                                setBreakdownSelectedMetrics(prev => prev.filter(name => name !== item.name));
+                              } else {
+                                setBreakdownSelectedMetrics(prev => [...prev, item.name]);
+                              }
+                            }}
+                            className="rounded-sm border-glass-border bg-bg-card text-accent focus:ring-0 focus:ring-offset-0 focus:outline-none cursor-pointer w-3.5 h-3.5"
+                          />
+                          <span className="truncate w-full">{item.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
         <div className="flex-1 w-full min-h-0 flex flex-col justify-center">
           {breakdownData.length === 0 ? (
             <div className="text-center text-text-muted text-sm py-8 space-y-2">
