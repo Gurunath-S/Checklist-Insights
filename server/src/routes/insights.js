@@ -496,6 +496,7 @@ router.get('/admin/department/:department', authenticateToken, async (req, res) 
       SELECT 
         ci.checklist_name AS name,
         ci.input_type AS type,
+        COUNT(r.id) AS total_count,
         SUM(CASE 
           WHEN ci.input_type = 'Numeric' THEN CAST(COALESCE(NULLIF(r.input, ''), '0') AS DECIMAL(10,2))
           ELSE 0 
@@ -531,20 +532,72 @@ router.get('/admin/department/:department', authenticateToken, async (req, res) 
       ORDER BY sortKey ASC
     `;
 
-    const [summaryResult, inputsResult, trendResult] = await Promise.all([
+    const completionQuery = `
+      SELECT 
+        AVG(CASE 
+          WHEN (ci.input_type = 'Boolean' AND (r.input = 'Yes' OR r.input = '1' OR r.input = 'true' OR r.status = 1))
+            OR (ci.input_type = 'Numeric' AND r.input IS NOT NULL AND r.input <> '') THEN 100.0
+          ELSE 0.0
+        END) AS completionRate
+      FROM checklist_item_response r
+      JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+      JOIN checklist_items ci ON li.checklist_item_id = ci.id
+      JOIN checklist_template_version v ON li.template_version_id = v.version_id
+      JOIN checklist_template ct ON v.checklist_template_id = ct.id
+      JOIN tags t ON ct.tag_id = t.id
+      WHERE t.user_position = ?
+      ${dateFilterSql}
+    `;
+
+    const [summaryResult, inputsResult, trendResult, completionResult] = await Promise.all([
       prisma.$queryRawUnsafe(summaryQuery, ...queryParams),
       prisma.$queryRawUnsafe(inputsQuery, ...queryParams),
-      prisma.$queryRawUnsafe(trendQuery, ...queryParams)
+      prisma.$queryRawUnsafe(trendQuery, ...queryParams),
+      prisma.$queryRawUnsafe(completionQuery, ...queryParams)
     ]);
 
     const submissionsCount = Number(summaryResult[0]?.submissionsCount || 0);
     const latestSubmissionDate = summaryResult[0]?.latestSubmissionDate || null;
+    const completionRate = Number(completionResult[0]?.completionRate || 0);
 
     const checklistInputs = inputsResult.map(row => {
-      const value = row.type === 'Numeric' ? Number(row.numeric_sum) : Number(row.boolean_count);
+      const name = row.name;
+      const type = row.type;
+      const totalCount = Number(row.total_count || 0);
+      const booleanCount = Number(row.boolean_count || 0);
+      const numericSum = Number(row.numeric_sum || 0);
+      const lowercaseName = name.toLowerCase();
+
+      let value = 0;
+      let isPercentage = false;
+      let isTimeAverage = false;
+      let isTaskAverage = false;
+
+      if (type === 'Boolean') {
+        value = totalCount > 0 ? Number(((booleanCount / totalCount) * 100).toFixed(1)) : 0;
+        isPercentage = true;
+      } else {
+        const isTimeRelated = ['time', 'hour', 'duration', 'clock', 'minutes'].some(k => lowercaseName.includes(k));
+        const isTaskRelated = ['tasks worked', 'task worked'].some(k => lowercaseName.includes(k));
+        
+        if (isTimeRelated) {
+          value = totalCount > 0 ? Number((numericSum / totalCount).toFixed(1)) : 0;
+          isTimeAverage = true;
+        } else if (isTaskRelated) {
+          value = totalCount > 0 ? Math.round(numericSum / totalCount) : 0;
+          isTaskAverage = true;
+        } else {
+          value = totalCount > 0 ? Number((numericSum / totalCount).toFixed(1)) : 0;
+        }
+      }
+
       return {
-        name: row.name,
-        value
+        name,
+        value,
+        type,
+        isPercentage,
+        isTimeAverage,
+        isTaskAverage
       };
     }).sort((a, b) => b.value - a.value);
 
@@ -564,7 +617,8 @@ router.get('/admin/department/:department', authenticateToken, async (req, res) 
       latestSubmissionDate,
       checklistInputs,
       recentMonths,
-      topKPIs
+      topKPIs,
+      completionRate
     });
   } catch (error) {
     console.error('Admin department error:', error);
@@ -722,6 +776,416 @@ router.get('/admin/users', authenticateToken, async (req, res) => {
     res.json(formatted);
   } catch (error) {
     console.error('Admin users endpoint error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// Get paginated users for admin user management
+router.get('/admin/users-list', authenticateToken, async (req, res) => {
+  try {
+    const authUserId = parseInt(req.user.userId);
+    const requester = await prisma.organisation_Users.findUnique({
+      where: { id: authUserId },
+      select: { 
+        user_type: true,
+        User: { select: { email: true } }
+      }
+    });
+    
+    const isRequesterAdmin = 
+      requester?.user_type?.trim() === 'ADMIN' || 
+      requester?.User?.email === 'gururider35@gmail.com';
+
+    if (!isRequesterAdmin) {
+      return res.status(403).json({ error: 'Only admins can access the user list' });
+    }
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 15;
+    const skip = (page - 1) * limit;
+
+    const { search, position, type } = req.query;
+    const where = {};
+
+    if (type) {
+      where.user_type = type;
+    }
+    if (position) {
+      where.user_position = position;
+    }
+    if (search) {
+      where.User = {
+        OR: [
+          { name: { contains: search } },
+          { email: { contains: search } }
+        ]
+      };
+    }
+
+    const [total, users] = await Promise.all([
+      prisma.organisation_Users.count({ where }),
+      prisma.organisation_Users.findMany({
+        where,
+        orderBy: { id: 'desc' },
+        skip,
+        take: limit,
+        include: {
+          User: true,
+          Organisation: true
+        }
+      })
+    ]);
+
+    const formatted = users.map(u => ({
+      id: u.id,
+      realUserId: u.User?.id || 0,
+      name: u.User?.name || 'User',
+      email: u.User?.email || '',
+      image: u.User?.image || null,
+      user_type: u.user_type?.trim() || 'USER',
+      user_position: u.user_position || 'PUBLIC',
+      organisation: u.Organisation?.organisation || '',
+      organisation_id: u.organisation_id,
+      created_at: u.created_at || u.User?.created_at
+    }));
+
+    res.json({
+      users: formatted,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    });
+  } catch (error) {
+    console.error('Admin users-list error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// Edit user endpoint
+router.put('/admin/users/:id', authenticateToken, async (req, res) => {
+  try {
+    const authUserId = parseInt(req.user.userId);
+    const requester = await prisma.organisation_Users.findUnique({
+      where: { id: authUserId },
+      select: { 
+        user_type: true,
+        User: { select: { email: true } }
+      }
+    });
+    const isRequesterAdmin = 
+      requester?.user_type?.trim() === 'ADMIN' || 
+      requester?.User?.email === 'gururider35@gmail.com';
+
+    if (!isRequesterAdmin) {
+      return res.status(403).json({ error: 'Only admins can edit users' });
+    }
+
+    const orgUserId = parseInt(req.params.id);
+    const { name, user_position, user_type, organisation_id } = req.body;
+
+    const orgUser = await prisma.organisation_Users.findUnique({
+      where: { id: orgUserId },
+      include: { User: true }
+    });
+
+    if (!orgUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Update User table name if provided
+    if (name && orgUser.User) {
+      await prisma.user.update({
+        where: { id: orgUser.User.id },
+        data: { name }
+      });
+    }
+
+    // Update Organisation_Users details
+    await prisma.organisation_Users.update({
+      where: { id: orgUserId },
+      data: {
+        user_position: user_position || undefined,
+        user_type: user_type || undefined,
+        organisation_id: organisation_id ? parseInt(organisation_id) : undefined
+      }
+    });
+
+    // Sync Organisation_User_position model
+    if (user_position) {
+      const positionRecord = await prisma.organisation_User_position.findFirst({
+        where: { organisation_user_id: orgUserId }
+      });
+
+      if (positionRecord) {
+        await prisma.organisation_User_position.update({
+          where: { id: positionRecord.id },
+          data: { user_position }
+        });
+      } else {
+        await prisma.organisation_User_position.create({
+          data: {
+            organisation_user_id: orgUserId,
+            user_id: orgUser.User.id,
+            user_position
+          }
+        });
+      }
+    }
+
+    res.json({ success: true, message: 'User updated successfully' });
+  } catch (error) {
+    console.error('Admin edit user error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// Delete user endpoint
+router.delete('/admin/users/:id', authenticateToken, async (req, res) => {
+  try {
+    const authUserId = parseInt(req.user.userId);
+    const requester = await prisma.organisation_Users.findUnique({
+      where: { id: authUserId },
+      select: { 
+        user_type: true,
+        User: { select: { email: true } }
+      }
+    });
+    const isRequesterAdmin = 
+      requester?.user_type?.trim() === 'ADMIN' || 
+      requester?.User?.email === 'gururider35@gmail.com';
+
+    if (!isRequesterAdmin) {
+      return res.status(403).json({ error: 'Only admins can delete users' });
+    }
+
+    const orgUserId = parseInt(req.params.id);
+    if (orgUserId === authUserId) {
+      return res.status(400).json({ error: 'You cannot delete your own admin account.' });
+    }
+
+    // Clean templates version dependencies
+    await prisma.checklist_template.updateMany({
+      where: { organisation_user_id: orgUserId },
+      data: { current_version_id: null }
+    });
+
+    // Perform manual cascade deletes in transaction
+    await prisma.$transaction([
+      prisma.checklist_item_response.deleteMany({ where: { organisation_user_id: orgUserId } }),
+      prisma.templateRecipients.deleteMany({ where: { assigned_by_user_id: orgUserId } }),
+      prisma.checklist_template_owners.deleteMany({ where: { organisation_user_id: orgUserId } }),
+      prisma.checklist_template_version.deleteMany({ where: { organisation_user_id: orgUserId } }),
+      prisma.checklist_template.deleteMany({ where: { organisation_user_id: orgUserId } }),
+      prisma.checklist_items.deleteMany({ where: { organisation_user_id: orgUserId } }),
+      prisma.tags.deleteMany({ where: { organisation_user_id: orgUserId } }),
+      prisma.organisation_User_position.deleteMany({ where: { organisation_user_id: orgUserId } }),
+      prisma.organisation_Users.delete({ where: { id: orgUserId } })
+    ]);
+
+    res.json({ success: true, message: 'User deleted successfully' });
+  } catch (error) {
+    console.error('Admin delete user error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// Get paginated submissions for Reports module
+router.get('/reports', authenticateToken, async (req, res) => {
+  try {
+    const authUserId = parseInt(req.user.userId);
+    const requester = await prisma.organisation_Users.findUnique({
+      where: { id: authUserId },
+      select: { 
+        user_type: true,
+        User: { select: { email: true } }
+      }
+    });
+    
+    const isRequesterAdmin = 
+      requester?.user_type?.trim() === 'ADMIN' || 
+      requester?.User?.email === 'gururider35@gmail.com';
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 15;
+    const skip = (page - 1) * limit;
+    
+    const { search, position, startDate, endDate } = req.query;
+
+    let dataQuery = `
+      SELECT 
+        cir.organisation_user_id,
+        u.name AS user_name,
+        u.email AS user_email,
+        u.image AS user_image,
+        ou.user_position,
+        ct.id AS template_id,
+        ct.template_name,
+        DATE(cir.created_at) AS submitted_day,
+        cir.selected_date,
+        COUNT(cir.id) AS items_count,
+        SUM(cir.status) AS completed_count,
+        MAX(cir.created_at) AS latest_created_at
+      FROM checklist_item_response cir
+      JOIN Organisation_Users ou ON cir.organisation_user_id = ou.id
+      JOIN User u ON ou.user_id = u.id
+      JOIN checklist_template_linked_items li ON cir.checklist_template_linked_items_id = li.id
+      JOIN checklist_template_version v ON li.template_version_id = v.version_id
+      JOIN checklist_template ct ON v.checklist_template_id = ct.id
+      WHERE 1=1
+    `;
+
+    const queryParams = [];
+    const countParams = [];
+
+    // Force regular users to see only their own submissions
+    if (!isRequesterAdmin) {
+      dataQuery += ` AND cir.organisation_user_id = ?`;
+      queryParams.push(authUserId);
+      countParams.push(authUserId);
+    }
+
+    if (search) {
+      dataQuery += ` AND (u.name LIKE ? OR u.email LIKE ? OR ct.template_name LIKE ?)`;
+      const likeSearch = `%${search}%`;
+      queryParams.push(likeSearch, likeSearch, likeSearch);
+      countParams.push(likeSearch, likeSearch, likeSearch);
+    }
+
+    if (position) {
+      dataQuery += ` AND ou.user_position = ?`;
+      queryParams.push(position);
+      countParams.push(position);
+    }
+
+    if (startDate) {
+      dataQuery += ` AND cir.created_at >= ?`;
+      const dateVal = new Date(startDate);
+      queryParams.push(dateVal);
+      countParams.push(dateVal);
+    }
+
+    if (endDate) {
+      dataQuery += ` AND cir.created_at <= ?`;
+      const dateVal = new Date(endDate);
+      queryParams.push(dateVal);
+      countParams.push(dateVal);
+    }
+
+    dataQuery += `
+      GROUP BY cir.organisation_user_id, ct.id, DATE(cir.created_at), cir.selected_date
+      ORDER BY latest_created_at DESC
+      LIMIT ? OFFSET ?
+    `;
+
+    const countQuery = `
+      SELECT COUNT(*) as total FROM (
+        SELECT cir.organisation_user_id
+        FROM checklist_item_response cir
+        JOIN Organisation_Users ou ON cir.organisation_user_id = ou.id
+        JOIN User u ON ou.user_id = u.id
+        JOIN checklist_template_linked_items li ON cir.checklist_template_linked_items_id = li.id
+        JOIN checklist_template_version v ON li.template_version_id = v.version_id
+        JOIN checklist_template ct ON v.checklist_template_id = ct.id
+        WHERE 1=1
+        ${!isRequesterAdmin ? ' AND cir.organisation_user_id = ?' : ''}
+        ${search ? ' AND (u.name LIKE ? OR u.email LIKE ? OR ct.template_name LIKE ?)' : ''}
+        ${position ? ' AND ou.user_position = ?' : ''}
+        ${startDate ? ' AND cir.created_at >= ?' : ''}
+        ${endDate ? ' AND cir.created_at <= ?' : ''}
+        GROUP BY cir.organisation_user_id, ct.id, DATE(cir.created_at), cir.selected_date
+      ) sub
+    `;
+
+    const [rows, totalResult] = await Promise.all([
+      prisma.$queryRawUnsafe(dataQuery, ...queryParams, limit, skip),
+      prisma.$queryRawUnsafe(countQuery, ...countParams)
+    ]);
+
+    const total = Number(totalResult[0]?.total || 0);
+
+    const formatted = rows.map(r => ({
+      organisation_user_id: Number(r.organisation_user_id),
+      user_name: r.user_name,
+      user_email: r.user_email,
+      user_image: r.user_image,
+      user_position: r.user_position,
+      template_id: Number(r.template_id),
+      template_name: r.template_name,
+      submitted_day: r.submitted_day,
+      selected_date: r.selected_date,
+      items_count: Number(r.items_count),
+      completed_count: Number(r.completed_count || 0),
+      latest_created_at: r.latest_created_at
+    }));
+
+    res.json({
+      reports: formatted,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit)
+    });
+  } catch (error) {
+    console.error('Fetch reports error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// Get detail responses for a specific submission in Reports
+router.get('/reports/detail', authenticateToken, async (req, res) => {
+  try {
+    const authUserId = parseInt(req.user.userId);
+    const { userId, templateId, date } = req.query; // date in YYYY-MM-DD format
+    
+    const targetUserId = parseInt(userId);
+    const targetTemplateId = parseInt(templateId);
+
+    const requester = await prisma.organisation_Users.findUnique({
+      where: { id: authUserId },
+      select: { 
+        user_type: true,
+        User: { select: { email: true } }
+      }
+    });
+    
+    const isRequesterAdmin = 
+      requester?.user_type?.trim() === 'ADMIN' || 
+      requester?.User?.email === 'gururider35@gmail.com';
+
+    if (authUserId !== targetUserId && !isRequesterAdmin) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    const rows = await prisma.$queryRaw`
+      SELECT
+        ci.checklist_name,
+        ci.input_type,
+        cir.input,
+        cir.status,
+        cir.comments,
+        cir.selected_date,
+        cir.created_at
+      FROM checklist_item_response cir
+      JOIN checklist_template_linked_items li ON cir.checklist_template_linked_items_id = li.id
+      JOIN checklist_template_version v ON li.template_version_id = v.version_id
+      JOIN checklist_items ci ON li.checklist_item_id = ci.id
+      WHERE cir.organisation_user_id = ${targetUserId}
+        AND v.checklist_template_id  = ${targetTemplateId}
+        AND DATE(cir.created_at)     = ${date}
+      ORDER BY ci.checklist_name ASC
+    `;
+
+    res.json(rows.map(r => ({
+      checklist_name: r.checklist_name,
+      input_type: r.input_type,
+      input: r.input,
+      status: r.status === true || r.status === 1,
+      comments: r.comments || null,
+      selected_date: r.selected_date,
+      created_at: r.created_at
+    })));
+  } catch (error) {
+    console.error('Fetch report detail error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });

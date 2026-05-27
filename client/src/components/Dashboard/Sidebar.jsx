@@ -1,19 +1,18 @@
-import React from 'react';
-import { LayoutDashboard, Users, LogOut, Settings, BarChart } from 'lucide-react';
+import React, { useState } from 'react';
+import { LayoutDashboard, Users, LogOut, Settings, BarChart, ChevronDown } from 'lucide-react';
 
 const Sidebar = ({ isAdmin, setIsAdmin, currentView, setCurrentView, user, onLogout }) => {
   const isDashboardActive = currentView === 'dashboard' && !isAdmin;
   const isAdminActive = currentView === 'dashboard' && isAdmin;
   const isSettingsActive = currentView === 'settings';
 
+  const [isAdminDropdownOpen, setIsAdminDropdownOpen] = useState(
+    (currentView === 'dashboard' && isAdmin) || currentView === 'user-management'
+  );
+
   const handleDashboardClick = () => {
     setCurrentView('dashboard');
     setIsAdmin(false);
-  };
-
-  const handleAdminClick = () => {
-    setCurrentView('dashboard');
-    setIsAdmin(true);
   };
 
   return (
@@ -43,17 +42,59 @@ const Sidebar = ({ isAdmin, setIsAdmin, currentView, setCurrentView, user, onLog
             <LayoutDashboard size={20} className={isDashboardActive ? 'text-primary' : 'group-hover:scale-110 transition-transform'} />
             <span>Dashboard</span>
           </button>
-          <button 
-            className={`w-full flex items-center gap-4 p-2.5 rounded-xl text-sm font-medium transition-all duration-300 mb-2 text-left group cursor-pointer ${
-              isAdminActive 
-                ? 'bg-primary/15 text-white border border-primary/30 shadow-lg shadow-primary/10' 
-                : 'text-text-muted hover:bg-white/5 hover:text-white hover:translate-x-1'
-            }`} 
-            onClick={handleAdminClick}
-          >
-            <Users size={20} className={isAdminActive ? 'text-primary' : 'group-hover:scale-110 transition-transform'} />
-            <span>Admin Overview</span>
-          </button>
+          
+          <div className="relative">
+            <button 
+              className={`w-full flex items-center justify-between p-2.5 rounded-xl text-sm font-medium transition-all duration-300 mb-1 text-left group cursor-pointer ${
+                (isAdminActive || currentView === 'user-management')
+                  ? 'bg-primary/10 text-white border border-primary/20' 
+                  : 'text-text-muted hover:bg-white/5 hover:text-white'
+              }`} 
+              onClick={() => setIsAdminDropdownOpen(!isAdminDropdownOpen)}
+            >
+              <div className="flex items-center gap-4">
+                <Users size={20} className={(isAdminActive || currentView === 'user-management') ? 'text-primary' : 'group-hover:scale-110 transition-transform'} />
+                <span>Admin Overview</span>
+              </div>
+              <ChevronDown 
+                size={16} 
+                className={`text-text-muted transition-transform duration-300 ${isAdminDropdownOpen ? 'rotate-180' : ''}`} 
+              />
+            </button>
+
+            {isAdminDropdownOpen && (
+              <div className="pl-6 space-y-1 mb-2">
+                <button
+                  onClick={() => {
+                    setCurrentView('dashboard');
+                    setIsAdmin(true);
+                  }}
+                  className={`w-full flex items-center gap-3 py-2 px-3 rounded-lg text-xs font-bold transition-all duration-200 text-left cursor-pointer ${
+                    (currentView === 'dashboard' && isAdmin)
+                      ? 'bg-primary/20 text-white font-black'
+                      : 'text-text-muted hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${currentView === 'dashboard' && isAdmin ? 'bg-primary' : 'bg-transparent border border-text-muted'}`} />
+                  <span>Overview</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setCurrentView('user-management');
+                    setIsAdmin(true);
+                  }}
+                  className={`w-full flex items-center gap-3 py-2 px-3 rounded-lg text-xs font-bold transition-all duration-200 text-left cursor-pointer ${
+                    currentView === 'user-management'
+                      ? 'bg-primary/20 text-white font-black'
+                      : 'text-text-muted hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${currentView === 'user-management' ? 'bg-primary' : 'bg-transparent border border-text-muted'}`} />
+                  <span>User Management</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="mb-6">

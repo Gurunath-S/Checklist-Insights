@@ -4,12 +4,51 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
   BarChart, Bar, Cell
 } from 'recharts';
-import { Book, CheckCircle, TrendingUp, Calendar, ChevronDown, List, Activity } from 'lucide-react';
+import { Book, CheckCircle, TrendingUp, Calendar, ChevronDown, List, Activity, Send, Clock, Bug, CheckSquare, Rocket, Users, PlusCircle } from 'lucide-react';
 import LoadingState from '../UI/LoadingState';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
 
+const getMetricIcon = (name) => {
+  const lowercase = name.toLowerCase();
+  if (lowercase.includes('bug') || lowercase.includes('error')) return <Bug />;
+  if (lowercase.includes('time') || lowercase.includes('hour') || lowercase.includes('clock') || lowercase.includes('duration')) return <Clock />;
+  if (lowercase.includes('complete') || lowercase.includes('done') || lowercase.includes('finish')) return <CheckSquare />;
+  if (lowercase.includes('work') || lowercase.includes('task') || lowercase.includes('develop')) return <CheckCircle />;
+  if (lowercase.includes('ai') || lowercase.includes('gpt') || lowercase.includes('copilot') || lowercase.includes('bot')) return <Rocket />;
+  return <Activity />;
+};
+
+const ColorfulCard = ({ color, icon, label, value }) => (
+  <div className={`bg-linear-to-br ${color} rounded-2xl p-4 flex flex-col items-center justify-center gap-2 text-white shadow-xl shadow-black/20 hover:-translate-y-2 hover:scale-105 transition-all duration-300 cursor-default aspect-square lg:aspect-auto min-h-[100px]`}>
+    {React.cloneElement(icon, { size: 24, className: "opacity-90" })}
+    <span className="text-[0.7rem] font-bold uppercase tracking-wide opacity-80 text-center truncate w-full" title={label}>{label}</span>
+    <span className="text-xl font-extrabold">{value}</span>
+  </div>
+);
+
+const DoubleMetricCard = ({ color, icon, label, val1Label, val1, val2Label, val2 }) => (
+  <div className={`bg-linear-to-br ${color} rounded-2xl p-4 flex flex-col justify-between text-white shadow-xl shadow-black/20 hover:-translate-y-2 hover:scale-105 transition-all duration-300 cursor-default aspect-square lg:aspect-auto min-h-[100px]`}>
+    <div className="flex items-center justify-between gap-2 w-full mb-1">
+      <span className="text-[0.7rem] font-bold uppercase tracking-wide opacity-80 truncate" title={label}>{label}</span>
+      {React.cloneElement(icon, { size: 16, className: "opacity-90 shrink-0" })}
+    </div>
+    <div className="flex items-center justify-between gap-2 mt-auto w-full">
+      <div className="flex flex-col items-center flex-1 min-w-0">
+        <span className="text-[8px] font-semibold uppercase opacity-75 tracking-wider mb-0.5 truncate w-full text-center" title={val1Label}>{val1Label}</span>
+        <span className="text-base font-black truncate">{val1}</span>
+      </div>
+      <div className="w-[1px] h-7 bg-white/20 shrink-0"></div>
+      <div className="flex flex-col items-center flex-1 min-w-0">
+        <span className="text-[8px] font-semibold uppercase opacity-75 tracking-wider mb-0.5 truncate w-full text-center" title={val2Label}>{val2Label}</span>
+        <span className="text-base font-black truncate">{val2}</span>
+      </div>
+    </div>
+  </div>
+);
+
 const DepartmentDashboard = ({ department, adminStartDate, adminEndDate }) => {
+  const isHR = department && department.toUpperCase() === 'HUMAN_RESOURCE';
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -98,38 +137,149 @@ const DepartmentDashboard = ({ department, adminStartDate, adminEndDate }) => {
       </div>
 
       {/* KPI Cards Row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-4 shadow-xl flex items-center justify-between gap-4">
-          <div className="flex flex-col">
-            <span className="text-text-muted text-xs font-bold uppercase tracking-widest mb-1">Submissions</span>
-            <h3 className="text-2xl font-black text-primary leading-none">{data.submissionsCount}</h3>
-          </div>
-          <div className="text-primary opacity-80 p-2 bg-white/5 rounded-2xl border border-white/10">
-            <Book size={24} strokeWidth={1.5} />
-          </div>
-        </div>
+      <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 ${isHR ? 'lg:grid-cols-5' : 'lg:grid-cols-4'} gap-4`}>
+        {isHR ? (
+          <>
+            <ColorfulCard 
+              color="from-indigo-600 to-indigo-800" 
+              icon={<Send />} 
+              label="Total Submissions" 
+              value={data.submissionsCount || 0} 
+            />
+            <ColorfulCard 
+              color="from-purple-500 to-purple-700" 
+              icon={<TrendingUp />} 
+              label="Completion Rate" 
+              value={`${data.completionRate?.toFixed(1) || '0.0'}%`} 
+            />
+            {(() => {
+              const interviewMetric = data.checklistInputs?.find(k => k.name.toLowerCase().includes('interview conducted') || k.name.toLowerCase().includes('candidates interviewed'));
+              const val = interviewMetric ? interviewMetric.value : 0;
+              return (
+                <ColorfulCard 
+                  color="from-amber-500 to-amber-700" 
+                  icon={<Users />} 
+                  label="Interviews / Day" 
+                  value={`${val} interviews`} 
+                />
+              );
+            })()}
+            {(() => {
+              const taskMetric = data.checklistInputs?.find(k => k.name.toLowerCase() === 'no of tasks created for the team' || k.name.toLowerCase() === 'no of tasks created');
+              const val = taskMetric ? taskMetric.value : 0;
+              return (
+                <ColorfulCard 
+                  color="from-rose-500 to-rose-700" 
+                  icon={<PlusCircle />} 
+                  label="Tasks Added / Day" 
+                  value={`${val} tasks`} 
+                />
+              );
+            })()}
+            <ColorfulCard 
+              color="from-emerald-500 to-emerald-700" 
+              icon={<Calendar />} 
+              label="Last Submitted Date" 
+              value={formatDate(data.latestSubmissionDate)} 
+            />
+          </>
+        ) : (
+          <>
+            <ColorfulCard 
+              color="from-indigo-600 to-indigo-800" 
+              icon={<Send />} 
+              label="Submissions" 
+              value={data.submissionsCount || 0} 
+            />
 
-        {data.topKPIs?.map((kpi, idx) => (
-          <div key={idx} className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-4 shadow-xl flex items-center justify-between gap-4">
-            <div className="flex flex-col">
-              <span className="text-text-muted text-xs font-bold uppercase tracking-widest mb-1 line-clamp-1" title={kpi.label}>{kpi.label}</span>
-              <h3 className="text-2xl font-black text-[#f59e0b] leading-none">{kpi.value}</h3>
-            </div>
-            <div className="text-[#f59e0b] opacity-80 p-2 bg-white/5 rounded-2xl border border-white/10">
-              <CheckCircle size={24} strokeWidth={1.5} />
-            </div>
-          </div>
-        ))}
+            {(() => {
+              const cardColors = [
+                'from-purple-500 to-purple-700',
+                'from-amber-500 to-amber-700',
+                'from-rose-500 to-rose-700',
+                'from-fuchsia-500 to-fuchsia-700',
+                'from-orange-500 to-orange-700',
+                'from-pink-500 to-pink-700',
+                'from-emerald-500 to-emerald-700',
+                'from-teal-500 to-teal-700'
+              ];
 
-        <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-4 shadow-xl flex items-center justify-between gap-4">
-          <div className="flex flex-col">
-            <span className="text-text-muted text-xs font-bold uppercase tracking-widest mb-1">Latest Date</span>
-            <h3 className="text-sm font-black text-white leading-none mt-2">{formatDate(data.latestSubmissionDate)}</h3>
-          </div>
-          <div className="text-[#10b981] opacity-80 p-2 bg-white/5 rounded-2xl border border-white/10">
-            <Calendar size={24} strokeWidth={1.5} />
-          </div>
-        </div>
+              let metricsToConsider = (data.topKPIs || []).map(k => {
+                const input = (data.checklistInputs || []).find(i => i.name === k.label);
+                return {
+                  label: k.label,
+                  value: k.value,
+                  type: input?.type,
+                  isPercentage: input?.isPercentage,
+                  isTimeAverage: input?.isTimeAverage,
+                  isTaskAverage: input?.isTaskAverage
+                };
+              });
+
+              const clockInMetric = metricsToConsider.find(k => k.label.toLowerCase() === 'daily clock in' || k.label.toLowerCase() === 'clock in');
+              const clockOutMetric = metricsToConsider.find(k => k.label.toLowerCase() === 'daily clock out' || k.label.toLowerCase() === 'clock out');
+              const showCombinedAttendance = clockInMetric && clockOutMetric;
+
+              const metricsToRender = metricsToConsider.filter(k => {
+                if (showCombinedAttendance) {
+                  return k.label.toLowerCase() !== clockInMetric.label.toLowerCase() && k.label.toLowerCase() !== clockOutMetric.label.toLowerCase();
+                }
+                return true;
+              });
+
+              const formatValue = (kpi) => {
+                const lowercase = kpi.label.toLowerCase();
+                if (kpi.isPercentage || kpi.type === 'Boolean' || lowercase.includes('rate') || lowercase.includes('percentage') || lowercase.includes('daily clock') || lowercase.includes('clock in') || lowercase.includes('clock out')) {
+                  return `${kpi.value}%`;
+                }
+                if (kpi.isTimeAverage || lowercase.includes('time') || lowercase.includes('hour') || lowercase.includes('clock') || lowercase.includes('duration') || lowercase.includes('trained')) {
+                  return `${kpi.value} hrs`;
+                }
+                if (kpi.isTaskAverage || lowercase.includes('tasks worked') || lowercase.includes('task worked')) {
+                  return `${kpi.value} tasks/day`;
+                }
+                return kpi.value;
+              };
+
+              return (
+                <>
+                  {showCombinedAttendance && (
+                    <DoubleMetricCard
+                      color="from-cyan-400 to-blue-600"
+                      icon={<Clock />}
+                      label="Attendance Rate"
+                      val1Label="Clock In"
+                      val1={`${clockInMetric.value}%`}
+                      val2Label="Clock Out"
+                      val2={`${clockOutMetric.value}%`}
+                    />
+                  )}
+
+                  {metricsToRender.map((kpi, idx) => {
+                    const displayValue = formatValue(kpi);
+                    const color = cardColors[idx % cardColors.length];
+                    return (
+                      <ColorfulCard
+                        key={idx}
+                        color={color}
+                        icon={getMetricIcon(kpi.label)}
+                        label={kpi.label}
+                        value={displayValue}
+                      />
+                    );
+                  })}
+                </>
+              );
+            })()}
+
+            <ColorfulCard 
+              color="from-emerald-500 to-emerald-700" 
+              icon={<Calendar />} 
+              label="Latest Date" 
+              value={formatDate(data.latestSubmissionDate)} 
+            />
+          </>
+        )}
       </div>
 
       {/* Charts Row */}

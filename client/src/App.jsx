@@ -10,6 +10,7 @@ import ActivityExplorer from './components/Dashboard/Activity/ActivityExplorer';
 import DepartmentDashboard from './components/Dashboard/DepartmentDashboard';
 import LoadingState from './components/UI/LoadingState';
 import SettingsPage from './components/Dashboard/SettingsPage';
+import UserManagement from './components/Dashboard/UserManagement';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
 
@@ -490,6 +491,8 @@ function App() {
             currentTheme={theme} 
             onChangeTheme={setTheme} 
           />
+        ) : currentView === 'user-management' ? (
+          <UserManagement currentUser={user} />
         ) : (
           <>
             {!isAdmin && <UserProfileHeader user={user} />}
