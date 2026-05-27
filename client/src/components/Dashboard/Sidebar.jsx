@@ -101,8 +101,15 @@ const Sidebar = ({ isAdmin, setIsAdmin, currentView, setCurrentView, user, onLog
           <p className="text-[0.7rem] font-bold uppercase tracking-[0.15em] text-text-muted mb-3 pl-4">
             Analytics
           </p>
-          <button className="w-full flex items-center gap-4 p-2.5 rounded-xl text-sm font-medium text-text-muted hover:bg-white/5 hover:text-white hover:translate-x-1 transition-all duration-300 mb-2 text-left group cursor-pointer">
-            <BarChart size={20} className="group-hover:scale-110 transition-transform" />
+          <button 
+            className={`w-full flex items-center gap-4 p-2.5 rounded-xl text-sm font-medium transition-all duration-300 mb-2 text-left group cursor-pointer ${
+              currentView === 'reports' 
+                ? 'bg-primary/15 text-white border border-primary/30 shadow-lg shadow-primary/10' 
+                : 'text-text-muted hover:bg-white/5 hover:text-white hover:translate-x-1'
+            }`}
+            onClick={() => setCurrentView('reports')}
+          >
+            <BarChart size={20} className={currentView === 'reports' ? 'text-primary' : 'group-hover:scale-110 transition-transform'} />
             <span>Reports</span>
           </button>
           <button 

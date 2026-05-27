@@ -1190,4 +1190,235 @@ router.get('/reports/detail', authenticateToken, async (req, res) => {
   }
 });
 
+// Get Department-wise Reports
+router.get('/reports/departments', authenticateToken, async (req, res) => {
+  try {
+    const authUserId = parseInt(req.user.userId);
+    const requester = await prisma.organisation_Users.findUnique({
+      where: { id: authUserId },
+      select: { user_type: true }
+    });
+    
+    const isRequesterAdmin = requester?.user_type?.trim() === 'ADMIN';
+    if (!isRequesterAdmin) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const { startDate, endDate } = req.query;
+    let queryParams = [];
+
+    let sql = `
+      SELECT 
+        ou.user_position AS department,
+        COUNT(DISTINCT CASE WHEN cir.id IS NOT NULL THEN CONCAT(ou.id, '-', ct.id, '-', DATE(cir.created_at)) END) AS total_submissions,
+        COALESCE(ROUND(AVG(CAST(cir.status AS UNSIGNED)) * 100, 1), 0) AS avg_completion_rate,
+        COUNT(DISTINCT ou.id) AS total_users
+      FROM Organisation_Users ou
+      LEFT JOIN checklist_item_response cir ON ou.id = cir.organisation_user_id
+    `;
+
+    if (startDate) {
+      sql += ` AND cir.created_at >= ?`;
+      queryParams.push(new Date(startDate));
+    }
+    if (endDate) {
+      sql += ` AND cir.created_at <= ?`;
+      queryParams.push(new Date(endDate));
+    }
+
+    sql += `
+      LEFT JOIN checklist_template_linked_items li ON cir.checklist_template_linked_items_id = li.id
+      LEFT JOIN checklist_template_version v ON li.template_version_id = v.version_id
+      LEFT JOIN checklist_template ct ON v.checklist_template_id = ct.id
+      WHERE ou.user_position IS NOT NULL
+      GROUP BY ou.user_position
+      ORDER BY total_submissions DESC
+    `;
+
+    const rows = await prisma.$queryRawUnsafe(sql, ...queryParams);
+    
+    const formatted = rows.map(r => ({
+      department: r.department,
+      total_submissions: Number(r.total_submissions),
+      avg_completion_rate: Number(r.avg_completion_rate),
+      total_users: Number(r.total_users)
+    }));
+
+    res.json(formatted);
+  } catch (error) {
+    console.error('Fetch department reports error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// Get Template-wise Reports
+router.get('/reports/templates', authenticateToken, async (req, res) => {
+  try {
+    const authUserId = parseInt(req.user.userId);
+    const requester = await prisma.organisation_Users.findUnique({
+      where: { id: authUserId },
+      select: { user_type: true }
+    });
+    
+    const isRequesterAdmin = requester?.user_type?.trim() === 'ADMIN';
+    if (!isRequesterAdmin) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const { startDate, endDate } = req.query;
+    let queryParams = [];
+
+    let sql = `
+      SELECT 
+        ct.id AS template_id,
+        ct.template_name,
+        ct.priority,
+        COUNT(DISTINCT CASE WHEN cir.id IS NOT NULL THEN CONCAT(cir.organisation_user_id, '-', DATE(cir.created_at)) END) AS total_submissions,
+        COALESCE(ROUND(AVG(CAST(cir.status AS UNSIGNED)) * 100, 1), 0) AS avg_completion_rate,
+        COUNT(cir.id) AS total_responses
+      FROM checklist_template ct
+      LEFT JOIN checklist_template_version v ON ct.id = v.checklist_template_id
+      LEFT JOIN checklist_template_linked_items li ON v.version_id = li.template_version_id
+      LEFT JOIN checklist_item_response cir ON li.id = cir.checklist_template_linked_items_id
+    `;
+
+    if (startDate) {
+      sql += ` AND cir.created_at >= ?`;
+      queryParams.push(new Date(startDate));
+    }
+    if (endDate) {
+      sql += ` AND cir.created_at <= ?`;
+      queryParams.push(new Date(endDate));
+    }
+
+    sql += `
+      GROUP BY ct.id, ct.template_name, ct.priority
+      ORDER BY total_submissions DESC
+    `;
+
+    const rows = await prisma.$queryRawUnsafe(sql, ...queryParams);
+
+    const formatted = rows.map(r => ({
+      template_id: Number(r.template_id),
+      template_name: r.template_name,
+      priority: r.priority,
+      total_submissions: Number(r.total_submissions),
+      avg_completion_rate: Number(r.avg_completion_rate),
+      total_responses: Number(r.total_responses)
+    }));
+
+    res.json(formatted);
+  } catch (error) {
+    console.error('Fetch template reports error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// Get User-wise Reports (Paginated)
+router.get('/reports/users', authenticateToken, async (req, res) => {
+  try {
+    const authUserId = parseInt(req.user.userId);
+    const requester = await prisma.organisation_Users.findUnique({
+      where: { id: authUserId },
+      select: { user_type: true }
+    });
+    
+    const isRequesterAdmin = requester?.user_type?.trim() === 'ADMIN';
+    if (!isRequesterAdmin) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const { startDate, endDate, search, page = 1, limit = 15 } = req.query;
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+    
+    let queryParams = [];
+
+    // Base query
+    let baseSql = `
+      FROM Organisation_Users ou
+      JOIN User u ON ou.user_id = u.id
+      LEFT JOIN checklist_item_response cir ON ou.id = cir.organisation_user_id
+    `;
+
+    if (startDate) {
+      baseSql += ` AND cir.created_at >= ?`;
+      queryParams.push(new Date(startDate));
+    }
+    if (endDate) {
+      baseSql += ` AND cir.created_at <= ?`;
+      queryParams.push(new Date(endDate));
+    }
+
+    baseSql += `
+      LEFT JOIN checklist_template_linked_items li ON cir.checklist_template_linked_items_id = li.id
+      LEFT JOIN checklist_template_version v ON li.template_version_id = v.version_id
+      LEFT JOIN checklist_template ct ON v.checklist_template_id = ct.id
+      WHERE 1=1
+    `;
+
+    if (search) {
+      baseSql += ` AND (u.name LIKE ? OR u.email LIKE ?)`;
+      const likeSearch = `%${search}%`;
+      queryParams.push(likeSearch, likeSearch);
+    }
+
+    let dataSql = `
+      SELECT 
+        ou.id AS user_id,
+        u.name AS user_name,
+        u.email AS user_email,
+        u.image AS user_image,
+        ou.user_position,
+        COUNT(DISTINCT CASE WHEN cir.id IS NOT NULL THEN CONCAT(ct.id, '-', DATE(cir.created_at)) END) AS total_submissions,
+        COALESCE(ROUND(AVG(CAST(cir.status AS UNSIGNED)) * 100, 1), 0) AS avg_completion_rate,
+        MAX(cir.created_at) AS last_submission_date
+      ${baseSql}
+      GROUP BY ou.id, u.name, u.email, u.image, ou.user_position
+      ORDER BY total_submissions DESC
+      LIMIT ? OFFSET ?
+    `;
+
+    let countSql = `
+      SELECT COUNT(DISTINCT ou.id) as total
+      ${baseSql}
+    `;
+
+    // Clone queryParams for count query (which doesn't have LIMIT and OFFSET)
+    const countParams = [...queryParams];
+    
+    // Add LIMIT and OFFSET for data SQL
+    queryParams.push(limitNum, skip);
+
+    const [rows, countResult] = await Promise.all([
+      prisma.$queryRawUnsafe(dataSql, ...queryParams),
+      prisma.$queryRawUnsafe(countSql, ...countParams)
+    ]);
+
+    const total = Number(countResult[0]?.total || 0);
+
+    const formatted = rows.map(r => ({
+      user_id: Number(r.user_id),
+      user_name: r.user_name,
+      user_email: r.user_email,
+      user_image: r.user_image,
+      user_position: r.user_position,
+      total_submissions: Number(r.total_submissions),
+      avg_completion_rate: Number(r.avg_completion_rate),
+      last_submission_date: r.last_submission_date
+    }));
+
+    res.json({
+      users: formatted,
+      total,
+      page: pageNum,
+      totalPages: Math.ceil(total / limitNum)
+    });
+  } catch (error) {
+    console.error('Fetch user reports error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 module.exports = router;

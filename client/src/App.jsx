@@ -11,6 +11,7 @@ import DepartmentDashboard from './components/Dashboard/DepartmentDashboard';
 import LoadingState from './components/UI/LoadingState';
 import SettingsPage from './components/Dashboard/SettingsPage';
 import UserManagement from './components/Dashboard/UserManagement';
+import ReportsPage from './components/Dashboard/ReportsPage';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
 
@@ -493,6 +494,8 @@ function App() {
           />
         ) : currentView === 'user-management' ? (
           <UserManagement currentUser={user} />
+        ) : currentView === 'reports' ? (
+          <ReportsPage currentUser={user} />
         ) : (
           <>
             {!isAdmin && <UserProfileHeader user={user} />}
