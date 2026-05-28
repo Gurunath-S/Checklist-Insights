@@ -1412,35 +1412,69 @@ router.get('/reports/tags', authenticateToken, async (req, res) => {
       ORDER BY t.tag_name ASC
     `;
 
+    let templateQueryParams = [];
+    let templatesQuery = `
+      SELECT 
+        ct.id AS template_id,
+        ct.template_name,
+        ct.priority,
+        ct.created_at AS created_at,
+        ct.tag_id,
+        u_creator.name AS creator_name,
+        COALESCE(u_owner.name, u_creator.name) AS owner_name,
+        COUNT(DISTINCT CASE WHEN cir.id IS NOT NULL THEN CONCAT(cir.organisation_user_id, '-', DATE(cir.created_at)) END) AS total_submissions,
+        COALESCE(ROUND(AVG(
+          CASE 
+            WHEN ci.input_type = 'Boolean' AND (cir.input = 'Yes' OR cir.input = '1' OR cir.input = 'true' OR cir.status = 1) THEN 1
+            WHEN ci.input_type = 'Numeric' AND (cir.input IS NOT NULL AND cir.input != '') THEN 1
+            ELSE 0 
+          END
+        ) * 100, 1), 0) AS avg_completion_rate,
+        COUNT(cir.id) AS total_responses
+      FROM checklist_template ct
+      LEFT JOIN Organisation_Users ou_creator ON ct.organisation_user_id = ou_creator.id
+      LEFT JOIN User u_creator ON ou_creator.user_id = u_creator.id
+      LEFT JOIN checklist_template_owners cto ON ct.id = cto.checklist_template_id
+      LEFT JOIN Organisation_Users ou_owner ON cto.organisation_user_id = ou_owner.id
+      LEFT JOIN User u_owner ON ou_owner.user_id = u_owner.id
+      LEFT JOIN checklist_template_version v ON ct.id = v.checklist_template_id
+      LEFT JOIN checklist_template_linked_items li ON v.version_id = li.template_version_id
+      LEFT JOIN checklist_item_response cir ON li.id = cir.checklist_template_linked_items_id
+      LEFT JOIN checklist_items ci ON li.checklist_item_id = ci.id
+      WHERE 1=1
+    `;
+
+    if (startDate) {
+      templatesQuery += ` AND cir.created_at >= ?`;
+      templateQueryParams.push(new Date(startDate));
+    }
+    if (endDate) {
+      templatesQuery += ` AND cir.created_at <= ?`;
+      templateQueryParams.push(new Date(endDate));
+    }
+
+    templatesQuery += `
+      GROUP BY ct.id, ct.template_name, ct.priority, ct.created_at, ct.tag_id, u_creator.name, u_owner.name
+    `;
+
     const [tagStats, templates] = await Promise.all([
       prisma.$queryRawUnsafe(tagStatsSql, ...queryParams),
-      prisma.checklist_template.findMany({
-        select: {
-          id: true,
-          template_name: true,
-          tag_id: true,
-          priority: true,
-          created_at: true,
-          Organisation_Users: {
-            select: {
-              user: {
-                select: { name: true }
-              }
-            }
-          }
-        }
-      })
+      prisma.$queryRawUnsafe(templatesQuery, ...templateQueryParams)
     ]);
 
     const formatted = tagStats.map(tag => {
       const connectedTemplates = templates
-        .filter(t => t.tag_id === tag.tag_id)
+        .filter(t => Number(t.tag_id) === Number(tag.tag_id))
         .map(t => ({
-          template_id: t.id,
+          template_id: Number(t.template_id),
           template_name: t.template_name,
           priority: t.priority,
           created_at: t.created_at,
-          creator_name: t.Organisation_Users?.user?.name || 'System'
+          creator_name: t.creator_name || 'System',
+          owner_name: t.owner_name || t.creator_name || 'System',
+          total_submissions: Number(t.total_submissions),
+          avg_completion_rate: Number(t.avg_completion_rate),
+          total_responses: Number(t.total_responses)
         }));
 
       return {
