@@ -1409,7 +1409,7 @@ router.get('/reports/tags', authenticateToken, async (req, res) => {
 
     tagStatsSql += `
       GROUP BY t.id, t.tag_name, t.description, t.created_at, t.user_position, t.recurrent, u_creator.name
-      ORDER BY t.tag_name ASC
+      ORDER BY total_submissions DESC, t.tag_name ASC
     `;
 
     let templateQueryParams = [];

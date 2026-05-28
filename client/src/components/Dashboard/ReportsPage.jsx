@@ -70,6 +70,11 @@ export default function ReportsPage({ currentUser }) {
   const [tagLoading, setTagLoading] = useState(false);
   const [selectedTag, setSelectedTag] = useState(null);
   const [isTagDateOpen, setIsTagDateOpen] = useState(false);
+  const [tagSearch, setTagSearch] = useState('');
+  const [tagPositionFilter, setTagPositionFilter] = useState('all');
+  const [tagRecurrenceFilter, setTagRecurrenceFilter] = useState('all');
+  const [isTagPosOpen, setIsTagPosOpen] = useState(false);
+  const [isTagRecurOpen, setIsTagRecurOpen] = useState(false);
 
   // 4. User Compliance Tab States
   const [userSearch, setUserSearch] = useState('');
@@ -82,6 +87,15 @@ export default function ReportsPage({ currentUser }) {
   const [userTotalPages, setUserTotalPages] = useState(1);
   const [userReports, setUserReports] = useState([]);
   const [userLoading, setUserLoading] = useState(false);
+
+  // Derived state: Tag filters
+  const filteredTags = tagReports.filter(t => {
+    const matchesSearch = t.tag_name.toLowerCase().includes(tagSearch.toLowerCase()) ||
+      (t.description && t.description.toLowerCase().includes(tagSearch.toLowerCase()));
+    const matchesPosition = tagPositionFilter === 'all' || t.user_position === tagPositionFilter;
+    const matchesRecurrence = tagRecurrenceFilter === 'all' || t.recurrent === tagRecurrenceFilter;
+    return matchesSearch && matchesPosition && matchesRecurrence;
+  });
 
   // Dropdown UI States
   const [isSubPosOpen, setIsSubPosOpen] = useState(false);
@@ -318,6 +332,27 @@ export default function ReportsPage({ currentUser }) {
       fetchTags();
     }
   }, [tagDatePreset, tagStartDate, tagEndDate, activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'tags' && tagReports.length > 0) {
+      const filtered = tagReports.filter(t => {
+        const matchesSearch = t.tag_name.toLowerCase().includes(tagSearch.toLowerCase()) ||
+          (t.description && t.description.toLowerCase().includes(tagSearch.toLowerCase()));
+        const matchesPosition = tagPositionFilter === 'all' || t.user_position === tagPositionFilter;
+        const matchesRecurrence = tagRecurrenceFilter === 'all' || t.recurrent === tagRecurrenceFilter;
+        return matchesSearch && matchesPosition && matchesRecurrence;
+      });
+
+      if (filtered.length > 0) {
+        const stillExists = filtered.find(t => t.tag_id === selectedTag?.tag_id);
+        if (!stillExists) {
+          setSelectedTag(filtered[0]);
+        }
+      } else {
+        setSelectedTag(null);
+      }
+    }
+  }, [tagSearch, tagPositionFilter, tagRecurrenceFilter, tagReports, activeTab]);
 
   useEffect(() => {
     if (activeTab === 'users') {
@@ -939,6 +974,79 @@ export default function ReportsPage({ currentUser }) {
                 <input type="date" value={tagEndDate} onChange={(e) => setTagEndDate(e.target.value)} className="w-full sm:w-40 bg-white/5 border border-glass-border rounded-xl px-3 py-1.5 text-xs text-white" />
               </div>
             )}
+
+            {/* Search, Position and Recurrence Controls */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-3 border-t border-glass-border/30">
+              {/* Search Bar */}
+              <div className="relative">
+                <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted" />
+                <input
+                  type="text"
+                  placeholder="Search tag name or desc..."
+                  value={tagSearch}
+                  onChange={(e) => setTagSearch(e.target.value)}
+                  className="w-full bg-white/5 border border-glass-border rounded-xl pl-10 pr-4 py-2 text-xs text-white focus:outline-none focus:border-accent/40 transition-all placeholder:text-text-muted/65"
+                />
+              </div>
+
+              {/* User Position Dropdown */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsTagPosOpen(!isTagPosOpen)}
+                  className="w-full flex items-center justify-between gap-2 px-4 py-2 bg-white/5 border border-glass-border rounded-xl text-xs text-white font-bold hover:bg-white/10 transition-all cursor-pointer text-left"
+                >
+                  <span className="truncate">
+                    Position: {tagPositionFilter === 'all' ? 'All Positions' : tagPositionFilter.replace(/_/g, ' ')}
+                  </span>
+                  <ChevronRight size={14} className={`text-text-muted transition-transform duration-300 ${isTagPosOpen ? 'rotate-90' : ''}`} />
+                </button>
+                {isTagPosOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setIsTagPosOpen(false)}></div>
+                    <div className="absolute left-0 mt-2 w-full bg-bg-card backdrop-blur-3xl border border-glass-border rounded-xl p-2.5 shadow-2xl z-50 space-y-1 max-h-56 overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-top-2 duration-200">
+                      <button type="button" onClick={() => { setTagPositionFilter('all'); setIsTagPosOpen(false); }} className={`w-full text-left px-3 py-2 rounded-xl text-xs transition-all hover:bg-white/5 ${tagPositionFilter === 'all' ? 'bg-primary/10 text-white font-semibold' : 'text-text-muted'}`}>
+                        All Positions
+                      </button>
+                      {Array.from(new Set(tagReports.map(t => t.user_position).filter(Boolean))).map((pos) => (
+                        <button key={pos} type="button" onClick={() => { setTagPositionFilter(pos); setIsTagPosOpen(false); }} className={`w-full text-left px-3 py-2 rounded-xl text-xs transition-all hover:bg-white/5 ${tagPositionFilter === pos ? 'bg-primary/10 text-white font-semibold' : 'text-text-muted'}`}>
+                          {pos.replace(/_/g, ' ')}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Recurrence Dropdown */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsTagRecurOpen(!isTagRecurOpen)}
+                  className="w-full flex items-center justify-between gap-2 px-4 py-2 bg-white/5 border border-glass-border rounded-xl text-xs text-white font-bold hover:bg-white/10 transition-all cursor-pointer text-left"
+                >
+                  <span className="truncate">
+                    Recurrence: {tagRecurrenceFilter === 'all' ? 'All Recurrences' : tagRecurrenceFilter}
+                  </span>
+                  <ChevronRight size={14} className={`text-text-muted transition-transform duration-300 ${isTagRecurOpen ? 'rotate-90' : ''}`} />
+                </button>
+                {isTagRecurOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setIsTagRecurOpen(false)}></div>
+                    <div className="absolute left-0 mt-2 w-full bg-bg-card backdrop-blur-3xl border border-glass-border rounded-xl p-2.5 shadow-2xl z-50 space-y-1 animate-in fade-in slide-in-from-top-2 duration-200">
+                      <button type="button" onClick={() => { setTagRecurrenceFilter('all'); setIsTagRecurOpen(false); }} className={`w-full text-left px-3 py-2 rounded-xl text-xs transition-all hover:bg-white/5 ${tagRecurrenceFilter === 'all' ? 'bg-primary/10 text-white font-semibold' : 'text-text-muted'}`}>
+                        All Recurrences
+                      </button>
+                      {Array.from(new Set(tagReports.map(t => t.recurrent).filter(Boolean))).map((rec) => (
+                        <button key={rec} type="button" onClick={() => { setTagRecurrenceFilter(rec); setIsTagRecurOpen(false); }} className={`w-full text-left px-3 py-2 rounded-xl text-xs transition-all hover:bg-white/5 ${tagRecurrenceFilter === rec ? 'bg-primary/10 text-white font-semibold' : 'text-text-muted'}`}>
+                          {rec}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
 
           {tagLoading ? (
@@ -951,9 +1059,14 @@ export default function ReportsPage({ currentUser }) {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
               {/* Left Column: Tags List */}
               <div className="lg:col-span-5 space-y-3">
-                <p className="text-[10px] font-black uppercase tracking-widest text-text-muted px-1">Tags List ({tagReports.length})</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-text-muted px-1">Tags List ({filteredTags.length})</p>
                 <div className="space-y-3 max-h-[580px] overflow-y-auto pr-1 custom-scrollbar">
-                  {tagReports.map((t) => {
+                  {filteredTags.length === 0 ? (
+                    <div className="p-8 border border-glass-border/40 border-dashed rounded-2xl flex items-center justify-center text-text-muted text-xs font-semibold bg-white/2">
+                      No tags match the selected filters.
+                    </div>
+                  ) : (
+                    filteredTags.map((t) => {
                     const isSelected = selectedTag?.tag_id === t.tag_id;
                     return (
                       <button
@@ -999,7 +1112,8 @@ export default function ReportsPage({ currentUser }) {
                         </div>
                       </button>
                     );
-                  })}
+                  })
+                )}
                 </div>
               </div>
 
@@ -1024,35 +1138,9 @@ export default function ReportsPage({ currentUser }) {
                           No checklist templates connected to this tag.
                         </div>
                       ) : (
-                        <div className="relative h-[300px] border border-glass-border/30 rounded-2xl bg-white/2 overflow-hidden">
-                          {/* SVG Connection Paths */}
-                          <svg className="absolute inset-0 w-full h-full pointer-events-none">
-                            <defs>
-                              <linearGradient id="glow-line-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-                                <stop offset="0%" stopColor="#10b981" stopOpacity="0.8" />
-                                <stop offset="100%" stopColor="#6366f1" stopOpacity="0.8" />
-                              </linearGradient>
-                            </defs>
-                            {selectedTag.templates.map((_, idx) => {
-                              if (idx > 3) return null;
-                              const yPos = 45 + idx * 70;
-                              return (
-                                <g key={idx}>
-                                  {/* Curve path */}
-                                  <path
-                                    d={`M 140 150 C 200 150, 200 ${yPos}, 270 ${yPos}`}
-                                    stroke="url(#glow-line-grad)"
-                                    strokeWidth="2.5"
-                                    fill="none"
-                                    className="opacity-70 animate-pulse"
-                                  />
-                                </g>
-                              );
-                            })}
-                          </svg>
-
+                        <div className="relative flex items-center gap-4 h-[300px] border border-glass-border/30 rounded-2xl bg-white/2 p-6 overflow-hidden">
                           {/* Left Center Node: Selected Tag */}
-                          <div className="absolute left-6 top-1/2 -translate-y-1/2 flex flex-col items-center justify-center p-4 rounded-3xl bg-gradient-to-br from-primary/30 to-accent/30 border-2 border-accent/50 shadow-2xl shadow-accent/15 w-[140px] text-center">
+                          <div className="flex flex-col items-center justify-center p-4 rounded-3xl bg-gradient-to-br from-primary/30 to-accent/30 border-2 border-accent/50 shadow-2xl shadow-accent/15 w-[140px] text-center shrink-0">
                             <div className="p-2 bg-accent/20 rounded-2xl text-accent mb-2">
                               <Hash size={20} />
                             </div>
@@ -1060,35 +1148,51 @@ export default function ReportsPage({ currentUser }) {
                             <span className="text-[9px] text-text-muted mt-1">Creator: {selectedTag.creator_name}</span>
                           </div>
 
-                          {/* Right Nodes: Templates */}
-                          {selectedTag.templates.map((tpl, idx) => {
-                            if (idx > 3) return null;
-                            const yPos = 45 + idx * 70;
-                            return (
+                          {/* Middle: SVG Connection Path */}
+                          <div className="w-[60px] h-full flex items-center shrink-0 pointer-events-none">
+                            <svg className="w-full h-12">
+                              <defs>
+                                <linearGradient id="glow-line-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                                  <stop offset="0%" stopColor="#10b981" stopOpacity="0.8" />
+                                  <stop offset="100%" stopColor="#6366f1" stopOpacity="0.8" />
+                                </linearGradient>
+                              </defs>
+                              <path
+                                d="M 0 24 C 30 24, 30 24, 60 24"
+                                stroke="url(#glow-line-grad)"
+                                strokeWidth="3"
+                                fill="none"
+                                className="opacity-80 animate-pulse"
+                              />
+                            </svg>
+                          </div>
+
+                          {/* Right Side: Scrollable Templates Column */}
+                          <div className="flex-1 h-full overflow-y-auto pr-1 space-y-3 custom-scrollbar py-1">
+                            {selectedTag.templates.map((tpl) => (
                               <div
                                 key={tpl.template_id}
-                                className="absolute right-6 p-3 rounded-2xl bg-bg-card/90 border border-glass-border/40 shadow-xl backdrop-blur-md w-[220px]"
-                                style={{ top: `${yPos - 28}px` }}
+                                className="relative pl-5 py-3 pr-4 rounded-2xl bg-bg-card/90 border border-glass-border/40 hover:border-accent/40 shadow-xl transition-all duration-300"
                               >
-                                <div className="flex items-center gap-2">
-                                  <div className="p-1.5 bg-primary/10 rounded-xl text-primary-light shrink-0">
-                                    <Layers size={12} />
+                                {/* Decorative Connector Point */}
+                                <div className="absolute left-0 top-1/2 -translate-x-1.5 -translate-y-1/2 w-3 h-3 bg-accent rounded-full border-2 border-bg-card shadow-sm shadow-accent/45" />
+                                
+                                <div className="flex items-center gap-3">
+                                  <div className="p-2 bg-primary/10 rounded-xl text-primary-light shrink-0">
+                                    <Layers size={14} />
                                   </div>
-                                  <div className="truncate">
-                                    <p className="text-[10px] font-black text-white leading-normal truncate" title={tpl.template_name}>{tpl.template_name}</p>
-                                    <p className="text-[8px] text-text-muted mt-0.5 truncate">Priority: {tpl.priority} | Created: {formatDate(tpl.created_at)}</p>
+                                  <div className="truncate flex-1">
+                                    <p className="text-[11px] font-black text-white leading-normal truncate" title={tpl.template_name}>
+                                      {tpl.template_name}
+                                    </p>
+                                    <p className="text-[9px] text-text-muted mt-0.5 truncate">
+                                      Priority: {tpl.priority} | Created: {formatDate(tpl.created_at)}
+                                    </p>
                                   </div>
                                 </div>
                               </div>
-                            );
-                          })}
-
-                          {/* More badge if count > 4 */}
-                          {selectedTag.templates.length > 4 && (
-                            <div className="absolute right-6 bottom-3 bg-white/5 border border-glass-border/40 rounded-xl px-2 py-0.5 text-[8px] text-text-muted font-bold">
-                              + {selectedTag.templates.length - 4} more templates
-                            </div>
-                          )}
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -1097,12 +1201,12 @@ export default function ReportsPage({ currentUser }) {
                     <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-5 shadow-xl space-y-4">
                       <div>
                         <h4 className="text-xs font-black uppercase tracking-widest text-white">Tag Performance Chart</h4>
-                        <p className="text-[9px] text-text-muted mt-0.5">Average compliance rates compared across all tags</p>
+                        <p className="text-[9px] text-text-muted mt-0.5">Average compliance rates compared (Top 10 matched tags)</p>
                       </div>
 
                       <div className="h-[200px] w-full text-xs">
                         <ResponsiveContainer width="100%" height="100%">
-                          <RechartsBarChart data={tagReports} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                          <RechartsBarChart data={filteredTags.slice(0, 10)} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                             <XAxis dataKey="tag_name" tickLine={false} axisLine={false} tick={{ fill: 'rgba(255,255,255,0.6)', fontSize: 9 }} />
                             <YAxis domain={[0, 100]} tickLine={false} axisLine={false} tick={{ fill: 'rgba(255,255,255,0.6)', fontSize: 9 }} />
@@ -1112,10 +1216,10 @@ export default function ReportsPage({ currentUser }) {
                               itemStyle={{ color: '#accent' }}
                             />
                             <Bar dataKey="avg_completion_rate" name="Compliance Rate" radius={[6, 6, 0, 0]}>
-                              {tagReports.map((t, idx) => (
+                              {filteredTags.slice(0, 10).map((t, idx) => (
                                 <Cell
                                   key={idx}
-                                  fill={t.tag_id === selectedTag.tag_id ? 'url(#active-bar-grad)' : 'url(#inactive-bar-grad)'}
+                                  fill={t.tag_id === selectedTag?.tag_id ? 'url(#active-bar-grad)' : 'url(#inactive-bar-grad)'}
                                 />
                               ))}
                             </Bar>
