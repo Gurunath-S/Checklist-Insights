@@ -132,16 +132,23 @@ router.get('/dates/:userId/:templateId', authenticateToken, async (req, res) => 
 
     let dataQuery = `
       SELECT
-        DATE(cir.created_at)    AS submitted_day,
-        cir.selected_date       AS selected_date,
+        COALESCE(NULLIF(cir.selected_date, ''), DATE_FORMAT(cir.created_at, '%Y-%m-%d')) AS checklist_date,
+        DATE(MAX(cir.created_at)) AS submitted_day,
+        MAX(cir.selected_date) AS selected_date,
         COUNT(cir.id)           AS items_count,
-        SUM(cir.status)         AS completed_count,
+        SUM(CASE 
+          WHEN ci.input_type = 'Boolean' AND (cir.input = 'Yes' OR cir.input = '1' OR cir.input = 'true' OR cir.status = 1) THEN 1
+          WHEN ci.input_type = 'Numeric' AND (cir.input IS NOT NULL AND cir.input != '') THEN 1
+          ELSE 0 
+        END)                    AS completed_count,
         MIN(cir.created_at)     AS first_created_at
       FROM checklist_item_response cir
       JOIN checklist_template_linked_items li
         ON cir.checklist_template_linked_items_id = li.id
       JOIN checklist_template_version v
         ON li.template_version_id = v.version_id
+      JOIN checklist_items ci
+        ON li.checklist_item_id = ci.id
       WHERE cir.organisation_user_id = ?
         AND v.checklist_template_id  = ?
     `;
@@ -161,14 +168,14 @@ router.get('/dates/:userId/:templateId', authenticateToken, async (req, res) => 
     }
 
     dataQuery += `
-      GROUP BY DATE(cir.created_at), cir.selected_date
+      GROUP BY COALESCE(NULLIF(cir.selected_date, ''), DATE_FORMAT(cir.created_at, '%Y-%m-%d'))
       ORDER BY first_created_at DESC
       LIMIT ? OFFSET ?
     `;
 
     const countQuery = `
       SELECT COUNT(*) as total FROM (
-        SELECT DATE(cir.created_at)
+        SELECT COALESCE(NULLIF(cir.selected_date, ''), DATE_FORMAT(cir.created_at, '%Y-%m-%d'))
         FROM checklist_item_response cir
         JOIN checklist_template_linked_items li
           ON cir.checklist_template_linked_items_id = li.id
@@ -178,7 +185,7 @@ router.get('/dates/:userId/:templateId', authenticateToken, async (req, res) => 
           AND v.checklist_template_id  = ?
           ${startDate ? ' AND cir.created_at >= ?' : ''}
           ${endDate ? ' AND cir.created_at <= ?' : ''}
-        GROUP BY DATE(cir.created_at), cir.selected_date
+        GROUP BY COALESCE(NULLIF(cir.selected_date, ''), DATE_FORMAT(cir.created_at, '%Y-%m-%d'))
       ) sub
     `;
 
@@ -192,6 +199,7 @@ router.get('/dates/:userId/:templateId', authenticateToken, async (req, res) => 
     const data = rows.map(r => ({
       submitted_day: r.submitted_day,
       selected_date: r.selected_date,
+      checklist_date: r.checklist_date,
       is_backdated: r.selected_date
         ? String(r.submitted_day) !== String(r.selected_date)
         : false,
@@ -248,14 +256,21 @@ router.get('/responses/:userId/:templateId/:date', authenticateToken, async (req
         ON li.checklist_item_id = ci.id
       WHERE cir.organisation_user_id = ${userId}
         AND v.checklist_template_id  = ${templateId}
-        AND DATE(cir.created_at)     = ${date}
+        AND COALESCE(NULLIF(cir.selected_date, ''), DATE_FORMAT(cir.created_at, '%Y-%m-%d')) = ${date}
       ORDER BY ci.checklist_name ASC
     `;
     res.json(rows.map(r => ({
       checklist_name: r.checklist_name,
       input_type: r.input_type,
       input: r.input,
-      status: r.status === true || r.status === 1,
+      status: r.status === true || 
+              r.status === 1 || 
+              r.status === '1' || 
+              !!(r.input && (
+                r.input.trim().toLowerCase() === 'yes' || 
+                r.input.trim() === '1' || 
+                r.input.trim().toLowerCase() === 'true'
+              )),
       comments: r.comments || null,
       selected_date: r.selected_date,
       created_at: r.created_at

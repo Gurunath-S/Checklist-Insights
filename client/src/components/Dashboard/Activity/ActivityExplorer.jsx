@@ -3,7 +3,8 @@ import axios from 'axios';
 import {
   ClipboardList, ChevronRight, ChevronLeft, ChevronDown,
   Calendar, CheckCircle2, Circle, MessageSquare,
-  Hash, ToggleLeft, Loader2, FileText, CalendarClock, List
+  Hash, ToggleLeft, Loader2, FileText, CalendarClock, List,
+  XCircle
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
@@ -45,7 +46,7 @@ const PaginationControls = ({ page, setPage, totalPages, limit, setLimit, isOpen
             <div className="text-[10px] font-bold text-white/40 px-2.5 py-1.5 uppercase tracking-wider border-b border-glass-border/30 mb-1">
               Show Rows
             </div>
-            {[5, 10, 20, 50].map((val) => (
+            {[5, 10, 15, 20, 50].map((val) => (
               <button
                 key={val}
                 onClick={() => { setLimit(val); setPage(1); setIsOpen(false); }}
@@ -211,8 +212,8 @@ const DateList = ({ userId, template, onSelect, startDate, endDate }) => {
     <div>
       <div className="space-y-2">
         {dates.map((d, i) => {
+          const checklistStr = fmt(d.checklist_date);
           const submittedStr = fmt(d.submitted_day);
-          const selectedStr = fmt(d.selected_date);
           const isBackdated = d.is_backdated;
           const completionPct = d.items_count > 0
             ? Math.round((d.completed_count / d.items_count) * 100)
@@ -232,12 +233,12 @@ const DateList = ({ userId, template, onSelect, startDate, endDate }) => {
               {/* Date info */}
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-bold text-white">
-                  {submittedStr}
+                  {checklistStr}
                 </p>
                 {isBackdated && (
                   <p className="text-[0.7rem] text-amber-400 font-medium mt-0.5 flex items-center gap-1">
                     <CalendarClock size={11} />
-                    For: {selectedStr}
+                    Submitted: {submittedStr}
                   </p>
                 )}
               </div>
@@ -275,9 +276,9 @@ const ResponseDetail = ({ userId, template, dateRow }) => {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const dateParam = dateRow.submitted_day instanceof Date
-    ? dateRow.submitted_day.toISOString().slice(0, 10)
-    : String(dateRow.submitted_day).slice(0, 10);
+  const dateParam = dateRow.checklist_date instanceof Date
+    ? dateRow.checklist_date.toISOString().slice(0, 10)
+    : String(dateRow.checklist_date).slice(0, 10);
 
   useEffect(() => {
     axios.get(`${API_BASE}/activity/responses/${userId}/${template.template_id}/${dateParam}`)
@@ -300,7 +301,7 @@ const ResponseDetail = ({ userId, template, dateRow }) => {
   );
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-1.5">
       {items.map((item, i) => {
         const isNumeric = item.input_type === 'Numeric';
         const isDone = item.status;
@@ -309,44 +310,44 @@ const ResponseDetail = ({ userId, template, dateRow }) => {
         return (
           <div
             key={i}
-            className="bg-white/5 border border-glass-border rounded-xl px-4 py-2.5"
+            className="bg-white/5 border border-glass-border rounded-xl px-3 py-1.5 hover:bg-white/8 transition-all"
           >
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center justify-between gap-4">
               {/* Left: icon + name */}
-              <div className="flex items-start gap-3 flex-1 min-w-0">
-                <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 mt-0.5 ${isDone ? 'bg-success/15 text-success border border-success/25' : 'bg-white/5 text-text-muted border border-glass-border'}`}>
-                  {isNumeric ? <Hash size={13} /> : <ToggleLeft size={13} />}
+              <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${isNumeric ? 'bg-white/5 text-text-muted border border-glass-border' : (isDone ? 'bg-success/15 text-success border border-success/25' : 'bg-danger/15 text-danger border border-danger/25')}`}>
+                  {isNumeric ? <Hash size={13} /> : (isDone ? <CheckCircle2 size={13} /> : <XCircle size={13} />)}
                 </div>
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold text-white leading-snug">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold text-white leading-snug break-words whitespace-normal">
                     {item.checklist_name}
                   </p>
                   {hasComment && (
-                    <p className="text-[0.7rem] text-text-muted mt-1 flex items-start gap-1">
+                    <p className="text-[0.7rem] text-text-muted mt-0.5 flex items-start gap-1">
                       <MessageSquare size={10} className="shrink-0 mt-0.5 text-accent" />
-                      <span className="italic leading-relaxed">{item.comments}</span>
+                      <span className="italic leading-relaxed break-words whitespace-normal">{item.comments}</span>
                     </p>
                   )}
                 </div>
               </div>
 
               {/* Right: value chip + status */}
-              <div className="flex flex-col items-end gap-1.5 shrink-0">
+              <div className="flex items-center gap-3 shrink-0">
                 {/* Value */}
                 {isNumeric ? (
                   <span className="text-sm font-bold text-accent leading-none">
                     {item.input ?? '—'}
                   </span>
                 ) : (
-                  <span className={`flex items-center gap-1 text-xs font-bold ${isDone ? 'text-success' : 'text-text-muted'}`}>
+                  <span className={`flex items-center gap-1 text-xs font-bold ${isDone ? 'text-success' : 'text-danger'}`}>
                     {isDone
-                      ? <><CheckCircle2 size={14} /> Done</>
-                      : <><Circle size={14} /> Pending</>
+                      ? <><CheckCircle2 size={14} /> Yes</>
+                      : <><XCircle size={14} /> No</>
                     }
                   </span>
                 )}
                 {/* Type label */}
-                <span className="text-[0.55rem] uppercase tracking-widest font-bold text-text-muted">
+                <span className="text-[0.55rem] uppercase tracking-widest font-bold text-text-muted bg-white/5 px-1.5 py-0.5 rounded border border-glass-border">
                   {isNumeric ? 'numeric' : 'boolean'}
                 </span>
               </div>
@@ -434,7 +435,7 @@ const ActivityExplorer = ({ user }) => {
           <h3 className="text-lg font-bold text-white">
             {level === 1 && 'Recent Activity'}
             {level === 2 && selectedTemplate?.template_name}
-            {level === 3 && `${fmt(selectedDateRow?.submitted_day)}`}
+            {level === 3 && `${fmt(selectedDateRow?.checklist_date || selectedDateRow?.submitted_day)}`}
           </h3>
           {/* Breadcrumb */}
           <p className="text-[0.7rem] text-text-muted mt-1 flex items-center gap-1.5 flex-wrap">
@@ -459,9 +460,9 @@ const ActivityExplorer = ({ user }) => {
               <>
                 <ChevronRight size={10} />
                 <span className="text-white font-semibold">
-                  {fmt(selectedDateRow?.submitted_day)}
+                  {fmt(selectedDateRow?.checklist_date)}
                   {selectedDateRow?.is_backdated && (
-                    <span className="text-amber-400 ml-1">· For {fmtShort(selectedDateRow?.selected_date)}</span>
+                    <span className="text-amber-400 ml-1">· Submitted {fmtShort(selectedDateRow?.submitted_day)}</span>
                   )}
                 </span>
               </>

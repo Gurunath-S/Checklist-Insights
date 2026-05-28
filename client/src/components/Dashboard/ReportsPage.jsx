@@ -3,7 +3,8 @@ import axios from 'axios';
 import { 
   BarChart, Search, Briefcase, Calendar, ChevronLeft, ChevronRight,
   X, Eye, CheckCircle2, Circle, Hash, ToggleLeft, MessageSquare,
-  ClipboardCheck, Clock, Award, Building, User, Layers, ArrowUpRight
+  ClipboardCheck, Clock, Award, Building, User, Layers, ArrowUpRight,
+  XCircle
 } from 'lucide-react';
 import LoadingState from '../UI/LoadingState';
 
@@ -284,7 +285,9 @@ export default function ReportsPage({ currentUser }) {
     setDetailsError(null);
     try {
       const token = localStorage.getItem('token');
-      const dateParam = String(report.submitted_day).slice(0, 10);
+      const dateParam = report.checklist_date
+        ? String(report.checklist_date).slice(0, 10)
+        : String(report.submitted_day).slice(0, 10);
       const res = await axios.get(
         `${API_BASE}/insights/reports/detail?userId=${report.organisation_user_id}&templateId=${report.template_id}&date=${dateParam}`,
         { headers: { Authorization: `Bearer ${token}` } }
@@ -354,7 +357,7 @@ export default function ReportsPage({ currentUser }) {
       {activeTab === 'submissions' && (
         <div className="space-y-6">
           {/* Submissions Filter Panel */}
-          <div className="relative z-40 bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-4 shadow-xl flex flex-col gap-4">
+          <div className="relative z-50 bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-4 shadow-xl flex flex-col gap-4">
             <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-4">
               
               {/* Search Bar */}
@@ -519,7 +522,7 @@ export default function ReportsPage({ currentUser }) {
                     ) : (
                       subReports.map((r, idx) => {
                         const pct = r.items_count > 0 ? Math.round((r.completed_count / r.items_count) * 100) : 0;
-                        const isBackdated = r.selected_date && String(r.submitted_day).slice(0,10) !== String(r.selected_date).slice(0,10);
+                        const isBackdated = r.selected_date && String(r.submitted_day).slice(0,10) !== String(r.checklist_date || r.selected_date).slice(0,10);
                         return (
                           <tr key={idx} className="hover:bg-white/2 transition-colors">
                             <td className="px-6 py-4">
@@ -536,10 +539,11 @@ export default function ReportsPage({ currentUser }) {
                             </td>
                             <td className="px-6 py-4 font-semibold text-accent">{r.template_name}</td>
                             <td className="px-6 py-4 text-white">
-                              <p className="font-semibold">{formatDate(r.submitted_day)}</p>
+                              <p className="font-semibold">{formatDate(r.checklist_date || r.submitted_day)}</p>
                               {isBackdated && (
-                                <p className="text-[9px] text-amber-400 font-black tracking-wide uppercase mt-0.5 flex items-center gap-1">
-                                  <Clock size={10} /> Backdated
+                                <p className="text-[10px] text-amber-400 font-medium mt-0.5 flex items-center gap-1">
+                                  <Clock size={11} />
+                                  <span>Submitted: {formatDate(r.submitted_day)}</span>
                                 </p>
                               )}
                             </td>
@@ -570,7 +574,7 @@ export default function ReportsPage({ currentUser }) {
               </div>
 
               {/* Pagination controls */}
-              {subTotalPages > 1 && (
+              {subReports.length > 0 && (
                 <div className="px-6 py-4 border-t border-glass-border bg-white/2 flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <span className="text-[10px] font-black tracking-wider text-text-muted uppercase">
@@ -614,7 +618,7 @@ export default function ReportsPage({ currentUser }) {
       {activeTab === 'departments' && (
         <div className="space-y-6 animate-fade-in">
           {/* Department-specific Filters */}
-          <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-4 shadow-xl flex flex-col gap-4">
+          <div className="relative z-50 bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-4 shadow-xl flex flex-col gap-4">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <span className="text-xs font-black uppercase tracking-wider text-white">Department-Wise Submission Breakdown</span>
               <div className="relative w-full sm:w-52">
@@ -710,7 +714,7 @@ export default function ReportsPage({ currentUser }) {
       {activeTab === 'templates' && (
         <div className="space-y-6 animate-fade-in">
           {/* Template-specific Filters */}
-          <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-4 shadow-xl flex flex-col gap-4">
+          <div className="relative z-50 bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-4 shadow-xl flex flex-col gap-4">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <span className="text-xs font-black uppercase tracking-wider text-white">Template Performance Summaries</span>
               <div className="relative w-full sm:w-52">
@@ -818,7 +822,7 @@ export default function ReportsPage({ currentUser }) {
       {activeTab === 'users' && (
         <div className="space-y-6 animate-fade-in">
           {/* User-specific Filters */}
-          <div className="relative z-40 bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-4 shadow-xl flex flex-col gap-4">
+          <div className="relative z-50 bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-4 shadow-xl flex flex-col gap-4">
             <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-4">
               
               {/* Search user */}
@@ -951,7 +955,7 @@ export default function ReportsPage({ currentUser }) {
               </div>
 
               {/* User Report Pagination */}
-              {userTotalPages > 1 && (
+              {userReports.length > 0 && (
                 <div className="px-6 py-4 border-t border-glass-border bg-white/2 flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <span className="text-[10px] font-black tracking-wider text-text-muted uppercase">
@@ -1006,7 +1010,12 @@ export default function ReportsPage({ currentUser }) {
                   {selectedReport.template_name}
                 </h3>
                 <p className="text-xs text-text-muted mt-1">
-                  Submitted by <span className="text-white font-semibold">{selectedReport.user_name}</span> on {formatDate(selectedReport.submitted_day)}
+                  Submitted by <span className="text-white font-semibold">{selectedReport.user_name}</span> for <span className="text-white font-semibold">{formatDate(selectedReport.checklist_date || selectedReport.submitted_day)}</span>
+                  {selectedReport.selected_date && String(selectedReport.submitted_day).slice(0,10) !== String(selectedReport.checklist_date || selectedReport.selected_date).slice(0,10) && (
+                    <span className="text-amber-400 font-medium ml-1.5">
+                      (Submitted: {formatDate(selectedReport.submitted_day)})
+                    </span>
+                  )}
                 </p>
               </div>
               <button onClick={() => setSelectedReport(null)} className="p-1.5 hover:bg-white/10 rounded-lg text-text-muted hover:text-white transition-all cursor-pointer">
@@ -1035,27 +1044,27 @@ export default function ReportsPage({ currentUser }) {
                   const isDone = item.status;
                   const hasComment = item.comments && item.comments.trim().length > 0;
                   return (
-                    <div key={idx} className="bg-white/5 border border-glass-border rounded-2xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:bg-white/8 transition-all">
-                      <div className="flex items-start gap-3 min-w-0">
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${isDone ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25' : 'bg-white/5 text-text-muted border border-glass-border'}`}>
-                          {isNumeric ? <Hash size={14} /> : <ToggleLeft size={14} />}
+                    <div key={idx} className="bg-white/5 border border-glass-border rounded-xl px-3 py-2 flex items-center justify-between gap-4 hover:bg-white/8 transition-all">
+                      <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isNumeric ? 'bg-white/5 text-text-muted border border-glass-border' : (isDone ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25' : 'bg-rose-500/15 text-rose-400 border border-rose-500/25')}`}>
+                          {isNumeric ? <Hash size={14} /> : (isDone ? <CheckCircle2 size={14} /> : <XCircle size={14} />)}
                         </div>
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold text-white leading-snug">{item.checklist_name}</p>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-bold text-white leading-snug break-words whitespace-normal">{item.checklist_name}</p>
                           {hasComment && (
-                            <p className="text-[10px] text-text-muted mt-1.5 flex items-start gap-1">
+                            <p className="text-[10px] text-text-muted mt-0.5 flex items-start gap-1">
                               <MessageSquare size={11} className="shrink-0 mt-0.5 text-primary" />
-                              <span className="italic leading-normal">{item.comments}</span>
+                              <span className="italic leading-normal break-words whitespace-normal">{item.comments}</span>
                             </p>
                           )}
                         </div>
                       </div>
-                      <div className="flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto shrink-0 border-t sm:border-t-0 border-glass-border/30 pt-2.5 sm:pt-0 gap-1.5">
+                      <div className="flex items-center gap-3 shrink-0">
                         {isNumeric ? (
                           <span className="text-sm font-black text-primary-light">{item.input ?? '—'}</span>
                         ) : (
-                          <span className={`flex items-center gap-1 text-xs font-black uppercase tracking-wider ${isDone ? 'text-emerald-400' : 'text-text-muted'}`}>
-                            {isDone ? <><CheckCircle2 size={13} /> Done</> : <><Circle size={13} /> Pending</>}
+                          <span className={`flex items-center gap-1 text-xs font-black uppercase tracking-wider ${isDone ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            {isDone ? <><CheckCircle2 size={13} /> Yes</> : <><XCircle size={13} /> No</>}
                           </span>
                         )}
                         <span className="text-[8px] font-black uppercase tracking-widest text-text-muted bg-white/5 px-2 py-0.5 rounded-full border border-glass-border">

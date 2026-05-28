@@ -1021,10 +1021,15 @@ router.get('/reports', authenticateToken, async (req, res) => {
         ou.user_position,
         ct.id AS template_id,
         ct.template_name,
-        DATE(cir.created_at) AS submitted_day,
-        cir.selected_date,
+        COALESCE(NULLIF(cir.selected_date, ''), DATE_FORMAT(cir.created_at, '%Y-%m-%d')) AS checklist_date,
+        DATE(MAX(cir.created_at)) AS submitted_day,
+        MAX(cir.selected_date) AS selected_date,
         COUNT(cir.id) AS items_count,
-        SUM(cir.status) AS completed_count,
+        SUM(CASE 
+          WHEN ci.input_type = 'Boolean' AND (cir.input = 'Yes' OR cir.input = '1' OR cir.input = 'true' OR cir.status = 1) THEN 1
+          WHEN ci.input_type = 'Numeric' AND (cir.input IS NOT NULL AND cir.input != '') THEN 1
+          ELSE 0 
+        END) AS completed_count,
         MAX(cir.created_at) AS latest_created_at
       FROM checklist_item_response cir
       JOIN Organisation_Users ou ON cir.organisation_user_id = ou.id
@@ -1032,6 +1037,7 @@ router.get('/reports', authenticateToken, async (req, res) => {
       JOIN checklist_template_linked_items li ON cir.checklist_template_linked_items_id = li.id
       JOIN checklist_template_version v ON li.template_version_id = v.version_id
       JOIN checklist_template ct ON v.checklist_template_id = ct.id
+      JOIN checklist_items ci ON li.checklist_item_id = ci.id
       WHERE 1=1
     `;
 
@@ -1073,7 +1079,7 @@ router.get('/reports', authenticateToken, async (req, res) => {
     }
 
     dataQuery += `
-      GROUP BY cir.organisation_user_id, ct.id, DATE(cir.created_at), cir.selected_date
+      GROUP BY cir.organisation_user_id, ct.id, COALESCE(NULLIF(cir.selected_date, ''), DATE_FORMAT(cir.created_at, '%Y-%m-%d'))
       ORDER BY latest_created_at DESC
       LIMIT ? OFFSET ?
     `;
@@ -1093,7 +1099,7 @@ router.get('/reports', authenticateToken, async (req, res) => {
         ${position ? ' AND ou.user_position = ?' : ''}
         ${startDate ? ' AND cir.created_at >= ?' : ''}
         ${endDate ? ' AND cir.created_at <= ?' : ''}
-        GROUP BY cir.organisation_user_id, ct.id, DATE(cir.created_at), cir.selected_date
+        GROUP BY cir.organisation_user_id, ct.id, COALESCE(NULLIF(cir.selected_date, ''), DATE_FORMAT(cir.created_at, '%Y-%m-%d'))
       ) sub
     `;
 
@@ -1114,6 +1120,7 @@ router.get('/reports', authenticateToken, async (req, res) => {
       template_name: r.template_name,
       submitted_day: r.submitted_day,
       selected_date: r.selected_date,
+      checklist_date: r.checklist_date,
       items_count: Number(r.items_count),
       completed_count: Number(r.completed_count || 0),
       latest_created_at: r.latest_created_at
@@ -1171,7 +1178,7 @@ router.get('/reports/detail', authenticateToken, async (req, res) => {
       JOIN checklist_items ci ON li.checklist_item_id = ci.id
       WHERE cir.organisation_user_id = ${targetUserId}
         AND v.checklist_template_id  = ${targetTemplateId}
-        AND DATE(cir.created_at)     = ${date}
+        AND COALESCE(NULLIF(cir.selected_date, ''), DATE_FORMAT(cir.created_at, '%Y-%m-%d')) = ${date}
       ORDER BY ci.checklist_name ASC
     `;
 
@@ -1179,7 +1186,14 @@ router.get('/reports/detail', authenticateToken, async (req, res) => {
       checklist_name: r.checklist_name,
       input_type: r.input_type,
       input: r.input,
-      status: r.status === true || r.status === 1,
+      status: r.status === true || 
+              r.status === 1 || 
+              r.status === '1' || 
+              !!(r.input && (
+                r.input.trim().toLowerCase() === 'yes' || 
+                r.input.trim() === '1' || 
+                r.input.trim().toLowerCase() === 'true'
+              )),
       comments: r.comments || null,
       selected_date: r.selected_date,
       created_at: r.created_at
@@ -1211,7 +1225,13 @@ router.get('/reports/departments', authenticateToken, async (req, res) => {
       SELECT 
         ou.user_position AS department,
         COUNT(DISTINCT CASE WHEN cir.id IS NOT NULL THEN CONCAT(ou.id, '-', ct.id, '-', DATE(cir.created_at)) END) AS total_submissions,
-        COALESCE(ROUND(AVG(CAST(cir.status AS UNSIGNED)) * 100, 1), 0) AS avg_completion_rate,
+        COALESCE(ROUND(AVG(
+          CASE 
+            WHEN ci.input_type = 'Boolean' AND (cir.input = 'Yes' OR cir.input = '1' OR cir.input = 'true' OR cir.status = 1) THEN 1
+            WHEN ci.input_type = 'Numeric' AND (cir.input IS NOT NULL AND cir.input != '') THEN 1
+            ELSE 0 
+          END
+        ) * 100, 1), 0) AS avg_completion_rate,
         COUNT(DISTINCT ou.id) AS total_users
       FROM Organisation_Users ou
       LEFT JOIN checklist_item_response cir ON ou.id = cir.organisation_user_id
@@ -1230,6 +1250,7 @@ router.get('/reports/departments', authenticateToken, async (req, res) => {
       LEFT JOIN checklist_template_linked_items li ON cir.checklist_template_linked_items_id = li.id
       LEFT JOIN checklist_template_version v ON li.template_version_id = v.version_id
       LEFT JOIN checklist_template ct ON v.checklist_template_id = ct.id
+      LEFT JOIN checklist_items ci ON li.checklist_item_id = ci.id
       WHERE ou.user_position IS NOT NULL
       GROUP BY ou.user_position
       ORDER BY total_submissions DESC
@@ -1274,12 +1295,19 @@ router.get('/reports/templates', authenticateToken, async (req, res) => {
         ct.template_name,
         ct.priority,
         COUNT(DISTINCT CASE WHEN cir.id IS NOT NULL THEN CONCAT(cir.organisation_user_id, '-', DATE(cir.created_at)) END) AS total_submissions,
-        COALESCE(ROUND(AVG(CAST(cir.status AS UNSIGNED)) * 100, 1), 0) AS avg_completion_rate,
+        COALESCE(ROUND(AVG(
+          CASE 
+            WHEN ci.input_type = 'Boolean' AND (cir.input = 'Yes' OR cir.input = '1' OR cir.input = 'true' OR cir.status = 1) THEN 1
+            WHEN ci.input_type = 'Numeric' AND (cir.input IS NOT NULL AND cir.input != '') THEN 1
+            ELSE 0 
+          END
+        ) * 100, 1), 0) AS avg_completion_rate,
         COUNT(cir.id) AS total_responses
       FROM checklist_template ct
       LEFT JOIN checklist_template_version v ON ct.id = v.checklist_template_id
       LEFT JOIN checklist_template_linked_items li ON v.version_id = li.template_version_id
       LEFT JOIN checklist_item_response cir ON li.id = cir.checklist_template_linked_items_id
+      LEFT JOIN checklist_items ci ON li.checklist_item_id = ci.id
     `;
 
     if (startDate) {
@@ -1355,6 +1383,7 @@ router.get('/reports/users', authenticateToken, async (req, res) => {
       LEFT JOIN checklist_template_linked_items li ON cir.checklist_template_linked_items_id = li.id
       LEFT JOIN checklist_template_version v ON li.template_version_id = v.version_id
       LEFT JOIN checklist_template ct ON v.checklist_template_id = ct.id
+      LEFT JOIN checklist_items ci ON li.checklist_item_id = ci.id
       WHERE 1=1
     `;
 
@@ -1372,7 +1401,13 @@ router.get('/reports/users', authenticateToken, async (req, res) => {
         u.image AS user_image,
         ou.user_position,
         COUNT(DISTINCT CASE WHEN cir.id IS NOT NULL THEN CONCAT(ct.id, '-', DATE(cir.created_at)) END) AS total_submissions,
-        COALESCE(ROUND(AVG(CAST(cir.status AS UNSIGNED)) * 100, 1), 0) AS avg_completion_rate,
+        COALESCE(ROUND(AVG(
+          CASE 
+            WHEN ci.input_type = 'Boolean' AND (cir.input = 'Yes' OR cir.input = '1' OR cir.input = 'true' OR cir.status = 1) THEN 1
+            WHEN ci.input_type = 'Numeric' AND (cir.input IS NOT NULL AND cir.input != '') THEN 1
+            ELSE 0 
+          END
+        ) * 100, 1), 0) AS avg_completion_rate,
         MAX(cir.created_at) AS last_submission_date
       ${baseSql}
       GROUP BY ou.id, u.name, u.email, u.image, ou.user_position

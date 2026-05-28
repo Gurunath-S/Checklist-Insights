@@ -74,6 +74,7 @@ router.post('/google', async (req, res) => {
       image: userRecord.image,
       employeeId: `IBT-${orgUser.id.toString().padStart(3, '0')}`,
       role: orgUser.user_position || 'Team Member',
+      user_type: orgUser.user_type,
       doj: orgUser.created_at
     };
 
@@ -154,6 +155,7 @@ router.post('/microsoft', async (req, res) => {
       image: userRecord.image,
       employeeId: `IBT-${orgUser.id.toString().padStart(3, '0')}`,
       role: orgUser.user_position || 'Team Member',
+      user_type: orgUser.user_type,
       doj: orgUser.created_at
     };
 
@@ -198,6 +200,7 @@ router.get('/verify', authenticateToken, async (req, res) => {
       image: user.User?.image || null,
       employeeId: `IBT-${user.id.toString().padStart(3, '0')}`,
       role: user.user_position || 'Team Member',
+      user_type: user.user_type,
       doj: user.created_at
     };
 

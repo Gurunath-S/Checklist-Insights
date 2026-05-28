@@ -24,7 +24,8 @@ export default function UserManagement({ currentUser }) {
   const [users, setUsers] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [limit] = useState(15);
+  const [limit, setLimit] = useState(15);
+  const [isLimitDropdownOpen, setIsLimitDropdownOpen] = useState(false);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -96,7 +97,7 @@ export default function UserManagement({ currentUser }) {
     }, 300);
 
     return () => clearTimeout(delayDebounceFn);
-  }, [searchTerm, filterPosition, filterType]);
+  }, [searchTerm, filterPosition, filterType, limit]);
 
   useEffect(() => {
     fetchMeta();
@@ -435,11 +436,42 @@ export default function UserManagement({ currentUser }) {
           </div>
 
           {/* Pagination Controls */}
-          {totalPages > 1 && (
+          {users.length > 0 && (
             <div className="px-6 py-4 border-t border-glass-border bg-white/2 flex items-center justify-between">
-              <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">
-                Page {page} of {totalPages}
-              </span>
+              <div className="flex items-center gap-4">
+                <span className="text-[10px] font-black tracking-wider text-text-muted uppercase">
+                  Page {page} of {totalPages} ({total} total)
+                </span>
+                <div className="relative">
+                  <button 
+                    onClick={() => setIsLimitDropdownOpen(!isLimitDropdownOpen)} 
+                    className="flex items-center gap-1 px-3 py-1.5 bg-white/5 border border-glass-border rounded-xl text-[10px] font-bold text-white cursor-pointer hover:bg-white/10 transition-all active:scale-95"
+                  >
+                    <span>Show {limit}</span>
+                    <ChevronRight size={12} className={`transition-transform ${isLimitDropdownOpen ? 'rotate-90' : ''}`} />
+                  </button>
+                  {isLimitDropdownOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setIsLimitDropdownOpen(false)}></div>
+                      <div className="absolute left-0 bottom-full mb-2 bg-bg-card border border-glass-border rounded-xl p-1.5 shadow-2xl z-50 min-w-[90px] space-y-0.5 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                        {[15, 30, 50].map(v => (
+                          <button 
+                            key={v} 
+                            onClick={() => {
+                              setLimit(v);
+                              setPage(1);
+                              setIsLimitDropdownOpen(false);
+                            }} 
+                            className={`w-full text-left px-2 py-1 rounded-lg text-xs font-semibold transition-colors ${limit === v ? 'bg-primary/10 text-white' : 'text-text-muted hover:bg-white/5 hover:text-white'}`}
+                          >
+                            Show {v}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
               <div className="flex items-center gap-1.5">
                 <button
                   onClick={() => fetchUsers(page - 1)}
