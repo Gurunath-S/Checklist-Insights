@@ -1294,6 +1294,9 @@ router.get('/reports/templates', authenticateToken, async (req, res) => {
         ct.id AS template_id,
         ct.template_name,
         ct.priority,
+        ct.created_at AS template_created_at,
+        u_creator.name AS creator_name,
+        COALESCE(u_owner.name, u_creator.name) AS owner_name,
         COUNT(DISTINCT CASE WHEN cir.id IS NOT NULL THEN CONCAT(cir.organisation_user_id, '-', DATE(cir.created_at)) END) AS total_submissions,
         COALESCE(ROUND(AVG(
           CASE 
@@ -1304,6 +1307,11 @@ router.get('/reports/templates', authenticateToken, async (req, res) => {
         ) * 100, 1), 0) AS avg_completion_rate,
         COUNT(cir.id) AS total_responses
       FROM checklist_template ct
+      LEFT JOIN Organisation_Users ou_creator ON ct.organisation_user_id = ou_creator.id
+      LEFT JOIN User u_creator ON ou_creator.user_id = u_creator.id
+      LEFT JOIN checklist_template_owners cto ON ct.id = cto.checklist_template_id
+      LEFT JOIN Organisation_Users ou_owner ON cto.organisation_user_id = ou_owner.id
+      LEFT JOIN User u_owner ON ou_owner.user_id = u_owner.id
       LEFT JOIN checklist_template_version v ON ct.id = v.checklist_template_id
       LEFT JOIN checklist_template_linked_items li ON v.version_id = li.template_version_id
       LEFT JOIN checklist_item_response cir ON li.id = cir.checklist_template_linked_items_id
@@ -1320,7 +1328,7 @@ router.get('/reports/templates', authenticateToken, async (req, res) => {
     }
 
     sql += `
-      GROUP BY ct.id, ct.template_name, ct.priority
+      GROUP BY ct.id, ct.template_name, ct.priority, ct.created_at, u_creator.name, u_owner.name
       ORDER BY total_submissions DESC
     `;
 
@@ -1330,6 +1338,9 @@ router.get('/reports/templates', authenticateToken, async (req, res) => {
       template_id: Number(r.template_id),
       template_name: r.template_name,
       priority: r.priority,
+      template_created_at: r.template_created_at,
+      creator_name: r.creator_name || 'System',
+      owner_name: r.owner_name || r.creator_name || 'System',
       total_submissions: Number(r.total_submissions),
       avg_completion_rate: Number(r.avg_completion_rate),
       total_responses: Number(r.total_responses)
@@ -1338,6 +1349,118 @@ router.get('/reports/templates', authenticateToken, async (req, res) => {
     res.json(formatted);
   } catch (error) {
     console.error('Fetch template reports error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// Get Tag-wise Reports
+router.get('/reports/tags', authenticateToken, async (req, res) => {
+  try {
+    const authUserId = parseInt(req.user.userId);
+    const requester = await prisma.organisation_Users.findUnique({
+      where: { id: authUserId },
+      select: { user_type: true }
+    });
+    
+    const isRequesterAdmin = requester?.user_type?.trim() === 'ADMIN';
+    if (!isRequesterAdmin) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const { startDate, endDate } = req.query;
+    let queryParams = [];
+
+    let tagStatsSql = `
+      SELECT 
+        t.id AS tag_id,
+        t.tag_name,
+        t.description,
+        t.created_at AS tag_created_at,
+        t.user_position,
+        t.recurrent,
+        u_creator.name AS creator_name,
+        COUNT(DISTINCT CASE WHEN cir.id IS NOT NULL THEN CONCAT(cir.organisation_user_id, '-', DATE(cir.created_at)) END) AS total_submissions,
+        COALESCE(ROUND(AVG(
+          CASE 
+            WHEN ci.input_type = 'Boolean' AND (cir.input = 'Yes' OR cir.input = '1' OR cir.input = 'true' OR cir.status = 1) THEN 1
+            WHEN ci.input_type = 'Numeric' AND (cir.input IS NOT NULL AND cir.input != '') THEN 1
+            ELSE 0 
+          END
+        ) * 100, 1), 0) AS avg_completion_rate
+      FROM tags t
+      LEFT JOIN Organisation_Users ou_creator ON t.organisation_user_id = ou_creator.id
+      LEFT JOIN User u_creator ON ou_creator.user_id = u_creator.id
+      LEFT JOIN checklist_template ct ON t.id = ct.tag_id
+      LEFT JOIN checklist_template_version v ON ct.id = v.checklist_template_id
+      LEFT JOIN checklist_template_linked_items li ON v.version_id = li.template_version_id
+      LEFT JOIN checklist_item_response cir ON li.id = cir.checklist_template_linked_items_id
+      LEFT JOIN checklist_items ci ON li.checklist_item_id = ci.id
+      WHERE 1=1
+    `;
+
+    if (startDate) {
+      tagStatsSql += ` AND cir.created_at >= ?`;
+      queryParams.push(new Date(startDate));
+    }
+    if (endDate) {
+      tagStatsSql += ` AND cir.created_at <= ?`;
+      queryParams.push(new Date(endDate));
+    }
+
+    tagStatsSql += `
+      GROUP BY t.id, t.tag_name, t.description, t.created_at, t.user_position, t.recurrent, u_creator.name
+      ORDER BY t.tag_name ASC
+    `;
+
+    const [tagStats, templates] = await Promise.all([
+      prisma.$queryRawUnsafe(tagStatsSql, ...queryParams),
+      prisma.checklist_template.findMany({
+        select: {
+          id: true,
+          template_name: true,
+          tag_id: true,
+          priority: true,
+          created_at: true,
+          Organisation_Users: {
+            select: {
+              user: {
+                select: { name: true }
+              }
+            }
+          }
+        }
+      })
+    ]);
+
+    const formatted = tagStats.map(tag => {
+      const connectedTemplates = templates
+        .filter(t => t.tag_id === tag.tag_id)
+        .map(t => ({
+          template_id: t.id,
+          template_name: t.template_name,
+          priority: t.priority,
+          created_at: t.created_at,
+          creator_name: t.Organisation_Users?.user?.name || 'System'
+        }));
+
+      return {
+        tag_id: Number(tag.tag_id),
+        tag_name: tag.tag_name,
+        description: tag.description,
+        tag_created_at: tag.tag_created_at,
+        user_position: tag.user_position,
+        recurrent: tag.recurrent,
+        creator_name: tag.creator_name || 'System',
+        templates_count: connectedTemplates.length,
+        templates: connectedTemplates,
+        total_submissions: Number(tag.total_submissions),
+        avg_completion_rate: Number(tag.avg_completion_rate)
+      };
+    });
+
+    res.json(formatted);
+  } catch (error) {
+    console.error('Fetch tag reports error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });

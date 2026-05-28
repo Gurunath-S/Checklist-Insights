@@ -6,6 +6,10 @@ import {
   ClipboardCheck, Clock, Award, Building, User, Layers, ArrowUpRight,
   XCircle
 } from 'lucide-react';
+import { 
+  BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, 
+  Tooltip as RechartsTooltip, ResponsiveContainer, Cell, Legend
+} from 'recharts';
 import LoadingState from '../UI/LoadingState';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
@@ -57,6 +61,15 @@ export default function ReportsPage({ currentUser }) {
   const [tplEndDate, setTplEndDate] = useState('');
   const [tplReports, setTplReports] = useState([]);
   const [tplLoading, setTplLoading] = useState(false);
+
+  // Tag Report Tab States
+  const [tagDatePreset, setTagDatePreset] = useState('all');
+  const [tagStartDate, setTagStartDate] = useState('');
+  const [tagEndDate, setTagEndDate] = useState('');
+  const [tagReports, setTagReports] = useState([]);
+  const [tagLoading, setTagLoading] = useState(false);
+  const [selectedTag, setSelectedTag] = useState(null);
+  const [isTagDateOpen, setIsTagDateOpen] = useState(false);
 
   // 4. User Compliance Tab States
   const [userSearch, setUserSearch] = useState('');
@@ -204,6 +217,46 @@ export default function ReportsPage({ currentUser }) {
     }
   };
 
+  // Fetch tag summary
+  const fetchTags = async () => {
+    setTagLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      let url = `${API_BASE}/insights/reports/tags?`;
+      
+      if (tagDatePreset !== 'all' && tagDatePreset !== 'custom') {
+        const { start, end } = getPresetDates(tagDatePreset);
+        if (start) url += `&startDate=${encodeURIComponent(start)}`;
+        if (end) url += `&endDate=${encodeURIComponent(end)}`;
+      } else if (tagDatePreset === 'custom') {
+        if (tagStartDate) {
+          const start = new Date(tagStartDate + 'T00:00:00').toISOString();
+          url += `&startDate=${encodeURIComponent(start)}`;
+        }
+        if (tagEndDate) {
+          const end = new Date(tagEndDate + 'T23:59:59').toISOString();
+          url += `&endDate=${encodeURIComponent(end)}`;
+        }
+      }
+
+      const res = await axios.get(url, { headers: { Authorization: `Bearer ${token}` } });
+      const data = res.data || [];
+      setTagReports(data);
+      if (data.length > 0) {
+        if (!selectedTag) {
+          setSelectedTag(data[0]);
+        } else {
+          const updated = data.find(t => t.tag_id === selectedTag.tag_id);
+          if (updated) setSelectedTag(updated);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching tags:', err);
+    } finally {
+      setTagLoading(false);
+    }
+  };
+
   // 4. Fetch user compliance report
   const fetchUsersReport = async (pageNumber = userPage, currentLimit = userLimit) => {
     setUserLoading(true);
@@ -259,6 +312,12 @@ export default function ReportsPage({ currentUser }) {
       fetchTemplates();
     }
   }, [tplDatePreset, tplStartDate, tplEndDate, activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'tags') {
+      fetchTags();
+    }
+  }, [tagDatePreset, tagStartDate, tagEndDate, activeTab]);
 
   useEffect(() => {
     if (activeTab === 'users') {
@@ -332,6 +391,7 @@ export default function ReportsPage({ currentUser }) {
           { id: 'submissions', label: 'Detailed Submissions', icon: ClipboardCheck },
           { id: 'departments', label: 'Department Reports', icon: Building },
           { id: 'templates', label: 'Template Reports', icon: Layers },
+          { id: 'tags', label: 'Tag Reports', icon: Hash },
           { id: 'users', label: 'User Reports', icon: User }
         ].map(tab => {
           const IconComp = tab.icon;
@@ -764,6 +824,8 @@ export default function ReportsPage({ currentUser }) {
                 <thead>
                   <tr className="border-b border-glass-border bg-white/5 text-[10px] font-black uppercase tracking-widest text-text-muted">
                     <th className="px-6 py-4">Checklist Template</th>
+                    <th className="px-6 py-4">Created Date</th>
+                    <th className="px-6 py-4">Owner / Creator</th>
                     <th className="px-6 py-4">Priority</th>
                     <th className="px-6 py-4">Total Submissions</th>
                     <th className="px-6 py-4">Responses Logged</th>
@@ -773,7 +835,7 @@ export default function ReportsPage({ currentUser }) {
                 <tbody className="divide-y divide-glass-border text-xs">
                   {tplReports.length === 0 ? (
                     <tr>
-                      <td colSpan="5" className="text-center py-12 text-text-muted font-semibold">
+                      <td colSpan="7" className="text-center py-12 text-text-muted font-semibold">
                         No templates submissions found for the specified filters.
                       </td>
                     </tr>
@@ -782,6 +844,22 @@ export default function ReportsPage({ currentUser }) {
                       <tr key={idx} className="hover:bg-white/2 transition-colors">
                         <td className="px-6 py-4 font-bold text-accent">
                           {t.template_name}
+                        </td>
+                        <td className="px-6 py-4 text-text-muted font-medium">
+                          {t.template_created_at ? new Date(t.template_created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—'}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col">
+                            <div className="flex items-center gap-1.5">
+                              <User size={12} className="text-text-muted shrink-0" />
+                              <span className="font-semibold text-white truncate max-w-[140px]" title={`Owner: ${t.owner_name}`}>{t.owner_name}</span>
+                            </div>
+                            {t.owner_name !== t.creator_name ? (
+                              <span className="text-[9px] text-text-muted mt-0.5 truncate max-w-[140px]" title={`Creator: ${t.creator_name}`}>Creator: {t.creator_name}</span>
+                            ) : (
+                              <span className="text-[9px] text-text-muted mt-0.5">Creator & Owner</span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-4">
                           <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${
@@ -813,6 +891,252 @@ export default function ReportsPage({ currentUser }) {
                   )}
                 </tbody>
               </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Tab 5: Tag Summary ───────────────────────────────────────────── */}
+      {activeTab === 'tags' && (
+        <div className="space-y-6 animate-fade-in">
+          {/* Tag-specific Filters */}
+          <div className="relative z-50 bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-4 shadow-xl flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <span className="text-xs font-black uppercase tracking-wider text-white">Tag Performance & Relationship Insights</span>
+              <div className="relative w-full sm:w-52">
+                <button
+                  type="button"
+                  onClick={() => setIsTagDateOpen(!isTagDateOpen)}
+                  className="w-full flex items-center justify-between gap-2 px-4 py-2 bg-white/5 border border-glass-border rounded-xl text-xs text-white font-bold hover:bg-white/10 transition-all cursor-pointer text-left"
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <Calendar size={14} className="text-text-muted shrink-0" />
+                    <span className="truncate">
+                      {DATE_PRESETS.find(p => p.value === tagDatePreset)?.label || 'All Time'}
+                    </span>
+                  </div>
+                  <ChevronRight size={14} className={`text-text-muted transition-transform duration-300 ${isTagDateOpen ? 'rotate-90' : ''}`} />
+                </button>
+                {isTagDateOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setIsTagDateOpen(false)}></div>
+                    <div className="absolute right-0 mt-2 w-full bg-bg-card backdrop-blur-3xl border border-glass-border rounded-xl p-2.5 shadow-2xl z-50 space-y-1 animate-in fade-in slide-in-from-top-2 duration-200">
+                      {DATE_PRESETS.map((p) => (
+                        <button key={p.value} type="button" onClick={() => { setTagDatePreset(p.value); setIsTagDateOpen(false); }} className={`w-full text-left px-3 py-2 rounded-xl text-xs transition-all hover:bg-white/5 ${tagDatePreset === p.value ? 'bg-primary/10 text-white font-semibold' : 'text-text-muted'}`}>
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+            {tagDatePreset === 'custom' && (
+              <div className="flex flex-col sm:flex-row items-center gap-3 pt-3 border-t border-glass-border/30 animate-in slide-in-from-top-2 duration-200">
+                <span className="text-[10px] font-black uppercase tracking-wider text-text-muted">Submission Date:</span>
+                <input type="date" value={tagStartDate} onChange={(e) => setTagStartDate(e.target.value)} className="w-full sm:w-40 bg-white/5 border border-glass-border rounded-xl px-3 py-1.5 text-xs text-white" />
+                <span className="text-xs text-text-muted">to</span>
+                <input type="date" value={tagEndDate} onChange={(e) => setTagEndDate(e.target.value)} className="w-full sm:w-40 bg-white/5 border border-glass-border rounded-xl px-3 py-1.5 text-xs text-white" />
+              </div>
+            )}
+          </div>
+
+          {tagLoading ? (
+            <LoadingState />
+          ) : tagReports.length === 0 ? (
+            <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-12 text-center text-text-muted font-semibold">
+              No tag submissions found for the specified filters.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              {/* Left Column: Tags List */}
+              <div className="lg:col-span-5 space-y-3">
+                <p className="text-[10px] font-black uppercase tracking-widest text-text-muted px-1">Tags List ({tagReports.length})</p>
+                <div className="space-y-3 max-h-[580px] overflow-y-auto pr-1 custom-scrollbar">
+                  {tagReports.map((t) => {
+                    const isSelected = selectedTag?.tag_id === t.tag_id;
+                    return (
+                      <button
+                        key={t.tag_id}
+                        type="button"
+                        onClick={() => setSelectedTag(t)}
+                        className={`w-full text-left p-4 rounded-3xl border transition-all duration-300 cursor-pointer ${
+                          isSelected
+                            ? 'bg-gradient-to-br from-primary/15 to-accent/10 border-accent/40 shadow-xl shadow-accent/5'
+                            : 'bg-bg-card border-glass-border/60 hover:bg-white/5'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2">
+                            <div className={`p-2 rounded-xl ${isSelected ? 'bg-accent/20 text-accent' : 'bg-white/5 text-text-muted'}`}>
+                              <Hash size={16} />
+                            </div>
+                            <div>
+                              <h4 className="text-xs font-black text-white uppercase tracking-wider">{t.tag_name}</h4>
+                              <p className="text-[10px] text-text-muted mt-0.5 line-clamp-1">{t.description || 'No description'}</p>
+                            </div>
+                          </div>
+                          <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                            t.recurrent === 'YES' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-white/5 text-text-muted'
+                          }`}>
+                            {t.recurrent}
+                          </span>
+                        </div>
+
+                        <div className="mt-4 grid grid-cols-3 gap-2 border-t border-glass-border/30 pt-3">
+                          <div>
+                            <span className="text-[8px] font-bold uppercase tracking-wider text-text-muted block">Templates</span>
+                            <span className="text-xs font-bold text-white">{t.templates_count}</span>
+                          </div>
+                          <div>
+                            <span className="text-[8px] font-bold uppercase tracking-wider text-text-muted block">Submissions</span>
+                            <span className="text-xs font-bold text-white">{t.total_submissions}</span>
+                          </div>
+                          <div>
+                            <span className="text-[8px] font-bold uppercase tracking-wider text-text-muted block">Compliance</span>
+                            <span className="text-xs font-black text-accent">{t.avg_completion_rate}%</span>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Right Column: Visual Relations & Details */}
+              <div className="lg:col-span-7 space-y-6">
+                {selectedTag && (
+                  <>
+                    {/* Visual 1: SVG Connection Graph */}
+                    <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-5 shadow-xl space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-xs font-black uppercase tracking-widest text-white">Relationship Graph</h4>
+                          <p className="text-[9px] text-text-muted mt-0.5">Visualization of connected checklist templates</p>
+                        </div>
+                        <span className="text-[10px] font-bold text-accent bg-accent/10 border border-accent/20 px-3 py-1 rounded-xl">
+                          {selectedTag.templates_count} Connected
+                        </span>
+                      </div>
+
+                      {selectedTag.templates.length === 0 ? (
+                        <div className="h-[300px] border border-glass-border/40 border-dashed rounded-2xl flex items-center justify-center text-text-muted text-xs font-medium bg-white/2">
+                          No checklist templates connected to this tag.
+                        </div>
+                      ) : (
+                        <div className="relative h-[300px] border border-glass-border/30 rounded-2xl bg-white/2 overflow-hidden">
+                          {/* SVG Connection Paths */}
+                          <svg className="absolute inset-0 w-full h-full pointer-events-none">
+                            <defs>
+                              <linearGradient id="glow-line-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" stopColor="#10b981" stopOpacity="0.8" />
+                                <stop offset="100%" stopColor="#6366f1" stopOpacity="0.8" />
+                              </linearGradient>
+                            </defs>
+                            {selectedTag.templates.map((_, idx) => {
+                              if (idx > 3) return null;
+                              const yPos = 45 + idx * 70;
+                              return (
+                                <g key={idx}>
+                                  {/* Curve path */}
+                                  <path
+                                    d={`M 140 150 C 200 150, 200 ${yPos}, 270 ${yPos}`}
+                                    stroke="url(#glow-line-grad)"
+                                    strokeWidth="2.5"
+                                    fill="none"
+                                    className="opacity-70 animate-pulse"
+                                  />
+                                </g>
+                              );
+                            })}
+                          </svg>
+
+                          {/* Left Center Node: Selected Tag */}
+                          <div className="absolute left-6 top-1/2 -translate-y-1/2 flex flex-col items-center justify-center p-4 rounded-3xl bg-gradient-to-br from-primary/30 to-accent/30 border-2 border-accent/50 shadow-2xl shadow-accent/15 w-[140px] text-center">
+                            <div className="p-2 bg-accent/20 rounded-2xl text-accent mb-2">
+                              <Hash size={20} />
+                            </div>
+                            <span className="text-[11px] font-black text-white uppercase tracking-wider block truncate max-w-full" title={selectedTag.tag_name}>{selectedTag.tag_name}</span>
+                            <span className="text-[9px] text-text-muted mt-1">Creator: {selectedTag.creator_name}</span>
+                          </div>
+
+                          {/* Right Nodes: Templates */}
+                          {selectedTag.templates.map((tpl, idx) => {
+                            if (idx > 3) return null;
+                            const yPos = 45 + idx * 70;
+                            return (
+                              <div
+                                key={tpl.template_id}
+                                className="absolute right-6 p-3 rounded-2xl bg-bg-card/90 border border-glass-border/40 shadow-xl backdrop-blur-md w-[220px]"
+                                style={{ top: `${yPos - 28}px` }}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <div className="p-1.5 bg-primary/10 rounded-xl text-primary-light shrink-0">
+                                    <Layers size={12} />
+                                  </div>
+                                  <div className="truncate">
+                                    <p className="text-[10px] font-black text-white leading-normal truncate" title={tpl.template_name}>{tpl.template_name}</p>
+                                    <p className="text-[8px] text-text-muted mt-0.5 truncate">Priority: {tpl.priority} | Created: {formatDate(tpl.created_at)}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+
+                          {/* More badge if count > 4 */}
+                          {selectedTag.templates.length > 4 && (
+                            <div className="absolute right-6 bottom-3 bg-white/5 border border-glass-border/40 rounded-xl px-2 py-0.5 text-[8px] text-text-muted font-bold">
+                              + {selectedTag.templates.length - 4} more templates
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Visual 2: Tag Comparison Chart */}
+                    <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-5 shadow-xl space-y-4">
+                      <div>
+                        <h4 className="text-xs font-black uppercase tracking-widest text-white">Tag Performance Chart</h4>
+                        <p className="text-[9px] text-text-muted mt-0.5">Average compliance rates compared across all tags</p>
+                      </div>
+
+                      <div className="h-[200px] w-full text-xs">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <RechartsBarChart data={tagReports} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                            <XAxis dataKey="tag_name" tickLine={false} axisLine={false} tick={{ fill: 'rgba(255,255,255,0.6)', fontSize: 9 }} />
+                            <YAxis domain={[0, 100]} tickLine={false} axisLine={false} tick={{ fill: 'rgba(255,255,255,0.6)', fontSize: 9 }} />
+                            <RechartsTooltip
+                              contentStyle={{ background: '#0a0f1d', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }}
+                              labelClassName="text-white font-bold"
+                              itemStyle={{ color: '#accent' }}
+                            />
+                            <Bar dataKey="avg_completion_rate" name="Compliance Rate" radius={[6, 6, 0, 0]}>
+                              {tagReports.map((t, idx) => (
+                                <Cell
+                                  key={idx}
+                                  fill={t.tag_id === selectedTag.tag_id ? 'url(#active-bar-grad)' : 'url(#inactive-bar-grad)'}
+                                />
+                              ))}
+                            </Bar>
+                            {/* Gradients */}
+                            <defs>
+                              <linearGradient id="active-bar-grad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#10b981" />
+                                <stop offset="100%" stopColor="#059669" />
+                              </linearGradient>
+                              <linearGradient id="inactive-bar-grad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#6366f1" stopOpacity="0.4" />
+                                <stop offset="100%" stopColor="#4f46e5" stopOpacity="0.1" />
+                              </linearGradient>
+                            </defs>
+                          </RechartsBarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           )}
         </div>
