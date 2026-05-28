@@ -1130,11 +1130,11 @@ export default function ReportsPage({ currentUser }) {
                           <p className="text-[9px] text-text-muted mt-0.5">Visualization of connected checklist templates</p>
                         </div>
                         <span className="text-[10px] font-bold text-accent bg-accent/10 border border-accent/20 px-3 py-1 rounded-xl">
-                          {selectedTag.templates_count} Connected
+                          {selectedTag?.templates_count || 0} Connected
                         </span>
                       </div>
 
-                      {selectedTag.templates.length === 0 ? (
+                      {(!selectedTag?.templates || selectedTag.templates.length === 0) ? (
                         <div className="h-[300px] border border-glass-border/40 border-dashed rounded-2xl flex items-center justify-center text-text-muted text-xs font-medium bg-white/2">
                           No checklist templates connected to this tag.
                         </div>
@@ -1148,7 +1148,7 @@ export default function ReportsPage({ currentUser }) {
                                 <stop offset="100%" stopColor="#6366f1" stopOpacity="0.8" />
                               </linearGradient>
                             </defs>
-                            {selectedTag.templates.map((tpl, idx) => {
+                            {selectedTag?.templates?.map((tpl, idx) => {
                               const itemHeight = 68; // 56px card + 12px gap
                               const cardCenterY = 52 + (idx * itemHeight) - tagScrollTop;
                               
@@ -1188,7 +1188,7 @@ export default function ReportsPage({ currentUser }) {
                             onScroll={handleTagScroll}
                             className="absolute left-[234px] right-6 top-6 bottom-6 overflow-y-auto pr-1 space-y-3 custom-scrollbar py-1 z-20"
                           >
-                            {selectedTag.templates.map((tpl) => (
+                            {selectedTag?.templates?.map((tpl) => (
                               <div
                                 key={tpl.template_id}
                                 className="relative h-[56px] flex items-center pl-5 pr-4 rounded-2xl bg-bg-card/95 border border-glass-border/45 hover:border-accent/40 shadow-xl transition-all duration-300"
@@ -1277,7 +1277,7 @@ export default function ReportsPage({ currentUser }) {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-glass-border/30">
-                            {selectedTag.templates.map((tpl) => (
+                            {selectedTag?.templates?.map((tpl) => (
                               <tr key={tpl.template_id} className="hover:bg-white/2 transition-colors">
                                 <td className="px-4 py-3 text-xs font-bold text-accent">
                                   {tpl.template_name}
