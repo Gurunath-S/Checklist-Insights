@@ -75,6 +75,7 @@ export default function ReportsPage({ currentUser }) {
   const [tagRecurrenceFilter, setTagRecurrenceFilter] = useState('all');
   const [isTagPosOpen, setIsTagPosOpen] = useState(false);
   const [isTagRecurOpen, setIsTagRecurOpen] = useState(false);
+  const [tagScrollTop, setTagScrollTop] = useState(0);
 
   // 4. User Compliance Tab States
   const [userSearch, setUserSearch] = useState('');
@@ -1138,9 +1139,43 @@ export default function ReportsPage({ currentUser }) {
                           No checklist templates connected to this tag.
                         </div>
                       ) : (
-                        <div className="relative flex items-center gap-4 h-[300px] border border-glass-border/30 rounded-2xl bg-white/2 p-6 overflow-hidden">
+                        <div className="relative h-[300px] border border-glass-border/30 rounded-2xl bg-white/2 overflow-hidden">
+                          {/* SVG connections behind everything */}
+                          <svg className="absolute inset-0 w-full h-full pointer-events-none z-10">
+                            <defs>
+                              <linearGradient id="glowing-connector-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" stopColor="#10b981" stopOpacity="0.8" />
+                                <stop offset="100%" stopColor="#6366f1" stopOpacity="0.8" />
+                              </linearGradient>
+                            </defs>
+                            {selectedTag.templates.map((tpl, idx) => {
+                              const itemHeight = 68; // 56px card + 12px gap
+                              const cardCenterY = 52 + (idx * itemHeight) - tagScrollTop;
+                              
+                              // Check if the connection point is within the container bounds (top-6 to bottom-6 viewport)
+                              const isVisible = cardCenterY >= 28 && cardCenterY <= 272;
+                              if (!isVisible) return null;
+
+                              return (
+                                <g key={tpl.template_id}>
+                                  {/* Curve line */}
+                                  <path
+                                    d={`M 164 150 C 195 150, 203 ${cardCenterY}, 230 ${cardCenterY}`}
+                                    stroke="url(#glowing-connector-grad)"
+                                    strokeWidth="2"
+                                    fill="none"
+                                    className="opacity-70 transition-all duration-75"
+                                  />
+                                  {/* Pulsing indicator node */}
+                                  <circle cx={230} cy={cardCenterY} r="4" fill="#6366f1" className="opacity-75 animate-pulse" />
+                                  <circle cx={230} cy={cardCenterY} r="2" fill="#10b981" />
+                                </g>
+                              );
+                            })}
+                          </svg>
+
                           {/* Left Center Node: Selected Tag */}
-                          <div className="flex flex-col items-center justify-center p-4 rounded-3xl bg-gradient-to-br from-primary/30 to-accent/30 border-2 border-accent/50 shadow-2xl shadow-accent/15 w-[140px] text-center shrink-0">
+                          <div className="absolute left-6 top-1/2 -translate-y-1/2 flex flex-col items-center justify-center p-4 rounded-3xl bg-gradient-to-br from-primary/30 to-accent/30 border-2 border-accent/50 shadow-2xl shadow-accent/15 w-[140px] text-center shrink-0 z-20">
                             <div className="p-2 bg-accent/20 rounded-2xl text-accent mb-2">
                               <Hash size={20} />
                             </div>
@@ -1148,36 +1183,20 @@ export default function ReportsPage({ currentUser }) {
                             <span className="text-[9px] text-text-muted mt-1">Creator: {selectedTag.creator_name}</span>
                           </div>
 
-                          {/* Middle: SVG Connection Path */}
-                          <div className="w-[60px] h-full flex items-center shrink-0 pointer-events-none">
-                            <svg className="w-full h-12">
-                              <defs>
-                                <linearGradient id="glow-line-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-                                  <stop offset="0%" stopColor="#10b981" stopOpacity="0.8" />
-                                  <stop offset="100%" stopColor="#6366f1" stopOpacity="0.8" />
-                                </linearGradient>
-                              </defs>
-                              <path
-                                d="M 0 24 C 30 24, 30 24, 60 24"
-                                stroke="url(#glow-line-grad)"
-                                strokeWidth="3"
-                                fill="none"
-                                className="opacity-80 animate-pulse"
-                              />
-                            </svg>
-                          </div>
-
                           {/* Right Side: Scrollable Templates Column */}
-                          <div className="flex-1 h-full overflow-y-auto pr-1 space-y-3 custom-scrollbar py-1">
+                          <div 
+                            onScroll={handleTagScroll}
+                            className="absolute left-[234px] right-6 top-6 bottom-6 overflow-y-auto pr-1 space-y-3 custom-scrollbar py-1 z-20"
+                          >
                             {selectedTag.templates.map((tpl) => (
                               <div
                                 key={tpl.template_id}
-                                className="relative pl-5 py-3 pr-4 rounded-2xl bg-bg-card/90 border border-glass-border/40 hover:border-accent/40 shadow-xl transition-all duration-300"
+                                className="relative h-[56px] flex items-center pl-5 pr-4 rounded-2xl bg-bg-card/95 border border-glass-border/45 hover:border-accent/40 shadow-xl transition-all duration-300"
                               >
                                 {/* Decorative Connector Point */}
-                                <div className="absolute left-0 top-1/2 -translate-x-1.5 -translate-y-1/2 w-3 h-3 bg-accent rounded-full border-2 border-bg-card shadow-sm shadow-accent/45" />
+                                <div className="absolute left-0 top-1/2 -translate-x-1 w-2.5 h-2.5 bg-accent rounded-full border-2 border-bg-card shadow-sm shadow-accent/45" />
                                 
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-3 w-full">
                                   <div className="p-2 bg-primary/10 rounded-xl text-primary-light shrink-0">
                                     <Layers size={14} />
                                   </div>
