@@ -77,6 +77,10 @@ export default function ReportsPage({ currentUser }) {
   const [isTagRecurOpen, setIsTagRecurOpen] = useState(false);
   const [tagScrollTop, setTagScrollTop] = useState(0);
 
+  const handleTagScroll = (e) => {
+    setTagScrollTop(e.target.scrollTop);
+  };
+
   // 4. User Compliance Tab States
   const [userSearch, setUserSearch] = useState('');
   const [userDatePreset, setUserDatePreset] = useState('all');
