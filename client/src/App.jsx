@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { Sparkles, LogOut, Users, ChevronDown, List, Search } from 'lucide-react';
 import Sidebar from './components/Dashboard/Sidebar';
@@ -7,11 +7,13 @@ import UserProfileHeader from './components/Dashboard/Summary/UserProfileHeader'
 import DashboardSummary from './components/Dashboard/Summary/DashboardSummary';
 import InsightsChart from './components/Dashboard/Charts/InsightsChart';
 import ActivityExplorer from './components/Dashboard/Activity/ActivityExplorer';
-import DepartmentDashboard from './components/Dashboard/DepartmentDashboard';
+import DepartmentDashboard from './components/Dashboard/Department/DepartmentDashboard';
 import LoadingState from './components/UI/LoadingState';
-import SettingsPage from './components/Dashboard/SettingsPage';
-import UserManagement from './components/Dashboard/UserManagement';
-import ReportsPage from './components/Dashboard/ReportsPage';
+import SettingsPage from './components/Dashboard/Settings/SettingsPage';
+import UserManagement from './components/Dashboard/UserManagement/UserManagement';
+import ReportsPage from './components/Dashboard/Reports/ReportsPage';
+import TagReportsView from './components/Dashboard/TagReports/TagReportsView';
+import OrganisationDashboard from './components/Dashboard/Organisation/OrganisationDashboard';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
 
@@ -53,6 +55,8 @@ function App() {
   const [inspectedSearch, setInspectedSearch] = useState('');
   const [isInspectDropdownOpen, setIsInspectDropdownOpen] = useState(false);
   const [loadingInspect, setLoadingInspect] = useState(false);
+  const [selectedOrganisation, setSelectedOrganisation] = useState(null);
+  const [overviewTab, setOverviewTab] = useState('dashboard');
 
   useEffect(() => {
     if (!isAdmin && data?.itemStats && data.itemStats.length > 0) {
@@ -75,11 +79,13 @@ function App() {
         })
         .map(item => item.name);
       
-      if (defaultMetrics.length > 0) {
-        setSelectedMetrics(defaultMetrics);
-      } else {
-        setSelectedMetrics(data.itemStats.slice(0, 4).map(item => item.name));
-      }
+      Promise.resolve().then(() => {
+        if (defaultMetrics.length > 0) {
+          setSelectedMetrics(defaultMetrics);
+        } else {
+          setSelectedMetrics(data.itemStats.slice(0, 4).map(item => item.name));
+        }
+      });
     }
   }, [data, isAdmin]);
 
@@ -91,6 +97,13 @@ function App() {
     }
     localStorage.setItem('theme', theme);
   }, [theme, user]);
+
+  const handleLogout = useCallback(() => {
+    setUser(null);
+    setData(null);
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+  }, []);
 
   useEffect(() => {
     // 1. Setup Axios Interceptors
@@ -205,7 +218,7 @@ function App() {
       axios.interceptors.request.eject(requestInterceptor);
       axios.interceptors.response.eject(responseInterceptor);
     };
-  }, []);
+  }, [handleLogout]);
 
   const getDatesForPreset = (preset) => {
     if (preset === 'custom') {
@@ -221,12 +234,13 @@ function App() {
         start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
         break;
-      case 'yesterday':
+      case 'yesterday': {
         const yesterday = new Date(now);
         yesterday.setDate(now.getDate() - 1);
         start = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
         end = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 23, 59, 59, 999);
         break;
+      }
       case 'this-week': {
         const day = now.getDay();
         const diff = now.getDate() - day; 
@@ -298,16 +312,46 @@ function App() {
 
   useEffect(() => {
     // Reset department filters back to all-time when changing departments
-    setDeptDatePreset('all-time');
-    setDeptStartDate('');
-    setDeptEndDate('');
+    Promise.resolve().then(() => {
+      setDeptDatePreset('all-time');
+      setDeptStartDate('');
+      setDeptEndDate('');
+    });
   }, [selectedDepartment]);
+
+  const fetchData = useCallback(async () => {
+    if (!user || !user.id) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const params = {};
+      if (startDate) params.startDate = startDate;
+      if (endDate) params.endDate = endDate;
+
+      if (isAdmin) {
+        const response = await axios.get(`${API_BASE}/insights/admin/summary`, {
+          params
+        });
+        setData(response.data);
+      } else {
+        const response = await axios.get(`${API_BASE}/insights/personal/${user.id}`, {
+          params
+        });
+        setData(response.data);
+      }
+    } catch (err) {
+      console.error('Error fetching data:', err);
+      setError('Failed to load insights. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, [user, startDate, endDate, isAdmin]);
 
   useEffect(() => {
     if (user && user.id) {
-      fetchData();
+      Promise.resolve().then(() => fetchData());
     }
-  }, [isAdmin, user, startDate, endDate]);
+  }, [fetchData, user]);
 
   // Load all users when Admin view is loaded
   useEffect(() => {
@@ -327,7 +371,7 @@ function App() {
     }
   }, [isAdmin, user]);
 
-  const fetchInspectedUserData = async (inspectedUserId) => {
+  const fetchInspectedUserData = useCallback(async (inspectedUserId) => {
     if (!inspectedUserId) return;
     setLoadingInspect(true);
     try {
@@ -370,42 +414,14 @@ function App() {
     } finally {
       setLoadingInspect(false);
     }
-  };
+  }, [startDate, endDate]);
 
   // Re-fetch inspected user details on date range change
   useEffect(() => {
     if (inspectedUser) {
-      fetchInspectedUserData(inspectedUser.id);
+      Promise.resolve().then(() => fetchInspectedUserData(inspectedUser.id));
     }
-  }, [inspectedUser, startDate, endDate]);
-
-  const fetchData = async () => {
-    if (!user || !user.id) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const params = {};
-      if (startDate) params.startDate = startDate;
-      if (endDate) params.endDate = endDate;
-
-      if (isAdmin) {
-        const response = await axios.get(`${API_BASE}/insights/admin/summary`, {
-          params
-        });
-        setData(response.data);
-      } else {
-        const response = await axios.get(`${API_BASE}/insights/personal/${user.id}`, {
-          params
-        });
-        setData(response.data);
-      }
-    } catch (err) {
-      console.error('Error fetching data:', err);
-      setError('Failed to load insights. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [inspectedUser, fetchInspectedUserData]);
 
   const handleLoginSuccess = async (credentialResponse) => {
     try {
@@ -446,12 +462,6 @@ function App() {
   };
 
 
-  const handleLogout = () => {
-    setUser(null);
-    setData(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-  };
 
   // Prevent flash of login page while validating session
   if (loading && !user) {
@@ -532,7 +542,7 @@ function App() {
                   {/* Left: Department Selector Tab Bar */}
                   <div className="flex flex-wrap items-center gap-2">
                     <button
-                      onClick={() => { setSelectedDepartment('Overview'); setInspectedUser(null); setInspectedData(null); }}
+                      onClick={() => { setSelectedDepartment('Overview'); setInspectedUser(null); setInspectedData(null); setSelectedOrganisation(null); }}
                       className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all border cursor-pointer ${selectedDepartment === 'Overview' && !inspectedUser ? 'bg-primary text-white border-primary shadow-lg shadow-primary/30' : 'bg-white/5 border-glass-border text-text-muted hover:text-white hover:bg-white/10'}`}
                     >
                       System Overview
@@ -540,7 +550,7 @@ function App() {
                     {data?.usersByPositionTags?.map(tag => (
                       <button
                         key={tag.name}
-                        onClick={() => { setSelectedDepartment(tag.name); setInspectedUser(null); setInspectedData(null); }}
+                        onClick={() => { setSelectedDepartment(tag.name); setInspectedUser(null); setInspectedData(null); setSelectedOrganisation(null); }}
                         className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all border cursor-pointer capitalize ${selectedDepartment === tag.name && !inspectedUser ? 'bg-primary text-white border-primary shadow-lg shadow-primary/30' : 'bg-white/5 border-glass-border text-text-muted hover:text-white hover:bg-white/10'}`}
                       >
                         {tag.name.replace(/_/g, ' ')}
@@ -618,6 +628,7 @@ function App() {
                                     setInspectedUser(u);
                                     setIsInspectDropdownOpen(false);
                                     setInspectedSearch('');
+                                    setSelectedOrganisation(null);
                                     fetchInspectedUserData(u.id);
                                   }}
                                   className={`w-full text-left px-3 py-2 rounded-xl transition-all flex items-center justify-between hover:bg-white/5 ${inspectedUser?.id === u.id ? 'bg-primary/10 text-white font-semibold' : 'text-text-muted hover:text-white'}`}
@@ -705,20 +716,57 @@ function App() {
                         No inspection data found for this user.
                       </div>
                     )
+                  ) : selectedOrganisation ? (
+                    <OrganisationDashboard 
+                      organisation={selectedOrganisation}
+                      adminStartDate={datePreset === 'all-time' ? '' : startDate}
+                      adminEndDate={datePreset === 'all-time' ? '' : endDate}
+                      onBack={() => setSelectedOrganisation(null)}
+                    />
                   ) : selectedDepartment === 'Overview' ? (
-                    <div className="space-y-12">
-                      <DashboardSummary 
-                        data={data} 
-                        isAdmin={isAdmin} 
-                        hideKPIs={false}
-                        datePreset={datePreset}
-                        startDate={startDate}
-                        endDate={endDate}
-                        handlePresetChange={handlePresetChange}
-                        setStartDate={setStartDate}
-                        setEndDate={setEndDate}
-                      />
-                      <InsightsChart data={data} isAdmin={isAdmin} user={user} startDate={startDate} endDate={endDate} />
+                    <div className="space-y-6">
+                      {/* Sub-tabs under System Overview */}
+                      <div className="flex gap-2 p-1 bg-white/5 border border-glass-border rounded-2xl w-max max-w-full">
+                        {[
+                          { id: 'dashboard', label: 'Dashboard Overview' },
+                          { id: 'tags', label: 'Tag Relationships' }
+                        ].map(tab => (
+                          <button
+                            key={tab.id}
+                            type="button"
+                            onClick={() => setOverviewTab(tab.id)}
+                            className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                              overviewTab === tab.id 
+                                ? 'bg-primary text-white shadow-lg shadow-primary/20' 
+                                : 'text-text-muted hover:text-white hover:bg-white/5'
+                            }`}
+                          >
+                            {tab.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {overviewTab === 'dashboard' ? (
+                        <div className="space-y-12 animate-fade-in">
+                          <DashboardSummary 
+                            data={data} 
+                            isAdmin={isAdmin} 
+                            hideKPIs={false}
+                            datePreset={datePreset}
+                            startDate={startDate}
+                            endDate={endDate}
+                            handlePresetChange={handlePresetChange}
+                            setStartDate={setStartDate}
+                            setEndDate={setEndDate}
+                            onSelectOrganisation={(org) => setSelectedOrganisation(org)}
+                          />
+                          <InsightsChart data={data} isAdmin={isAdmin} user={user} startDate={startDate} endDate={endDate} />
+                        </div>
+                      ) : (
+                        <div className="animate-fade-in">
+                          <TagReportsView />
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="space-y-12">

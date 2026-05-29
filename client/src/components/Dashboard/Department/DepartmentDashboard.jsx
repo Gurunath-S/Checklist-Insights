@@ -5,7 +5,7 @@ import {
   BarChart, Bar, Cell
 } from 'recharts';
 import { Book, CheckCircle, TrendingUp, Calendar, ChevronDown, List, Activity, Send, Clock, Bug, CheckSquare, Rocket, Users, PlusCircle } from 'lucide-react';
-import LoadingState from '../UI/LoadingState';
+import LoadingState from '../../UI/LoadingState';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
 
@@ -89,7 +89,7 @@ const DepartmentDashboard = ({ department, adminStartDate, adminEndDate }) => {
   }, [department, adminStartDate, adminEndDate]);
 
   useEffect(() => {
-    setPage(1);
+    Promise.resolve().then(() => setPage(1));
   }, [department, adminStartDate, adminEndDate]);
 
   useEffect(() => {

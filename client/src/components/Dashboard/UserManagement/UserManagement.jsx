@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { 
   Users, Edit, Trash2, ChevronLeft, ChevronRight, X, Search,
   Building, Briefcase, ShieldAlert, Award, UserCheck, AlertTriangle
 } from 'lucide-react';
-import LoadingState from '../UI/LoadingState';
+import LoadingState from '../../UI/LoadingState';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
 
@@ -59,7 +59,7 @@ export default function UserManagement({ currentUser }) {
   // Status message
   const [statusMsg, setStatusMsg] = useState({ type: '', text: '' });
 
-  const fetchUsers = async (pageNumber) => {
+  const fetchUsers = useCallback(async (pageNumber) => {
     setLoading(true);
     setError(null);
     try {
@@ -79,16 +79,7 @@ export default function UserManagement({ currentUser }) {
     } finally {
       setLoading(false);
     }
-  };
-
-  const fetchMeta = async () => {
-    try {
-      const res = await axios.get(`${API_BASE}/insights/admin/summary`);
-      setOrganisations(res.data.organisations || []);
-    } catch (err) {
-      console.error('Error fetching admin summary for organisations:', err);
-    }
-  };
+  }, [searchTerm, filterPosition, filterType, limit]);
 
   // Debounced search trigger
   useEffect(() => {
@@ -97,9 +88,17 @@ export default function UserManagement({ currentUser }) {
     }, 300);
 
     return () => clearTimeout(delayDebounceFn);
-  }, [searchTerm, filterPosition, filterType, limit]);
+  }, [fetchUsers]);
 
   useEffect(() => {
+    const fetchMeta = async () => {
+      try {
+        const res = await axios.get(`${API_BASE}/insights/admin/summary`);
+        setOrganisations(res.data.organisations || []);
+      } catch (err) {
+        console.error('Error fetching admin summary for organisations:', err);
+      }
+    };
     fetchMeta();
   }, []);
 

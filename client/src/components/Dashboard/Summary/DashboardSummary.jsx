@@ -38,7 +38,8 @@ const DashboardSummary = ({
   endDate,
   handlePresetChange,
   setStartDate,
-  setEndDate
+  setEndDate,
+  onSelectOrganisation
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
@@ -199,6 +200,74 @@ const DashboardSummary = ({
             <AdminKPICard icon={<Tag />} label="Tags" value={data?.totalTags} />
             <AdminKPICard icon={<Layout />} label="Templates" value={data?.totalTemplates} />
             <AdminKPICard icon={<Grid2x2 />} label="Items" value={data?.totalItems} />
+          </div>
+        )}
+
+        {!hideKPIs && data?.organisations && (
+          <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-5 shadow-xl space-y-4 mt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-xs font-black uppercase tracking-widest text-white">Domain Analytics</h3>
+                <p className="text-[9px] text-text-muted mt-0.5">Performance metrics segmented by domain / organization</p>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-glass-border bg-white/5 text-[9px] font-black uppercase tracking-widest text-text-muted">
+                    <th className="px-6 py-4">Domain / Organisation</th>
+                    <th className="px-6 py-4 text-center">Active Users</th>
+                    <th className="px-6 py-4 text-center">Total Submissions</th>
+                    <th className="px-6 py-4">Compliance Score</th>
+                    <th className="px-6 py-4 text-center">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-glass-border/30">
+                  {data.organisations.length === 0 ? (
+                    <tr>
+                      <td colSpan="5" className="px-6 py-8 text-center text-text-muted font-bold text-xs">
+                        No organizations/domains found.
+                      </td>
+                    </tr>
+                  ) : (
+                    data.organisations.map((org) => (
+                      <tr key={org.id} className="hover:bg-white/2 transition-colors">
+                        <td className="px-6 py-4 text-xs font-bold text-white uppercase tracking-wider">
+                          {org.organisation}
+                        </td>
+                        <td className="px-6 py-4 text-xs text-white text-center">
+                          {org.total_users}
+                        </td>
+                        <td className="px-6 py-4 text-xs text-white text-center">
+                          {org.total_submissions}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col gap-1 w-32">
+                            <span className="text-[10px] font-bold text-white">{org.avg_completion_rate}%</span>
+                            <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-accent rounded-full" 
+                                style={{ width: `${org.avg_completion_rate}%` }} 
+                              />
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <button
+                            type="button"
+                            onClick={() => onSelectOrganisation && onSelectOrganisation(org)}
+                            className="px-3 py-1.5 bg-accent/10 hover:bg-accent/20 border border-accent/30 text-accent font-black rounded-xl text-[10px] uppercase tracking-wider transition-all cursor-pointer"
+                          >
+                            View Details
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>

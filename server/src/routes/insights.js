@@ -378,7 +378,7 @@ router.get('/admin/summary', authenticateToken, async (req, res) => {
       if (endDate) dateFilter.created_at.lte = new Date(endDate);
     }
 
-    const [userCount, submissionCount, templateCount, tagCount, itemCount, typeStatsRaw, organisations, tagsByPosRaw, orgUserPosRaw] = await Promise.all([
+    const [userCount, submissionCount, templateCount, tagCount, itemCount, typeStatsRaw, tagsByPosRaw, orgUserPosRaw] = await Promise.all([
       prisma.organisation_Users.count(),
       prisma.checklist_item_response.count({ where: Object.keys(dateFilter).length ? dateFilter : undefined }),
       prisma.checklist_template.count(),
@@ -387,9 +387,6 @@ router.get('/admin/summary', authenticateToken, async (req, res) => {
       prisma.organisation_Users.groupBy({
         by: ['user_type'],
         _count: { id: true }
-      }),
-      prisma.organisation.findMany({
-        select: { id: true, organisation: true }
       }),
       prisma.tags.groupBy({
         by: ['user_position'],
@@ -428,6 +425,50 @@ router.get('/admin/summary', authenticateToken, async (req, res) => {
       submissions: Number(stat.submissions)
     }));
 
+    let orgQuery = `
+      SELECT 
+        o.id AS id,
+        o.organisation,
+        COUNT(DISTINCT ou.id) AS total_users,
+        COUNT(DISTINCT CASE WHEN cir.id IS NOT NULL THEN CONCAT(ou.id, '-', ct.id, '-', DATE(cir.created_at)) END) AS total_submissions,
+        COALESCE(ROUND(AVG(
+          CASE 
+            WHEN ci.input_type = 'Boolean' AND (cir.input = 'Yes' OR cir.input = '1' OR cir.input = 'true' OR cir.status = 1) THEN 1
+            WHEN ci.input_type = 'Numeric' AND (cir.input IS NOT NULL AND cir.input != '') THEN 1
+            ELSE 0 
+          END
+        ) * 100, 1), 0) AS avg_completion_rate
+      FROM Organisation o
+      LEFT JOIN Organisation_Users ou ON o.id = ou.organisation_id
+      LEFT JOIN checklist_item_response cir ON ou.id = cir.organisation_user_id
+    `;
+    const orgQueryParams = [];
+    if (startDate) {
+      orgQuery += ` AND cir.created_at >= ?`;
+      orgQueryParams.push(new Date(startDate));
+    }
+    if (endDate) {
+      orgQuery += ` AND cir.created_at <= ?`;
+      orgQueryParams.push(new Date(endDate));
+    }
+    orgQuery += `
+      LEFT JOIN checklist_template_linked_items li ON cir.checklist_template_linked_items_id = li.id
+      LEFT JOIN checklist_template_version v ON li.template_version_id = v.version_id
+      LEFT JOIN checklist_template ct ON v.checklist_template_id = ct.id
+      LEFT JOIN checklist_items ci ON li.checklist_item_id = ci.id
+      GROUP BY o.id, o.organisation
+      ORDER BY total_submissions DESC, o.organisation ASC
+    `;
+
+    const organisationsRaw = await prisma.$queryRawUnsafe(orgQuery, ...orgQueryParams);
+    const organisations = organisationsRaw.map(org => ({
+      id: Number(org.id),
+      organisation: org.organisation,
+      total_users: Number(org.total_users),
+      total_submissions: Number(org.total_submissions),
+      avg_completion_rate: Number(org.avg_completion_rate)
+    }));
+
     const usersByPositionTags = tagsByPosRaw.map(p => ({
       name: p.user_position || 'UNASSIGNED',
       value: p._count.id
@@ -457,6 +498,256 @@ router.get('/admin/summary', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Admin summary error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// Admin Organisation Details
+router.get('/admin/organisation/:orgId', authenticateToken, async (req, res) => {
+  try {
+    const orgId = parseInt(req.params.orgId);
+    const { startDate, endDate } = req.query;
+
+    let dateFilterSql = '';
+    const queryParams = [orgId];
+
+    if (startDate) {
+      dateFilterSql += ` AND r.created_at >= ?`;
+      queryParams.push(new Date(startDate));
+    }
+    if (endDate) {
+      dateFilterSql += ` AND r.created_at <= ?`;
+      queryParams.push(new Date(endDate));
+    }
+
+    const summaryQuery = `
+      SELECT 
+        COUNT(r.id) AS submissionsCount,
+        MAX(r.created_at) AS latestSubmissionDate
+      FROM checklist_item_response r
+      JOIN Organisation_Users ou ON r.organisation_user_id = ou.id
+      WHERE ou.organisation_id = ?
+      ${dateFilterSql}
+    `;
+
+    const inputsQuery = `
+      SELECT 
+        ci.checklist_name AS name,
+        ci.input_type AS type,
+        COUNT(r.id) AS total_count,
+        SUM(CASE 
+          WHEN ci.input_type = 'Numeric' THEN CAST(COALESCE(NULLIF(r.input, ''), '0') AS DECIMAL(10,2))
+          ELSE 0 
+        END) AS numeric_sum,
+        SUM(CASE 
+          WHEN ci.input_type = 'Boolean' AND (r.input = 'Yes' OR r.input = '1' OR r.input = 'true' OR r.status = 1) THEN 1
+          ELSE 0 
+        END) AS boolean_count
+      FROM checklist_item_response r
+      JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+      JOIN checklist_items ci ON li.checklist_item_id = ci.id
+      JOIN Organisation_Users ou ON r.organisation_user_id = ou.id
+      WHERE ou.organisation_id = ?
+      ${dateFilterSql}
+      GROUP BY ci.checklist_name, ci.input_type
+    `;
+
+    const trendQuery = `
+      SELECT 
+        DATE_FORMAT(r.created_at, '%b %Y') AS name,
+        COUNT(r.id) AS submissions,
+        DATE_FORMAT(r.created_at, '%Y-%m') AS sortKey
+      FROM checklist_item_response r
+      JOIN Organisation_Users ou ON r.organisation_user_id = ou.id
+      WHERE ou.organisation_id = ?
+      ${dateFilterSql}
+      GROUP BY DATE_FORMAT(r.created_at, '%b %Y'), DATE_FORMAT(r.created_at, '%Y-%m')
+      ORDER BY sortKey ASC
+    `;
+
+    const completionQuery = `
+      SELECT 
+        AVG(CASE 
+          WHEN (ci.input_type = 'Boolean' AND (r.input = 'Yes' OR r.input = '1' OR r.input = 'true' OR r.status = 1))
+            OR (ci.input_type = 'Numeric' AND r.input IS NOT NULL AND r.input <> '') THEN 100.0
+          ELSE 0.0
+        END) AS completionRate
+      FROM checklist_item_response r
+      JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+      JOIN checklist_items ci ON li.checklist_item_id = ci.id
+      JOIN Organisation_Users ou ON r.organisation_user_id = ou.id
+      WHERE ou.organisation_id = ?
+      ${dateFilterSql}
+    `;
+
+    const orgNameQuery = `
+      SELECT organisation FROM Organisation WHERE id = ?
+    `;
+
+    const [summaryResult, inputsResult, trendResult, completionResult, orgNameResult] = await Promise.all([
+      prisma.$queryRawUnsafe(summaryQuery, ...queryParams),
+      prisma.$queryRawUnsafe(inputsQuery, ...queryParams),
+      prisma.$queryRawUnsafe(trendQuery, ...queryParams),
+      prisma.$queryRawUnsafe(completionQuery, ...queryParams),
+      prisma.$queryRawUnsafe(orgNameQuery, orgId)
+    ]);
+
+    const organisationName = orgNameResult[0]?.organisation || 'Unknown Organisation';
+    const submissionsCount = Number(summaryResult[0]?.submissionsCount || 0);
+    const latestSubmissionDate = summaryResult[0]?.latestSubmissionDate || null;
+    const completionRate = Number(completionResult[0]?.completionRate || 0);
+
+    const checklistInputs = inputsResult.map(row => {
+      const name = row.name;
+      const type = row.type;
+      const totalCount = Number(row.total_count || 0);
+      const booleanCount = Number(row.boolean_count || 0);
+      const numericSum = Number(row.numeric_sum || 0);
+      const lowercaseName = name.toLowerCase();
+
+      let value = 0;
+      let isPercentage = false;
+      let isTimeAverage = false;
+      let isTaskAverage = false;
+
+      if (type === 'Boolean') {
+        value = totalCount > 0 ? Number(((booleanCount / totalCount) * 100).toFixed(1)) : 0;
+        isPercentage = true;
+      } else {
+        const isTimeRelated = ['time', 'hour', 'duration', 'clock', 'minutes'].some(k => lowercaseName.includes(k));
+        const isTaskRelated = ['tasks worked', 'task worked'].some(k => lowercaseName.includes(k));
+        
+        if (isTimeRelated) {
+          value = totalCount > 0 ? Number((numericSum / totalCount).toFixed(1)) : 0;
+          isTimeAverage = true;
+        } else if (isTaskRelated) {
+          value = totalCount > 0 ? Math.round(numericSum / totalCount) : 0;
+          isTaskAverage = true;
+        } else {
+          value = totalCount > 0 ? Number((numericSum / totalCount).toFixed(1)) : 0;
+        }
+      }
+
+      return {
+        name,
+        value,
+        type,
+        isPercentage,
+        isTimeAverage,
+        isTaskAverage
+      };
+    }).sort((a, b) => b.value - a.value);
+
+    const recentMonths = trendResult.map(row => ({
+      name: row.name,
+      submissions: Number(row.submissions)
+    }));
+
+    const topKPIs = checklistInputs.slice(0, 3).map(input => ({
+      label: input.name,
+      value: input.value
+    }));
+
+    res.json({
+      organisationName,
+      orgId,
+      submissionsCount,
+      latestSubmissionDate,
+      checklistInputs,
+      recentMonths,
+      topKPIs,
+      completionRate
+    });
+  } catch (error) {
+    console.error('Admin organisation error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// Paginated Chart Data for Admin Organisation
+router.get('/admin/organisation/:orgId/chart-data', authenticateToken, async (req, res) => {
+  try {
+    const orgId = parseInt(req.params.orgId);
+    const { startDate, endDate, page = 1, limit = 10 } = req.query;
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const offset = (pageNum - 1) * limitNum;
+
+    let dateFilterSql = '';
+    const queryParams = [orgId];
+
+    if (startDate) {
+      dateFilterSql += ` AND r.created_at >= ?`;
+      queryParams.push(new Date(startDate));
+    }
+    if (endDate) {
+      dateFilterSql += ` AND r.created_at <= ?`;
+      queryParams.push(new Date(endDate));
+    }
+
+    const query = `
+      SELECT 
+        ci.checklist_name AS name,
+        ci.input_type AS type,
+        SUM(CASE 
+          WHEN ci.input_type = 'Numeric' THEN CAST(COALESCE(NULLIF(r.input, ''), '0') AS DECIMAL(10,2))
+          ELSE 0 
+        END) AS numeric_sum,
+        SUM(CASE 
+          WHEN ci.input_type = 'Boolean' AND (r.input = 'Yes' OR r.input = '1' OR r.input = 'true' OR r.status = 1) THEN 1
+          ELSE 0 
+        END) AS boolean_count
+      FROM checklist_item_response r
+      JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+      JOIN checklist_items ci ON li.checklist_item_id = ci.id
+      JOIN Organisation_Users ou ON r.organisation_user_id = ou.id
+      WHERE ou.organisation_id = ?
+      ${dateFilterSql}
+      GROUP BY ci.checklist_name, ci.input_type
+    `;
+
+    const paginatedQuery = `
+      SELECT * FROM (${query}) as sub
+      ORDER BY 
+        CASE WHEN type = 'Numeric' THEN numeric_sum ELSE boolean_count END DESC
+      LIMIT ? OFFSET ?
+    `;
+
+    const countQuery = `
+      SELECT COUNT(*) as total FROM (
+        SELECT ci.checklist_name 
+        FROM checklist_item_response r
+        JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+        JOIN checklist_items ci ON li.checklist_item_id = ci.id
+        JOIN Organisation_Users ou ON r.organisation_user_id = ou.id
+        WHERE ou.organisation_id = ?
+        ${dateFilterSql}
+        GROUP BY ci.checklist_name, ci.input_type
+      ) as sub
+    `;
+
+    const [paginatedStats, totalResult] = await Promise.all([
+      prisma.$queryRawUnsafe(paginatedQuery, ...queryParams, limitNum, offset),
+      prisma.$queryRawUnsafe(countQuery, ...queryParams)
+    ]);
+
+    const total = Number(totalResult[0]?.total || 0);
+
+    const data = paginatedStats.map(row => {
+      const name = row.name;
+      const type = row.type;
+      const value = type === 'Numeric' ? Number(row.numeric_sum) : Number(row.boolean_count);
+      return { name, value, type };
+    });
+
+    res.json({
+      data,
+      total,
+      page: pageNum,
+      totalPages: Math.ceil(total / limitNum)
+    });
+  } catch (error) {
+    console.error('Admin organisation chart-data error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
