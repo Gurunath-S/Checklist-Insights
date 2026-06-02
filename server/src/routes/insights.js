@@ -1126,6 +1126,43 @@ router.get('/admin/department/:department', authenticateToken, async (req, res) 
       };
     }
 
+    let dtData = null;
+    if (department && (department.toUpperCase() === 'DIGITAL TRANSFORMATION' || department.toUpperCase() === 'DIGITAL_TRANSFORMATION' || department.toUpperCase() === 'DT')) {
+      const tasksCreatedQuery = `
+        SELECT 
+          DATE_FORMAT(r.created_at, '%b %Y') AS name,
+          SUM(CAST(COALESCE(NULLIF(r.input, ''), '0') AS DECIMAL(10,2))) AS value,
+          DATE_FORMAT(r.created_at, '%Y-%m') AS sortKey
+        FROM checklist_item_response r
+        JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+        JOIN checklist_items ci ON li.checklist_item_id = ci.id
+        JOIN checklist_template_version v ON li.template_version_id = v.version_id
+        JOIN checklist_template ct ON v.checklist_template_id = ct.id
+        JOIN tags t ON ct.tag_id = t.id
+        WHERE (t.user_position = ? OR t.user_position = 'DIGITAL TRANSFORMATION' OR t.user_position = 'DIGITAL_TRANSFORMATION')
+          AND (ci.checklist_name LIKE '%task%created%' OR ci.checklist_name LIKE '%tasks%created%')
+          ${dateFilterSql}
+        GROUP BY DATE_FORMAT(r.created_at, '%b %Y'), DATE_FORMAT(r.created_at, '%Y-%m')
+        ORDER BY sortKey ASC
+      `;
+
+      const [tasksCreatedTrend] = await Promise.all([
+        prisma.$queryRawUnsafe(tasksCreatedQuery, ...queryParams)
+      ]);
+
+      const tasksCreatedItem = inputsResult.find(i => i.name.toLowerCase().includes('tasks created'));
+      const tasksCreatedTotal = tasksCreatedItem ? Number(tasksCreatedItem.numeric_sum || 0) : 0;
+
+      const tasksClosedItem = inputsResult.find(i => i.name.toLowerCase().includes('tasks closed'));
+      const tasksClosedTotal = tasksClosedItem ? Number(tasksClosedItem.numeric_sum || 0) : 0;
+
+      dtData = {
+        tasksCreatedTrend: tasksCreatedTrend.map(r => ({ name: r.name, value: Number(r.value) })),
+        tasksEntered: submissionsCount > 0 ? (tasksCreatedTotal / submissionsCount).toFixed(1) : 0,
+        tasksCompleted: submissionsCount > 0 ? (tasksClosedTotal / submissionsCount).toFixed(1) : 0
+      };
+    }
+
     res.json({
       department,
       submissionsCount,
@@ -1135,7 +1172,8 @@ router.get('/admin/department/:department', authenticateToken, async (req, res) 
       topKPIs,
       completionRate,
       ...(salesData ? { salesData } : {}),
-      ...(hrData ? { hrData } : {})
+      ...(hrData ? { hrData } : {}),
+      ...(dtData ? { dtData } : {})
     });
   } catch (error) {
     console.error('Admin department error:', error);

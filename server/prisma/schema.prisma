@@ -195,6 +195,7 @@ enum Organisation_User_position_user_position {
   TESTING
   SALESFORCE
   PUBLIC
+  DIGITAL_TRANSFORMATION
 }
 
 enum checklist_template_priority {
@@ -211,6 +212,7 @@ enum tags_user_position {
   TESTING
   SALESFORCE
   PUBLIC
+  DIGITAL_TRANSFORMATION
 }
 
 enum checklist_items_input_type {

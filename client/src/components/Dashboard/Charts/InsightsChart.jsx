@@ -137,25 +137,29 @@ const InsightsChart = ({ data, isAdmin, selectedMetrics = [], user, startDate, e
             <h3 className="text-sm font-bold text-white text-center mb-2 z-10">Total users by user_position (tags)</h3>
             <div className="w-full h-[180px] min-h-[180px]">
               <ErrorBoundary>
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
-                  <PieChart>
-                    <Pie
-                      data={adminUsersByPositionTags}
-                      cx="50%" cy="50%"
-                      innerRadius="40%" outerRadius="75%"
-                      paddingAngle={0}
-                      dataKey="value" stroke="none"
-                      label={({ name, percent }) => `${name.substring(0,6)}.. (${(percent * 100).toFixed(0)}%)`}
-                      labelLine={true}
-                      labelStyle={{ fontSize: '10px' }}
-                    >
-                      {adminUsersByPositionTags?.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <RechartsTooltip contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }} itemStyle={{ color: '#fff' }} />
-                  </PieChart>
-                </ResponsiveContainer>
+                {adminUsersByPositionTags.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
+                    <PieChart>
+                      <Pie
+                        data={adminUsersByPositionTags}
+                        cx="50%" cy="50%"
+                        innerRadius="40%" outerRadius="75%"
+                        paddingAngle={0}
+                        dataKey="value" stroke="none"
+                        label={({ name, percent }) => `${name.substring(0,6)}.. (${(percent * 100).toFixed(0)}%)`}
+                        labelLine={true}
+                        labelStyle={{ fontSize: '10px' }}
+                      >
+                        {adminUsersByPositionTags?.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }} itemStyle={{ color: '#fff' }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-full text-white/50 text-xs">No data available</div>
+                )}
               </ErrorBoundary>
             </div>
           </div>
@@ -165,25 +169,29 @@ const InsightsChart = ({ data, isAdmin, selectedMetrics = [], user, startDate, e
             <h3 className="text-sm font-bold text-white text-center mb-2 z-10">Total users by user_type</h3>
             <div className="w-full h-[180px] min-h-[180px]">
               <ErrorBoundary>
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
-                  <PieChart>
-                    <Pie
-                      data={adminUsersByType}
-                      cx="50%" cy="50%"
-                      innerRadius={0} outerRadius="75%"
-                      paddingAngle={0}
-                      dataKey="value" stroke="none"
-                      label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                      labelLine={true}
-                      labelStyle={{ fontSize: '10px' }}
-                    >
-                      {adminUsersByType?.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={['#14b8a6', '#8b5cf6', '#f59e0b'][index % 3]} />
-                      ))}
-                    </Pie>
-                    <RechartsTooltip contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }} itemStyle={{ color: '#fff' }} />
-                  </PieChart>
-                </ResponsiveContainer>
+                {adminUsersByType.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
+                    <PieChart>
+                      <Pie
+                        data={adminUsersByType}
+                        cx="50%" cy="50%"
+                        innerRadius={0} outerRadius="75%"
+                        paddingAngle={0}
+                        dataKey="value" stroke="none"
+                        label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                        labelLine={true}
+                        labelStyle={{ fontSize: '10px' }}
+                      >
+                        {adminUsersByType?.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={['#14b8a6', '#8b5cf6', '#f59e0b'][index % 3]} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }} itemStyle={{ color: '#fff' }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-full text-white/50 text-xs">No data available</div>
+                )}
               </ErrorBoundary>
             </div>
           </div>
@@ -194,23 +202,27 @@ const InsightsChart = ({ data, isAdmin, selectedMetrics = [], user, startDate, e
           <h3 className="text-sm font-bold text-white mb-6 text-center">Total users by user_position</h3>
           <div className="w-full h-[380px] lg:h-[420px] min-h-[380px]">
             <ErrorBoundary>
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
-                <BarChart layout="vertical" data={adminUsersByPosition} margin={{ top: 0, right: 30, left: 120, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={false} />
-                  <XAxis type="number" stroke="var(--color-text-muted)" fontSize={11} tickLine={false} axisLine={false} />
-                  <YAxis dataKey="name" type="category" stroke="#fff" fontSize={10} tickLine={false} axisLine={false} fontWeight="bold" width={110} />
-                  <RechartsTooltip 
-                    contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)' }}
-                    itemStyle={{ color: '#fff' }}
-                    cursor={{fill: 'rgba(255,255,255,0.05)'}}
-                  />
-                  <Bar dataKey="value" fill="#8b5cf6" radius={[0, 8, 8, 0]} barSize={25} label={{ position: 'right', fill: '#fff', fontWeight: 'bold', fontSize: 11 }}>
-                     {adminUsersByPosition?.map((entry, index) => (
-                       <Cell key={`cell-${index}`} fill="#8b5cf6" />
-                     ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              {adminUsersByPosition.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
+                  <BarChart layout="vertical" data={adminUsersByPosition} margin={{ top: 0, right: 30, left: 120, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={false} />
+                    <XAxis type="number" stroke="var(--color-text-muted)" fontSize={11} tickLine={false} axisLine={false} />
+                    <YAxis dataKey="name" type="category" stroke="#fff" fontSize={10} tickLine={false} axisLine={false} fontWeight="bold" width={110} />
+                    <RechartsTooltip 
+                      contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)' }}
+                      itemStyle={{ color: '#fff' }}
+                      cursor={{fill: 'rgba(255,255,255,0.05)'}}
+                    />
+                    <Bar dataKey="value" fill="#8b5cf6" radius={[0, 8, 8, 0]} barSize={25} label={{ position: 'right', fill: '#fff', fontWeight: 'bold', fontSize: 11 }}>
+                      {adminUsersByPosition?.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill="#8b5cf6" />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-full text-white/50 text-xs">No data available</div>
+              )}
             </ErrorBoundary>
           </div>
         </div>
