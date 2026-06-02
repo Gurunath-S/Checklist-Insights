@@ -4,6 +4,7 @@ import {
   Search, Briefcase, Calendar, ChevronRight, ChevronLeft, X, Eye, Clock 
 } from 'lucide-react';
 import LoadingState from '../../UI/LoadingState';
+import { getPaginationRange } from '../../UI/paginationHelper';
 import InspectionModal from './InspectionModal';
 import { POSITIONS, DATE_PRESETS, getPresetDates, formatDate } from './ReportConstants';
 
@@ -311,16 +312,23 @@ export default function SubmissionsReport() {
                   Page {page} of {totalPages} ({total} total)
                 </span>
                 <div className="relative">
-                  <button onClick={() => setIsLimitOpen(!isLimitOpen)} className="flex items-center gap-1 px-3 py-1.5 bg-white/5 border border-glass-border rounded-xl text-[10px] font-bold text-white">
+                  <button 
+                    onClick={() => setIsLimitOpen(!isLimitOpen)} 
+                    className="flex items-center gap-1 px-3 py-1.5 bg-white/5 border border-glass-border rounded-xl text-[10px] font-bold text-white cursor-pointer hover:bg-white/10 transition-all active:scale-95"
+                  >
                     <span>Show {limit}</span>
                     <ChevronRight size={12} className={`transition-transform ${isLimitOpen ? 'rotate-90' : ''}`} />
                   </button>
                   {isLimitOpen && (
                     <>
                       <div className="fixed inset-0 z-40" onClick={() => setIsLimitOpen(false)}></div>
-                      <div className="absolute left-0 bottom-full mb-2 bg-bg-card border border-glass-border rounded-xl p-1.5 shadow-2xl z-50 min-w-[90px] space-y-0.5">
+                      <div className="absolute left-0 bottom-full mb-2 bg-bg-card border border-glass-border rounded-xl p-1.5 shadow-2xl z-50 min-w-[90px] space-y-0.5 animate-in fade-in slide-in-from-bottom-2 duration-200">
                         {[15, 30, 50].map(v => (
-                          <button key={v} onClick={() => handleLimitChange(v)} className="w-full text-left px-2 py-1 rounded-lg text-xs font-semibold text-text-muted hover:bg-white/5 hover:text-white">
+                          <button 
+                            key={v} 
+                            onClick={() => handleLimitChange(v)} 
+                            className={`w-full text-left px-2 py-1 rounded-lg text-xs font-semibold transition-colors ${limit === v ? 'bg-primary/10 text-white' : 'text-text-muted hover:bg-white/5 hover:text-white'}`}
+                          >
                             Show {v}
                           </button>
                         ))}
@@ -330,10 +338,53 @@ export default function SubmissionsReport() {
                 </div>
               </div>
               <div className="flex items-center gap-1.5">
-                <button onClick={() => handlePageChange(page - 1)} disabled={page === 1} className="p-1 border border-glass-border rounded-lg text-white hover:bg-white/10 disabled:opacity-20">
+                <button
+                  onClick={() => handlePageChange(page - 1)}
+                  disabled={page === 1}
+                  className={`p-1.5 rounded-lg border border-glass-border text-white transition-all ${
+                    page === 1 
+                      ? 'bg-white/2 text-white/20 cursor-not-allowed' 
+                      : 'bg-white/5 hover:bg-white/10 cursor-pointer'
+                  }`}
+                >
                   <ChevronLeft size={16} />
                 </button>
-                <button onClick={() => handlePageChange(page + 1)} disabled={page === totalPages} className="p-1 border border-glass-border rounded-lg text-white hover:bg-white/10 disabled:opacity-20">
+                
+                {getPaginationRange(page, totalPages).map((item, idx) => {
+                  if (item === '...') {
+                    return (
+                      <span
+                        key={`ellipsis-${idx}`}
+                        className="w-8 h-8 flex items-center justify-center text-text-muted select-none text-xs"
+                      >
+                        ...
+                      </span>
+                    );
+                  }
+                  return (
+                    <button
+                      key={item}
+                      onClick={() => handlePageChange(item)}
+                      className={`w-8 h-8 rounded-lg text-xs font-bold transition-all border ${
+                        page === item 
+                          ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20' 
+                          : 'bg-white/5 border-glass-border text-text-muted hover:text-white hover:bg-white/10 cursor-pointer'
+                      }`}
+                    >
+                      {item}
+                    </button>
+                  );
+                })}
+
+                <button
+                  onClick={() => handlePageChange(page + 1)}
+                  disabled={page === totalPages}
+                  className={`p-1.5 rounded-lg border border-glass-border text-white transition-all ${
+                    page === totalPages 
+                      ? 'bg-white/2 text-white/20 cursor-not-allowed' 
+                      : 'bg-white/5 hover:bg-white/10 cursor-pointer'
+                  }`}
+                >
                   <ChevronRight size={16} />
                 </button>
               </div>

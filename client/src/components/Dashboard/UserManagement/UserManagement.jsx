@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { 
-  Users, Edit, Trash2, ChevronLeft, ChevronRight, X, Search,
-  Building, Briefcase, ShieldAlert, Award, UserCheck, AlertTriangle
+  Users, Edit, ChevronLeft, ChevronRight, X, Search,
+  Building, Briefcase, ShieldAlert, Award, UserCheck, UserX, AlertTriangle
 } from 'lucide-react';
 import LoadingState from '../../UI/LoadingState';
+import { getPaginationRange } from '../../UI/paginationHelper';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
 
@@ -41,7 +42,7 @@ export default function UserManagement({ currentUser }) {
 
   // Modal states
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDisableModalOpen, setIsDisableModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   
   // Form states
@@ -120,13 +121,13 @@ export default function UserManagement({ currentUser }) {
     setIsEditOrgOpen(false);
   };
 
-  const handleDeleteClick = (user) => {
+  const handleDisableClick = (user) => {
     if (user.id === currentUser.id) {
-      showStatus('error', 'You cannot delete your own admin account.');
+      showStatus('error', 'You cannot disable your own admin account.');
       return;
     }
     setSelectedUser(user);
-    setIsDeleteModalOpen(true);
+    setIsDisableModalOpen(true);
   };
 
   const handleSaveEdit = async (e) => {
@@ -151,16 +152,27 @@ export default function UserManagement({ currentUser }) {
     }
   };
 
-  const handleConfirmDelete = async () => {
+  const handleConfirmDisable = async () => {
     try {
       await axios.delete(`${API_BASE}/insights/admin/users/${selectedUser.id}`);
-      showStatus('success', 'User deleted successfully!');
-      setIsDeleteModalOpen(false);
+      showStatus('success', 'User disabled successfully!');
+      setIsDisableModalOpen(false);
       const nextPage = users.length === 1 && page > 1 ? page - 1 : page;
       fetchUsers(nextPage);
     } catch (err) {
-      console.error('Failed to delete user:', err);
-      showStatus('error', err.response?.data?.error || 'Failed to delete user.');
+      console.error('Failed to disable user:', err);
+      showStatus('error', err.response?.data?.error || 'Failed to disable user.');
+    }
+  };
+
+  const handleEnableUser = async (user) => {
+    try {
+      await axios.put(`${API_BASE}/insights/admin/users/${user.id}/enable`);
+      showStatus('success', 'User enabled successfully!');
+      fetchUsers(page);
+    } catch (err) {
+      console.error('Failed to enable user:', err);
+      showStatus('error', err.response?.data?.error || 'Failed to enable user.');
     }
   };
 
@@ -396,6 +408,8 @@ export default function UserManagement({ currentUser }) {
                         <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${
                           u.user_type === 'ADMIN' 
                             ? 'bg-purple-500/15 border-purple-500/30 text-purple-400' 
+                            : u.user_type === 'DISABLED'
+                            ? 'bg-danger/15 border-danger/30 text-danger-light'
                             : 'bg-primary/15 border-primary/30 text-primary-light'
                         }`}>
                           {u.user_type}
@@ -413,18 +427,28 @@ export default function UserManagement({ currentUser }) {
                           >
                             <Edit size={16} />
                           </button>
-                          <button
-                            onClick={() => handleDeleteClick(u)}
-                            disabled={u.id === currentUser.id}
-                            className={`p-2 rounded-lg transition-all ${
-                              u.id === currentUser.id 
-                                ? 'text-white/10 cursor-not-allowed' 
-                                : 'text-danger hover:bg-danger/20 hover:text-white cursor-pointer'
-                            }`}
-                            title={u.id === currentUser.id ? "Cannot delete yourself" : "Delete User"}
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                          {u.user_type === 'DISABLED' ? (
+                            <button
+                              onClick={() => handleEnableUser(u)}
+                              className="p-2 rounded-lg transition-all text-success hover:bg-success/20 hover:text-white cursor-pointer"
+                              title="Enable User"
+                            >
+                              <UserCheck size={16} />
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleDisableClick(u)}
+                              disabled={u.id === currentUser.id}
+                              className={`p-2 rounded-lg transition-all ${
+                                u.id === currentUser.id 
+                                  ? 'text-white/10 cursor-not-allowed' 
+                                  : 'text-danger hover:bg-danger/20 hover:text-white cursor-pointer'
+                              }`}
+                              title={u.id === currentUser.id ? "Cannot disable yourself" : "Disable User"}
+                            >
+                              <UserX size={16} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -484,25 +508,31 @@ export default function UserManagement({ currentUser }) {
                   <ChevronLeft size={16} />
                 </button>
                 
-                {(() => {
-                  const pages = [];
-                  for (let i = 1; i <= totalPages; i++) {
-                    pages.push(
-                      <button
-                        key={i}
-                        onClick={() => fetchUsers(i)}
-                        className={`w-8 h-8 rounded-lg text-xs font-bold transition-all border ${
-                          page === i 
-                            ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20' 
-                            : 'bg-white/5 border-glass-border text-text-muted hover:text-white hover:bg-white/10 cursor-pointer'
-                        }`}
+                {getPaginationRange(page, totalPages).map((item, idx) => {
+                  if (item === '...') {
+                    return (
+                      <span
+                        key={`ellipsis-${idx}`}
+                        className="w-8 h-8 flex items-center justify-center text-text-muted select-none text-xs"
                       >
-                        {i}
-                      </button>
+                        ...
+                      </span>
                     );
                   }
-                  return pages;
-                })()}
+                  return (
+                    <button
+                      key={item}
+                      onClick={() => fetchUsers(item)}
+                      className={`w-8 h-8 rounded-lg text-xs font-bold transition-all border ${
+                        page === item 
+                          ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20' 
+                          : 'bg-white/5 border-glass-border text-text-muted hover:text-white hover:bg-white/10 cursor-pointer'
+                      }`}
+                    >
+                      {item}
+                    </button>
+                  );
+                })}
 
                 <button
                   onClick={() => fetchUsers(page + 1)}
@@ -705,36 +735,36 @@ export default function UserManagement({ currentUser }) {
         </div>
       )}
 
-      {/* Delete Modal */}
-      {isDeleteModalOpen && selectedUser && (
+      {/* Disable Modal */}
+      {isDisableModalOpen && selectedUser && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-md animate-fade-in">
           <div className="bg-bg-card backdrop-blur-2xl border border-glass-border rounded-3xl p-6 max-w-sm w-full shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
             <div className="flex flex-col items-center text-center">
               <div className="w-12 h-12 rounded-2xl bg-danger/25 border border-danger/35 flex items-center justify-center text-danger mb-4 shrink-0">
                 <AlertTriangle size={24} />
               </div>
-              <h3 className="text-base font-extrabold text-white">Delete User Account?</h3>
+              <h3 className="text-base font-extrabold text-white">Disable User Account?</h3>
               <p className="text-xs text-text-muted mt-2 leading-relaxed">
-                You are about to delete <span className="text-white font-semibold">{selectedUser.name}</span> from the system.
+                You are about to disable <span className="text-white font-semibold">{selectedUser.name}</span> in the system.
               </p>
               <div className="bg-danger/10 border border-danger/20 rounded-xl p-3 text-[10px] text-danger-light font-bold text-left mt-4 leading-normal">
                 <ShieldAlert size={12} className="inline mr-1" />
-                This action is permanent. It will delete all of the user's checklist submissions, templates, and positions.
+                This will prevent the user from logging in or being assigned new checklists, but preserves all historical report data.
               </div>
             </div>
 
             <div className="flex gap-3 mt-6 pt-4 border-t border-glass-border">
               <button
-                onClick={() => setIsDeleteModalOpen(false)}
+                onClick={() => setIsDisableModalOpen(false)}
                 className="flex-1 py-2.5 px-4 rounded-xl border border-glass-border bg-white/5 text-xs font-bold text-white hover:bg-white/10 cursor-pointer"
               >
                 Cancel
               </button>
               <button
-                onClick={handleConfirmDelete}
+                onClick={handleConfirmDisable}
                 className="flex-1 py-2.5 px-4 rounded-xl bg-danger text-xs font-bold text-white hover:bg-danger/90 hover:scale-[1.02] shadow-lg shadow-danger/20 transition-all cursor-pointer"
               >
-                Delete User
+                Disable User
               </button>
             </div>
           </div>

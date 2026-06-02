@@ -1,7 +1,12 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { ResponsiveContainer, BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Cell } from 'recharts';
+import ErrorBoundary from '../../UI/ErrorBoundary';
 
 const TagPerformanceChart = ({ filteredTags, selectedTag }) => {
+  const slicedTags = useMemo(() => {
+    return (filteredTags || []).slice(0, 10);
+  }, [filteredTags]);
+
   return (
     <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-5 shadow-xl space-y-4">
       <div>
@@ -10,8 +15,9 @@ const TagPerformanceChart = ({ filteredTags, selectedTag }) => {
       </div>
 
       <div className="h-[200px] w-full text-xs">
-        <ResponsiveContainer width="100%" height="100%">
-          <RechartsBarChart data={filteredTags.slice(0, 10)} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+        <ErrorBoundary>
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
+            <RechartsBarChart data={slicedTags} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
             <XAxis dataKey="tag_name" tickLine={false} axisLine={false} tick={{ fill: 'rgba(255,255,255,0.6)', fontSize: 9 }} />
             <YAxis domain={[0, 100]} tickLine={false} axisLine={false} tick={{ fill: 'rgba(255,255,255,0.6)', fontSize: 9 }} />
@@ -21,7 +27,7 @@ const TagPerformanceChart = ({ filteredTags, selectedTag }) => {
               itemStyle={{ color: 'var(--color-accent)' }}
             />
             <Bar dataKey="avg_completion_rate" name="Compliance Rate" radius={[6, 6, 0, 0]}>
-              {filteredTags.slice(0, 10).map((t, idx) => (
+              {slicedTags.map((t, idx) => (
                 <Cell
                   key={idx}
                   fill={t.tag_id === selectedTag?.tag_id ? 'url(#active-bar-grad)' : 'url(#inactive-bar-grad)'}
@@ -41,6 +47,7 @@ const TagPerformanceChart = ({ filteredTags, selectedTag }) => {
             </defs>
           </RechartsBarChart>
         </ResponsiveContainer>
+      </ErrorBoundary>
       </div>
     </div>
   );

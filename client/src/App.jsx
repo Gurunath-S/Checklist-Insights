@@ -17,6 +17,39 @@ import OrganisationDashboard from './components/Dashboard/Organisation/Organisat
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
 
+// Global logout handler reference for response interceptor
+let globalLogout = null;
+
+// Register global Axios interceptors (avoids duplicate registration and ejection race conditions in Strict Mode)
+axios.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+axios.interceptors.response.use(
+  (response) => {
+    // If the server sends a new token (Sliding Session), save it
+    if (response.data && response.data.token) {
+      localStorage.setItem('token', response.data.token);
+    }
+    return response;
+  },
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      if (globalLogout) {
+        globalLogout();
+      } else {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 function App() {
   const [user, setUser] = useState(() => {
     const saved = localStorage.getItem('user');
@@ -25,6 +58,7 @@ function App() {
   const [data, setData] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(!!localStorage.getItem('token')); // Start loading if we have a token to verify
+  const [isValidatingSession, setIsValidatingSession] = useState(!!localStorage.getItem('token'));
   const [error, setError] = useState(null);
   
   // Global Date Filters
@@ -41,10 +75,36 @@ function App() {
   // Multi-view navigation and Color Themes
   const [currentView, setCurrentView] = useState('dashboard');
   const [theme, setTheme] = useState(() => {
+    const savedUserStr = localStorage.getItem('user');
+    if (savedUserStr) {
+      try {
+        const savedUser = JSON.parse(savedUserStr);
+        if (savedUser && savedUser.id) {
+          return localStorage.getItem(`theme_${savedUser.id}`) || 'classic';
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
     return localStorage.getItem('theme') || 'classic';
   });
 
+  const currentViewRef = React.useRef(currentView);
+  const isAdminRef = React.useRef(isAdmin);
+
+  useEffect(() => {
+    currentViewRef.current = currentView;
+    isAdminRef.current = isAdmin;
+  }, [currentView, isAdmin]);
+
+  const navigateToView = (view, admin = false) => {
+    setCurrentView(view);
+    setIsAdmin(admin);
+    window.history.pushState({ view, isAdmin: admin }, '');
+  };
+
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [loginError, setLoginError] = useState(null);
   const [selectedMetrics, setSelectedMetrics] = useState([]);
 
   // Admin User Selector & Inspection local states
@@ -89,13 +149,25 @@ function App() {
     }
   }, [data, isAdmin]);
 
+  // Load user-specific theme on login
+  useEffect(() => {
+    if (user && user.id) {
+      const userTheme = localStorage.getItem(`theme_${user.id}`) || 'classic';
+      setTheme(userTheme);
+    } else {
+      setTheme('classic');
+    }
+  }, [user]);
+
+  // Apply and persist selected theme
   useEffect(() => {
     if (!user || !user.id) {
       document.documentElement.setAttribute('data-theme', 'classic');
     } else {
       document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem(`theme_${user.id}`, theme);
+      localStorage.setItem('theme', theme);
     }
-    localStorage.setItem('theme', theme);
   }, [theme, user]);
 
   const handleLogout = useCallback(() => {
@@ -105,34 +177,18 @@ function App() {
     localStorage.removeItem('user');
   }, []);
 
+  // Update the global logout pointer whenever handleLogout is created/updated
   useEffect(() => {
-    // 1. Setup Axios Interceptors
-    const requestInterceptor = axios.interceptors.request.use((config) => {
-      const token = localStorage.getItem('token');
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
-      return config;
-    });
+    globalLogout = handleLogout;
+    return () => {
+      globalLogout = null;
+    };
+  }, [handleLogout]);
 
-    const responseInterceptor = axios.interceptors.response.use(
-      (response) => {
-        // If the server sends a new token (Sliding Session), save it
-        if (response.data && response.data.token) {
-          localStorage.setItem('token', response.data.token);
-        }
-        return response;
-      },
-      (error) => {
-        if (error.response && error.response.status === 401) {
-          handleLogout();
-        }
-        return Promise.reject(error);
-      }
-    );
-
-    // 2. Professional Session Validation (Verify Token with Backend)
+  useEffect(() => {
+    // Professional Session Validation (Verify Token with Backend)
     const validateSession = async () => {
+      setIsValidatingSession(true);
       // Check if we just came back from a Google OAuth redirect
       const hash = window.location.hash.substring(1);
       const hashParams = new URLSearchParams(hash);
@@ -155,9 +211,10 @@ function App() {
         } catch (err) {
           console.error('Google Login Failed:', err);
           const errMsg = err.response?.data?.error || err.message;
-          alert(`Google Login failed: ${errMsg}`);
+          setLoginError(`Google Login failed: ${errMsg}`);
         } finally {
           setLoading(false);
+          setIsValidatingSession(false);
         }
         return;
       }
@@ -179,9 +236,10 @@ function App() {
         } catch (err) {
           console.error('Microsoft Login Failed:', err);
           const errMsg = err.response?.data?.error || err.message;
-          alert(`Microsoft Login failed: ${errMsg}`);
+          setLoginError(`Microsoft Login failed: ${errMsg}`);
         } finally {
           setLoading(false);
+          setIsValidatingSession(false);
         }
         return;
       }
@@ -191,6 +249,7 @@ function App() {
       
       if (!token || !savedUser) {
         handleLogout();
+        setIsValidatingSession(false);
         return;
       }
 
@@ -208,16 +267,11 @@ function App() {
         handleLogout();
       } finally {
         setLoading(false);
+        setIsValidatingSession(false);
       }
     };
 
     validateSession();
-
-    // Cleanup interceptors on unmount
-    return () => {
-      axios.interceptors.request.eject(requestInterceptor);
-      axios.interceptors.response.eject(responseInterceptor);
-    };
   }, [handleLogout]);
 
   const getDatesForPreset = (preset) => {
@@ -320,7 +374,7 @@ function App() {
   }, [selectedDepartment]);
 
   const fetchData = useCallback(async () => {
-    if (!user || !user.id) return;
+    if (!user || !user.id || isValidatingSession) return;
     setLoading(true);
     setError(null);
     try {
@@ -345,17 +399,44 @@ function App() {
     } finally {
       setLoading(false);
     }
-  }, [user, startDate, endDate, isAdmin]);
+  }, [user, startDate, endDate, isAdmin, isValidatingSession]);
 
   useEffect(() => {
-    if (user && user.id) {
+    if (user && user.id && !isValidatingSession) {
       Promise.resolve().then(() => fetchData());
     }
-  }, [fetchData, user]);
+  }, [fetchData, user, isValidatingSession]);
+
+  // Handle browser back button to navigate between subviews first, and prompt for sign-out only when exiting the project
+  useEffect(() => {
+    if (user && user.id) {
+      if (!window.history.state || !window.history.state.view) {
+        window.history.replaceState({ view: 'dashboard', isAdmin: false }, '');
+      }
+
+      const handlePopState = (event) => {
+        const state = event.state;
+        if (state && state.view) {
+          setCurrentView(state.view);
+          setIsAdmin(!!state.isAdmin);
+        } else {
+          // Navigating back past the landing page - show Sign Out confirmation and restore history
+          window.history.pushState({ view: currentViewRef.current, isAdmin: isAdminRef.current }, '');
+          setShowLogoutConfirm(true);
+        }
+      };
+
+      window.addEventListener('popstate', handlePopState);
+
+      return () => {
+        window.removeEventListener('popstate', handlePopState);
+      };
+    }
+  }, [user]);
 
   // Load all users when Admin view is loaded
   useEffect(() => {
-    if (isAdmin && user) {
+    if (isAdmin && user && !isValidatingSession) {
       const fetchAdminUsers = async () => {
         try {
           const token = localStorage.getItem('token');
@@ -369,7 +450,7 @@ function App() {
       };
       fetchAdminUsers();
     }
-  }, [isAdmin, user]);
+  }, [isAdmin, user, isValidatingSession]);
 
   const fetchInspectedUserData = useCallback(async (inspectedUserId) => {
     if (!inspectedUserId) return;
@@ -440,7 +521,7 @@ function App() {
       localStorage.setItem('user', JSON.stringify(loggedUser));
     } catch (err) {
       console.error('Login Failed:', err);
-      alert('Login failed. Please check backend connection.');
+      setLoginError('Login failed. Please check backend connection.');
     }
   };
 
@@ -457,7 +538,7 @@ function App() {
     } catch (err) {
       console.error('Microsoft Login Failed:', err);
       const errMsg = err.response?.data?.error || err.message;
-      alert(`Microsoft Login failed: ${errMsg}`);
+      setLoginError(`Microsoft Login failed: ${errMsg}`);
     }
   };
 
@@ -474,7 +555,8 @@ function App() {
       <LoginPage 
         onLoginSuccess={handleLoginSuccess} 
         onMicrosoftLoginSuccess={handleMicrosoftLoginSuccess}
-        onLoginError={() => alert('Login Failed')} 
+        loginError={loginError}
+        setLoginError={setLoginError}
       />
     );
   }
@@ -490,9 +572,8 @@ function App() {
         user={user}
         onLogout={() => setShowLogoutConfirm(true)} 
         isAdmin={isAdmin} 
-        setIsAdmin={setIsAdmin} 
         currentView={currentView}
-        setCurrentView={setCurrentView}
+        onNavigate={navigateToView}
       />
 
       <main className="flex-1 p-6 lg:p-8 z-10 overflow-y-auto">

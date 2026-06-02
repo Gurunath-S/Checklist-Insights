@@ -226,7 +226,7 @@ const OrganisationDashboard = ({ organisation, adminStartDate, adminEndDate, onB
                 No submissions data available for the charts.
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
                 <AreaChart data={data.recentMonths} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="orgSubmissionsGrad" x1="0" y1="0" x2="0" y2="1">
@@ -297,7 +297,7 @@ const OrganisationDashboard = ({ organisation, adminStartDate, adminEndDate, onB
                 No compliance metrics found.
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
                 <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                   <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fill: 'rgba(255,255,255,0.6)', fontSize: 8 }} />

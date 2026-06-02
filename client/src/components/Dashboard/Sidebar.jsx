@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { LayoutDashboard, Users, LogOut, Settings, BarChart, ChevronDown } from 'lucide-react';
 
-const Sidebar = ({ isAdmin, setIsAdmin, currentView, setCurrentView, user, onLogout }) => {
+const Sidebar = ({ isAdmin, currentView, user, onLogout, onNavigate }) => {
   const isDashboardActive = currentView === 'dashboard' && !isAdmin;
   const isAdminActive = currentView === 'dashboard' && isAdmin;
   const isSettingsActive = currentView === 'settings';
@@ -11,8 +11,7 @@ const Sidebar = ({ isAdmin, setIsAdmin, currentView, setCurrentView, user, onLog
   );
 
   const handleDashboardClick = () => {
-    setCurrentView('dashboard');
-    setIsAdmin(false);
+    onNavigate('dashboard', false);
   };
 
   return (
@@ -66,10 +65,7 @@ const Sidebar = ({ isAdmin, setIsAdmin, currentView, setCurrentView, user, onLog
               {isAdminDropdownOpen && (
                 <div className="pl-6 space-y-1 mb-2">
                   <button
-                    onClick={() => {
-                      setCurrentView('dashboard');
-                      setIsAdmin(true);
-                    }}
+                    onClick={() => onNavigate('dashboard', true)}
                     className={`w-full flex items-center gap-3 py-2 px-3 rounded-lg text-xs font-bold transition-all duration-200 text-left cursor-pointer ${
                       (currentView === 'dashboard' && isAdmin)
                         ? 'bg-primary/20 text-white font-black'
@@ -80,10 +76,7 @@ const Sidebar = ({ isAdmin, setIsAdmin, currentView, setCurrentView, user, onLog
                     <span>Overview</span>
                   </button>
                   <button
-                    onClick={() => {
-                      setCurrentView('user-management');
-                      setIsAdmin(true);
-                    }}
+                    onClick={() => onNavigate('user-management', true)}
                     className={`w-full flex items-center gap-3 py-2 px-3 rounded-lg text-xs font-bold transition-all duration-200 text-left cursor-pointer ${
                       currentView === 'user-management'
                         ? 'bg-primary/20 text-white font-black'
@@ -94,10 +87,7 @@ const Sidebar = ({ isAdmin, setIsAdmin, currentView, setCurrentView, user, onLog
                     <span>User Management</span>
                   </button>
                   <button
-                    onClick={() => {
-                      setCurrentView('reports');
-                      setIsAdmin(true);
-                    }}
+                    onClick={() => onNavigate('reports', true)}
                     className={`w-full flex items-center gap-3 py-2 px-3 rounded-lg text-xs font-bold transition-all duration-200 text-left cursor-pointer ${
                       currentView === 'reports'
                         ? 'bg-primary/20 text-white font-black'
@@ -123,7 +113,7 @@ const Sidebar = ({ isAdmin, setIsAdmin, currentView, setCurrentView, user, onLog
                 ? 'bg-primary/15 text-white border border-primary/30 shadow-lg shadow-primary/10' 
                 : 'text-text-muted hover:bg-white/5 hover:text-white hover:translate-x-1'
             }`}
-            onClick={() => setCurrentView('settings')}
+            onClick={() => onNavigate('settings', false)}
           >
             <Settings size={20} className={isSettingsActive ? 'text-primary' : 'group-hover:scale-110 transition-transform'} />
             <span>Settings</span>

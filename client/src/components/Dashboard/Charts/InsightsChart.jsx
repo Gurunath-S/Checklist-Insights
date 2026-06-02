@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
   BarChart, Bar, Cell, PieChart, Pie
 } from 'recharts';
 import { Activity, ChevronDown, BarChart2, LineChart, List } from 'lucide-react';
+import ErrorBoundary from '../../UI/ErrorBoundary';
 
 const InsightsChart = ({ data, isAdmin, selectedMetrics = [], user, startDate, endDate }) => {
   const [activeChart, setActiveChart] = useState('checklist');
@@ -68,6 +69,61 @@ const InsightsChart = ({ data, isAdmin, selectedMetrics = [], user, startDate, e
     fetchChartData();
   }, [activeChart, page, limit, startDate, endDate, user?.id, isAdmin]);
 
+  // Memoize admin variables to prevent changing array references on each render
+  const adminUsersByPositionTags = useMemo(() => data?.usersByPositionTags || [], [data?.usersByPositionTags]);
+  const adminUsersByType = useMemo(() => data?.usersByType || [], [data?.usersByType]);
+  const adminUsersByPosition = useMemo(() => data?.usersByPosition || [], [data?.usersByPosition]);
+
+  // Memoize sliced performance trend to keep a stable reference
+  const slicedPerformanceTrend = useMemo(() => {
+    const trend = data?.performanceTrend || [
+      { week: 'Nov 2025', points: 4 },
+      { week: 'Dec 2025', points: 12 },
+      { week: 'Jan 2026', points: 8 },
+      { week: 'Feb 2026', points: 5 },
+      { week: 'Mar 2026', points: 11 },
+      { week: 'Apr 2026', points: 3 },
+    ];
+    return [...trend].slice(-weeksLimit);
+  }, [data?.performanceTrend, weeksLimit]);
+
+  // Memoize Contribution Breakdown data derivations
+  const filteredMetricsData = useMemo(() => {
+    return (data?.itemStats || [])
+      .filter(item => {
+        if (!breakdownSelectedMetrics.includes(item.name)) return false;
+        if (categoryFilter === 'boolean') return item.type === 'Boolean';
+        if (categoryFilter === 'numeric') return item.type === 'Numeric';
+        return true;
+      });
+  }, [data?.itemStats, breakdownSelectedMetrics, categoryFilter]);
+
+  const sortedMetricsData = useMemo(() => {
+    return [...filteredMetricsData].sort((a, b) => b.value - a.value);
+  }, [filteredMetricsData]);
+
+  const slicedMetricsData = useMemo(() => {
+    return topLimit === 'all' ? sortedMetricsData : sortedMetricsData.slice(0, Number(topLimit));
+  }, [sortedMetricsData, topLimit]);
+
+  const breakdownData = useMemo(() => {
+    const totalValue = slicedMetricsData.reduce((acc, curr) => acc + curr.value, 0);
+    const colors = [
+      '#10b981', '#8b5cf6', '#f59e0b', '#f43f5e', '#06b6d4',
+      '#d946ef', '#0ea5e9', '#14b8a6', '#6366f1', '#f97316',
+      '#84cc16', '#ec4899'
+    ];
+    return slicedMetricsData.map((item, index) => {
+      const percentage = totalValue > 0 ? Math.round((item.value / totalValue) * 100) : 0;
+      return {
+        name: item.name,
+        value: item.value,
+        percentage: percentage,
+        color: colors[index % colors.length]
+      };
+    });
+  }, [slicedMetricsData]);
+
   if (isAdmin) {
     const COLORS = ['#6366f1', '#ec4899', '#8b5cf6', '#14b8a6', '#f59e0b', '#ef4444', '#3b82f6', '#10b981'];
     
@@ -79,52 +135,56 @@ const InsightsChart = ({ data, isAdmin, selectedMetrics = [], user, startDate, e
           {/* Pie Chart 1 */}
           <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-4 shadow-xl flex-1 flex flex-col relative overflow-hidden">
             <h3 className="text-sm font-bold text-white text-center mb-2 z-10">Total users by user_position (tags)</h3>
-            <div className="flex-1 w-full min-h-[150px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={data?.usersByPositionTags || []}
-                    cx="50%" cy="50%"
-                    innerRadius="40%" outerRadius="75%"
-                    paddingAngle={0}
-                    dataKey="value" stroke="none"
-                    label={({ name, percent }) => `${name.substring(0,6)}.. (${(percent * 100).toFixed(0)}%)`}
-                    labelLine={true}
-                    labelStyle={{ fontSize: '10px' }}
-                  >
-                    {data?.usersByPositionTags?.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <RechartsTooltip contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }} itemStyle={{ color: '#fff' }} />
-                </PieChart>
-              </ResponsiveContainer>
+            <div className="w-full h-[180px] min-h-[180px]">
+              <ErrorBoundary>
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
+                  <PieChart>
+                    <Pie
+                      data={adminUsersByPositionTags}
+                      cx="50%" cy="50%"
+                      innerRadius="40%" outerRadius="75%"
+                      paddingAngle={0}
+                      dataKey="value" stroke="none"
+                      label={({ name, percent }) => `${name.substring(0,6)}.. (${(percent * 100).toFixed(0)}%)`}
+                      labelLine={true}
+                      labelStyle={{ fontSize: '10px' }}
+                    >
+                      {adminUsersByPositionTags?.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <RechartsTooltip contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }} itemStyle={{ color: '#fff' }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </ErrorBoundary>
             </div>
           </div>
 
           {/* Pie Chart 2 */}
           <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-4 shadow-xl flex-1 flex flex-col relative overflow-hidden">
             <h3 className="text-sm font-bold text-white text-center mb-2 z-10">Total users by user_type</h3>
-            <div className="flex-1 w-full min-h-[150px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={data?.usersByType || []}
-                    cx="50%" cy="50%"
-                    innerRadius={0} outerRadius="75%"
-                    paddingAngle={0}
-                    dataKey="value" stroke="none"
-                    label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                    labelLine={true}
-                    labelStyle={{ fontSize: '10px' }}
-                  >
-                    {data?.usersByType?.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={['#14b8a6', '#8b5cf6', '#f59e0b'][index % 3]} />
-                    ))}
-                  </Pie>
-                  <RechartsTooltip contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }} itemStyle={{ color: '#fff' }} />
-                </PieChart>
-              </ResponsiveContainer>
+            <div className="w-full h-[180px] min-h-[180px]">
+              <ErrorBoundary>
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
+                  <PieChart>
+                    <Pie
+                      data={adminUsersByType}
+                      cx="50%" cy="50%"
+                      innerRadius={0} outerRadius="75%"
+                      paddingAngle={0}
+                      dataKey="value" stroke="none"
+                      label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                      labelLine={true}
+                      labelStyle={{ fontSize: '10px' }}
+                    >
+                      {adminUsersByType?.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={['#14b8a6', '#8b5cf6', '#f59e0b'][index % 3]} />
+                      ))}
+                    </Pie>
+                    <RechartsTooltip contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }} itemStyle={{ color: '#fff' }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </ErrorBoundary>
             </div>
           </div>
         </div>
@@ -132,83 +192,32 @@ const InsightsChart = ({ data, isAdmin, selectedMetrics = [], user, startDate, e
         {/* Right Column: Tall Bar Chart */}
         <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-4 shadow-xl flex flex-col h-full min-h-[250px]">
           <h3 className="text-sm font-bold text-white mb-6 text-center">Total users by user_position</h3>
-          <div className="flex-1 w-full min-h-0">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart layout="vertical" data={data?.usersByPosition || []} margin={{ top: 0, right: 30, left: 120, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={false} />
-                <XAxis type="number" stroke="var(--color-text-muted)" fontSize={11} tickLine={false} axisLine={false} />
-                <YAxis dataKey="name" type="category" stroke="#fff" fontSize={10} tickLine={false} axisLine={false} fontWeight="bold" width={110} />
-                <RechartsTooltip 
-                  contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)' }}
-                  itemStyle={{ color: '#fff' }}
-                  cursor={{fill: 'rgba(255,255,255,0.05)'}}
-                />
-                <Bar dataKey="value" fill="#8b5cf6" radius={[0, 8, 8, 0]} barSize={25} label={{ position: 'right', fill: '#fff', fontWeight: 'bold', fontSize: 11 }}>
-                   {data?.usersByPosition?.map((entry, index) => (
-                     <Cell key={`cell-${index}`} fill="#8b5cf6" />
-                   ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="w-full h-[380px] lg:h-[420px] min-h-[380px]">
+            <ErrorBoundary>
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
+                <BarChart layout="vertical" data={adminUsersByPosition} margin={{ top: 0, right: 30, left: 120, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={false} />
+                  <XAxis type="number" stroke="var(--color-text-muted)" fontSize={11} tickLine={false} axisLine={false} />
+                  <YAxis dataKey="name" type="category" stroke="#fff" fontSize={10} tickLine={false} axisLine={false} fontWeight="bold" width={110} />
+                  <RechartsTooltip 
+                    contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)' }}
+                    itemStyle={{ color: '#fff' }}
+                    cursor={{fill: 'rgba(255,255,255,0.05)'}}
+                  />
+                  <Bar dataKey="value" fill="#8b5cf6" radius={[0, 8, 8, 0]} barSize={25} label={{ position: 'right', fill: '#fff', fontWeight: 'bold', fontSize: 11 }}>
+                     {adminUsersByPosition?.map((entry, index) => (
+                       <Cell key={`cell-${index}`} fill="#8b5cf6" />
+                     ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </ErrorBoundary>
           </div>
         </div>
 
       </div>
     );
   }
-
-  // Generate dynamic Contribution Breakdown data from user's selected metrics and filters
-  const filteredMetricsData = (data?.itemStats || [])
-    .filter(item => {
-      // 1. Only include metrics locally selected for this chart
-      if (!breakdownSelectedMetrics.includes(item.name)) return false;
-      
-      // 2. Filter by Category Type
-      if (categoryFilter === 'boolean') return item.type === 'Boolean';
-      if (categoryFilter === 'numeric') return item.type === 'Numeric';
-      return true;
-    });
-
-  // Sort descending by default to show highest data first
-  const sortedMetricsData = [...filteredMetricsData].sort((a, b) => b.value - a.value);
-
-  // Apply Top Limit slice
-  const slicedMetricsData = topLimit === 'all' ? sortedMetricsData : sortedMetricsData.slice(0, Number(topLimit));
-  const totalValue = slicedMetricsData.reduce((acc, curr) => acc + curr.value, 0);
-
-  const colors = [
-    '#10b981', // Emerald
-    '#8b5cf6', // Purple
-    '#f59e0b', // Amber
-    '#f43f5e', // Rose
-    '#06b6d4', // Cyan
-    '#d946ef', // Fuchsia
-    '#0ea5e9', // Sky Blue
-    '#14b8a6', // Teal
-    '#6366f1', // Indigo
-    '#f97316', // Orange
-    '#84cc16', // Lime
-    '#ec4899'  // Pink
-  ];
-
-  const breakdownData = slicedMetricsData.map((item, index) => {
-    const percentage = totalValue > 0 ? Math.round((item.value / totalValue) * 100) : 0;
-    return {
-      name: item.name,
-      value: item.value,
-      percentage: percentage,
-      color: colors[index % colors.length]
-    };
-  });
-
-  const slicedPerformanceTrend = [...(data?.performanceTrend || [
-    { week: 'Nov 2025', points: 4 },
-    { week: 'Dec 2025', points: 12 },
-    { week: 'Jan 2026', points: 8 },
-    { week: 'Feb 2026', points: 5 },
-    { week: 'Mar 2026', points: 11 },
-    { week: 'Apr 2026', points: 3 },
-  ])].slice(-weeksLimit);
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-[1.5fr_1fr] gap-6">
@@ -344,75 +353,77 @@ const InsightsChart = ({ data, isAdmin, selectedMetrics = [], user, startDate, e
           )}
         </div>
         
-        <div className="flex-1 w-full min-h-0">
-          <ResponsiveContainer width="100%" height="100%">
-            {activeChart === 'work' ? (
-              <AreaChart data={slicedPerformanceTrend}>
-                <defs>
-                  <linearGradient id="colorPoints" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4}/>
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                <XAxis dataKey="week" stroke="var(--color-text-muted)" fontSize={10} tickLine={false} axisLine={false} minTickGap={30} />
-                <YAxis hide />
-                <RechartsTooltip 
-                  contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }}
-                  formatter={(value) => [value, 'Submissions']}
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="points" 
-                  stroke="#6366f1" 
-                  strokeWidth={4}
-                  fillOpacity={1} 
-                  fill="url(#colorPoints)" 
-                  dot={{ r: 4, fill: '#6366f1', strokeWidth: 2, stroke: '#fff' }}
-                  activeDot={{ r: 6, fill: '#fff', strokeWidth: 0 }}
-                  label={{ position: 'top', fill: '#fff', fontSize: 12, fontWeight: 'bold', offset: 10 }}
-                />
-              </AreaChart>
-            ) : loadingChart ? (
-              <div className="w-full h-full flex flex-col items-center justify-center text-text-muted">
-                <Activity size={32} className="opacity-30 animate-pulse text-primary mb-2" />
-                <span className="text-xs font-bold">Loading Data...</span>
-              </div>
-            ) : chartData.length === 0 ? (
-              <div className="w-full h-full flex items-center justify-center text-text-muted text-xs">
-                No data available for this range.
-              </div>
-            ) : (
-              <BarChart 
-                data={chartData} 
-                margin={{ top: 20, right: 30, left: 0, bottom: 40 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                <XAxis 
-                  dataKey="name" 
-                  stroke="var(--color-text-muted)" 
-                  fontSize={10} 
-                  tickLine={false} 
-                  axisLine={false} 
-                  angle={-45}
-                  textAnchor="end"
-                  interval={0}
-                  tickFormatter={(val) => val.length > 15 ? val.substring(0, 15) + '...' : val}
-                />
-                <YAxis stroke="#fff" fontSize={11} tickLine={false} axisLine={false} />
-                <RechartsTooltip 
-                  contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)' }}
-                  itemStyle={{ color: '#fff' }}
-                  cursor={{fill: 'rgba(255,255,255,0.05)'}}
-                />
-                <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={40}>
-                  {chartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={index === 0 && page === 1 ? '#f59e0b' : '#3b82f6'} />
-                  ))}
-                </Bar>
-              </BarChart>
-            )}
-          </ResponsiveContainer>
+        <div className="w-full h-[280px] min-h-[280px]">
+          <ErrorBoundary>
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
+              {activeChart === 'work' ? (
+                <AreaChart data={slicedPerformanceTrend}>
+                  <defs>
+                    <linearGradient id="colorPoints" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4}/>
+                      <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <XAxis dataKey="week" stroke="var(--color-text-muted)" fontSize={10} tickLine={false} axisLine={false} minTickGap={30} />
+                  <YAxis hide />
+                  <RechartsTooltip 
+                    contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }}
+                    formatter={(value) => [value, 'Submissions']}
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="points" 
+                    stroke="#6366f1" 
+                    strokeWidth={4}
+                    fillOpacity={1} 
+                    fill="url(#colorPoints)" 
+                    dot={{ r: 4, fill: '#6366f1', strokeWidth: 2, stroke: '#fff' }}
+                    activeDot={{ r: 6, fill: '#fff', strokeWidth: 0 }}
+                    label={{ position: 'top', fill: '#fff', fontSize: 12, fontWeight: 'bold', offset: 10 }}
+                  />
+                </AreaChart>
+              ) : loadingChart ? (
+                <div className="w-full h-full flex flex-col items-center justify-center text-text-muted">
+                  <Activity size={32} className="opacity-30 animate-pulse text-primary mb-2" />
+                  <span className="text-xs font-bold">Loading Data...</span>
+                </div>
+              ) : chartData.length === 0 ? (
+                <div className="w-full h-full flex items-center justify-center text-text-muted text-xs">
+                  No data available for this range.
+                </div>
+              ) : (
+                <BarChart 
+                  data={chartData} 
+                  margin={{ top: 20, right: 30, left: 0, bottom: 40 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <XAxis 
+                    dataKey="name" 
+                    stroke="var(--color-text-muted)" 
+                    fontSize={10} 
+                    tickLine={false} 
+                    axisLine={false} 
+                    angle={-45}
+                    textAnchor="end"
+                    interval={0}
+                    tickFormatter={(val) => val.length > 15 ? val.substring(0, 15) + '...' : val}
+                  />
+                  <YAxis stroke="#fff" fontSize={11} tickLine={false} axisLine={false} />
+                  <RechartsTooltip 
+                    contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)' }}
+                    itemStyle={{ color: '#fff' }}
+                    cursor={{fill: 'rgba(255,255,255,0.05)'}}
+                  />
+                  <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={40}>
+                    {chartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={index === 0 && page === 1 ? '#f59e0b' : '#3b82f6'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              )}
+            </ResponsiveContainer>
+          </ErrorBoundary>
         </div>
       </div>
 
@@ -554,29 +565,31 @@ const InsightsChart = ({ data, isAdmin, selectedMetrics = [], user, startDate, e
           ) : (
             <div className="flex flex-row items-center justify-between gap-4 h-full min-h-0">
               {/* Left Column: Donut Chart (48% width) */}
-              <div className="w-[48%] h-full min-h-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={breakdownData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={55}
-                      outerRadius={80}
-                      paddingAngle={0}
-                      dataKey="value"
-                      stroke="none"
-                    >
-                      {breakdownData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <RechartsTooltip 
-                      contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }}
-                      formatter={(value, name, props) => [`${value} (${props.payload.percentage}%)`, name]}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
+              <div className="w-[48%] h-[200px]">
+                <ErrorBoundary>
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
+                    <PieChart>
+                      <Pie
+                        data={breakdownData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={55}
+                        outerRadius={80}
+                        paddingAngle={0}
+                        dataKey="value"
+                        stroke="none"
+                      >
+                        {breakdownData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip 
+                        contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }}
+                        formatter={(value, name, props) => [`${value} (${props.payload.percentage}%)`, name]}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </ErrorBoundary>
               </div>
 
               {/* Right Column: Scrollable Legend (52% width) */}

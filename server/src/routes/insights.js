@@ -902,6 +902,230 @@ router.get('/admin/department/:department', authenticateToken, async (req, res) 
       value: input.value
     }));
 
+    let salesData = null;
+    if (department && department.toUpperCase() === 'SALES') {
+      const prospectsQuery = `
+        SELECT 
+          DATE_FORMAT(r.created_at, '%b %Y') AS name,
+          SUM(CAST(COALESCE(NULLIF(r.input, ''), '0') AS DECIMAL(10,2))) AS value,
+          DATE_FORMAT(r.created_at, '%Y-%m') AS sortKey
+        FROM checklist_item_response r
+        JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+        JOIN checklist_items ci ON li.checklist_item_id = ci.id
+        JOIN checklist_template_version v ON li.template_version_id = v.version_id
+        JOIN checklist_template ct ON v.checklist_template_id = ct.id
+        JOIN tags t ON ct.tag_id = t.id
+        WHERE t.user_position = ?
+          AND ci.checklist_name IN ('No of prospects identified', 'No of Prospects Identified')
+          ${dateFilterSql}
+        GROUP BY DATE_FORMAT(r.created_at, '%b %Y'), DATE_FORMAT(r.created_at, '%Y-%m')
+        ORDER BY sortKey ASC
+      `;
+
+      const warmLeadsQuery = `
+        SELECT 
+          DATE_FORMAT(r.created_at, '%b %Y') AS name,
+          SUM(CAST(COALESCE(NULLIF(r.input, ''), '0') AS DECIMAL(10,2))) AS value,
+          DATE_FORMAT(r.created_at, '%Y-%m') AS sortKey
+        FROM checklist_item_response r
+        JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+        JOIN checklist_items ci ON li.checklist_item_id = ci.id
+        JOIN checklist_template_version v ON li.template_version_id = v.version_id
+        JOIN checklist_template ct ON v.checklist_template_id = ct.id
+        JOIN tags t ON ct.tag_id = t.id
+        WHERE t.user_position = ?
+          AND ci.checklist_name = 'Warm Leads-Colleges'
+          ${dateFilterSql}
+        GROUP BY DATE_FORMAT(r.created_at, '%b %Y'), DATE_FORMAT(r.created_at, '%Y-%m')
+        ORDER BY sortKey ASC
+      `;
+
+      const meetingsTrendQuery = `
+        SELECT 
+          DATE_FORMAT(r.created_at, '%b %Y') AS name,
+          SUM(CAST(COALESCE(NULLIF(r.input, ''), '0') AS DECIMAL(10,2))) AS value,
+          DATE_FORMAT(r.created_at, '%Y-%m') AS sortKey
+        FROM checklist_item_response r
+        JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+        JOIN checklist_items ci ON li.checklist_item_id = ci.id
+        JOIN checklist_template_version v ON li.template_version_id = v.version_id
+        JOIN checklist_template ct ON v.checklist_template_id = ct.id
+        JOIN tags t ON ct.tag_id = t.id
+        WHERE t.user_position = ?
+          AND ci.checklist_name IN ('No of In-Person meeting', 'No of Inperson Meeting')
+          ${dateFilterSql}
+        GROUP BY DATE_FORMAT(r.created_at, '%b %Y'), DATE_FORMAT(r.created_at, '%Y-%m')
+        ORDER BY sortKey ASC
+      `;
+
+      const meetingsByUserQuery = `
+        SELECT 
+          u.name AS name,
+          SUM(CAST(COALESCE(NULLIF(r.input, ''), '0') AS DECIMAL(10,2))) AS value
+        FROM checklist_item_response r
+        JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+        JOIN checklist_items ci ON li.checklist_item_id = ci.id
+        JOIN checklist_template_version v ON li.template_version_id = v.version_id
+        JOIN checklist_template ct ON v.checklist_template_id = ct.id
+        JOIN tags t ON ct.tag_id = t.id
+        JOIN Organisation_Users ou ON r.organisation_user_id = ou.id
+        JOIN User u ON ou.user_id = u.id
+        WHERE t.user_position = ?
+          AND ci.checklist_name IN ('No of In-Person meeting', 'No of Inperson Meeting')
+          ${dateFilterSql}
+        GROUP BY u.name
+        ORDER BY value DESC
+      `;
+
+      const closuresTrendQuery = `
+        SELECT 
+          DATE_FORMAT(r.created_at, '%b %Y') AS name,
+          SUM(CAST(COALESCE(NULLIF(r.input, ''), '0') AS DECIMAL(10,2))) AS value,
+          DATE_FORMAT(r.created_at, '%Y-%m') AS sortKey
+        FROM checklist_item_response r
+        JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+        JOIN checklist_items ci ON li.checklist_item_id = ci.id
+        JOIN checklist_template_version v ON li.template_version_id = v.version_id
+        JOIN checklist_template ct ON v.checklist_template_id = ct.id
+        JOIN tags t ON ct.tag_id = t.id
+        WHERE t.user_position = ?
+          AND ci.checklist_name IN ('No of closure made', 'No of closures made')
+          ${dateFilterSql}
+        GROUP BY DATE_FORMAT(r.created_at, '%b %Y'), DATE_FORMAT(r.created_at, '%Y-%m')
+        ORDER BY sortKey ASC
+      `;
+
+      const closuresByUserQuery = `
+        SELECT 
+          u.name AS name,
+          SUM(CAST(COALESCE(NULLIF(r.input, ''), '0') AS DECIMAL(10,2))) AS value
+        FROM checklist_item_response r
+        JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+        JOIN checklist_items ci ON li.checklist_item_id = ci.id
+        JOIN checklist_template_version v ON li.template_version_id = v.version_id
+        JOIN checklist_template ct ON v.checklist_template_id = ct.id
+        JOIN tags t ON ct.tag_id = t.id
+        JOIN Organisation_Users ou ON r.organisation_user_id = ou.id
+        JOIN User u ON ou.user_id = u.id
+        WHERE t.user_position = ?
+          AND ci.checklist_name IN ('No of closure made', 'No of closures made')
+          ${dateFilterSql}
+        GROUP BY u.name
+        ORDER BY value DESC
+      `;
+
+      const followUpsQuery = `
+        SELECT 
+          DATE_FORMAT(r.created_at, '%b %Y') AS name,
+          SUM(CAST(COALESCE(NULLIF(r.input, ''), '0') AS DECIMAL(10,2))) AS value,
+          DATE_FORMAT(r.created_at, '%Y-%m') AS sortKey
+        FROM checklist_item_response r
+        JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+        JOIN checklist_items ci ON li.checklist_item_id = ci.id
+        JOIN checklist_template_version v ON li.template_version_id = v.version_id
+        JOIN checklist_template ct ON v.checklist_template_id = ct.id
+        JOIN tags t ON ct.tag_id = t.id
+        WHERE t.user_position = ?
+          AND ci.checklist_name LIKE '%follow%up%'
+          ${dateFilterSql}
+        GROUP BY DATE_FORMAT(r.created_at, '%b %Y'), DATE_FORMAT(r.created_at, '%Y-%m')
+        ORDER BY sortKey ASC
+      `;
+
+      const [prospects, warmLeads, meetingsTrend, meetingsByUser, closuresTrend, closuresByUser, followUps, deptUsers] = await Promise.all([
+        prisma.$queryRawUnsafe(prospectsQuery, ...queryParams),
+        prisma.$queryRawUnsafe(warmLeadsQuery, ...queryParams),
+        prisma.$queryRawUnsafe(meetingsTrendQuery, ...queryParams),
+        prisma.$queryRawUnsafe(meetingsByUserQuery, ...queryParams),
+        prisma.$queryRawUnsafe(closuresTrendQuery, ...queryParams),
+        prisma.$queryRawUnsafe(closuresByUserQuery, ...queryParams),
+        prisma.$queryRawUnsafe(followUpsQuery, ...queryParams),
+        prisma.organisation_User_position.findMany({
+          where: { user_position: 'SALES' },
+          include: {
+            Organisation_Users: {
+              include: { User: true }
+            }
+          }
+        })
+      ]);
+
+      const activeSalespeople = [...new Set(
+        deptUsers
+          .map(du => du.Organisation_Users?.User?.name)
+          .filter(Boolean)
+      )];
+
+      const mapToUsers = (resultsList) => {
+        const userMap = {};
+        activeSalespeople.forEach(name => {
+          userMap[name] = 0;
+        });
+        resultsList.forEach(r => {
+          userMap[r.name] = Number(r.value);
+        });
+        return Object.entries(userMap)
+          .map(([name, value]) => ({ name, value }))
+          .sort((a, b) => b.value - a.value);
+      };
+
+      const totalSalesPersons = activeSalespeople.length;
+      
+      const totalClosures = closuresTrend.reduce((acc, curr) => acc + Number(curr.value), 0);
+      
+      const tasksCompletedItemRaw = inputsResult.find(i => i.name.toLowerCase().includes('task completed') || i.name.toLowerCase().includes('tasks completed'));
+      let totalTasksCompleted = 0;
+      if (tasksCompletedItemRaw) {
+        if (tasksCompletedItemRaw.type === 'Numeric') {
+          totalTasksCompleted = Number(tasksCompletedItemRaw.numeric_sum || 0);
+        } else {
+          totalTasksCompleted = Number(tasksCompletedItemRaw.boolean_count || 0);
+        }
+      }
+
+      salesData = {
+        prospectsIdentified: prospects.map(r => ({ name: r.name, value: Number(r.value) })),
+        warmLeadsColleges: warmLeads.map(r => ({ name: r.name, value: Number(r.value) })),
+        meetingsTrend: meetingsTrend.map(r => ({ name: r.name, value: Number(r.value) })),
+        meetingsByUser: mapToUsers(meetingsByUser),
+        closuresTrend: closuresTrend.map(r => ({ name: r.name, value: Number(r.value) })),
+        closuresByUser: mapToUsers(closuresByUser),
+        followUpsTrend: followUps.map(r => ({ name: r.name, value: Number(r.value) })),
+        totalSalesPersons,
+        totalClosures,
+        totalTasksCompleted
+      };
+    }
+
+    let hrData = null;
+    if (department && (department.toUpperCase() === 'HUMAN RESOURCE' || department.toUpperCase() === 'HUMAN_RESOURCE' || department.toUpperCase() === 'HR')) {
+      const interviewsQuery = `
+        SELECT 
+          DATE_FORMAT(r.created_at, '%b %Y') AS name,
+          SUM(CAST(COALESCE(NULLIF(r.input, ''), '0') AS DECIMAL(10,2))) AS value,
+          DATE_FORMAT(r.created_at, '%Y-%m') AS sortKey
+        FROM checklist_item_response r
+        JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+        JOIN checklist_items ci ON li.checklist_item_id = ci.id
+        JOIN checklist_template_version v ON li.template_version_id = v.version_id
+        JOIN checklist_template ct ON v.checklist_template_id = ct.id
+        JOIN tags t ON ct.tag_id = t.id
+        WHERE (t.user_position = ? OR t.user_position = 'HUMAN RESOURCE' OR t.user_position = 'HR')
+          AND ci.checklist_name LIKE '%interview%conducted%'
+          ${dateFilterSql}
+        GROUP BY DATE_FORMAT(r.created_at, '%b %Y'), DATE_FORMAT(r.created_at, '%Y-%m')
+        ORDER BY sortKey ASC
+      `;
+
+      const [interviewsTrend] = await Promise.all([
+        prisma.$queryRawUnsafe(interviewsQuery, ...queryParams)
+      ]);
+
+      hrData = {
+        interviewsTrend: interviewsTrend.map(r => ({ name: r.name, value: Number(r.value) }))
+      };
+    }
+
     res.json({
       department,
       submissionsCount,
@@ -909,7 +1133,9 @@ router.get('/admin/department/:department', authenticateToken, async (req, res) 
       checklistInputs,
       recentMonths,
       topKPIs,
-      completionRate
+      completionRate,
+      ...(salesData ? { salesData } : {}),
+      ...(hrData ? { hrData } : {})
     });
   } catch (error) {
     console.error('Admin department error:', error);
@@ -1030,6 +1256,11 @@ router.get('/admin/users', authenticateToken, async (req, res) => {
     }
 
     const users = await prisma.organisation_Users.findMany({
+      where: {
+        NOT: {
+          user_type: 'DISABLED'
+        }
+      },
       select: {
         id: true,
         user_type: true,
@@ -1231,7 +1462,7 @@ router.put('/admin/users/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// Delete user endpoint
+// Disable user endpoint (formerly Delete)
 router.delete('/admin/users/:id', authenticateToken, async (req, res) => {
   try {
     const authUserId = parseInt(req.user.userId);
@@ -1247,36 +1478,55 @@ router.delete('/admin/users/:id', authenticateToken, async (req, res) => {
       requester?.User?.email === 'gururider35@gmail.com';
 
     if (!isRequesterAdmin) {
-      return res.status(403).json({ error: 'Only admins can delete users' });
+      return res.status(403).json({ error: 'Only admins can disable users' });
     }
 
     const orgUserId = parseInt(req.params.id);
     if (orgUserId === authUserId) {
-      return res.status(400).json({ error: 'You cannot delete your own admin account.' });
+      return res.status(400).json({ error: 'You cannot disable your own admin account.' });
     }
 
-    // Clean templates version dependencies
-    await prisma.checklist_template.updateMany({
-      where: { organisation_user_id: orgUserId },
-      data: { current_version_id: null }
+    // Set user_type to 'DISABLED'
+    await prisma.organisation_Users.update({
+      where: { id: orgUserId },
+      data: { user_type: 'DISABLED' }
     });
 
-    // Perform manual cascade deletes in transaction
-    await prisma.$transaction([
-      prisma.checklist_item_response.deleteMany({ where: { organisation_user_id: orgUserId } }),
-      prisma.templateRecipients.deleteMany({ where: { assigned_by_user_id: orgUserId } }),
-      prisma.checklist_template_owners.deleteMany({ where: { organisation_user_id: orgUserId } }),
-      prisma.checklist_template_version.deleteMany({ where: { organisation_user_id: orgUserId } }),
-      prisma.checklist_template.deleteMany({ where: { organisation_user_id: orgUserId } }),
-      prisma.checklist_items.deleteMany({ where: { organisation_user_id: orgUserId } }),
-      prisma.tags.deleteMany({ where: { organisation_user_id: orgUserId } }),
-      prisma.organisation_User_position.deleteMany({ where: { organisation_user_id: orgUserId } }),
-      prisma.organisation_Users.delete({ where: { id: orgUserId } })
-    ]);
-
-    res.json({ success: true, message: 'User deleted successfully' });
+    res.json({ success: true, message: 'User disabled successfully' });
   } catch (error) {
-    console.error('Admin delete user error:', error);
+    console.error('Admin disable user error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// Enable user endpoint
+router.put('/admin/users/:id/enable', authenticateToken, async (req, res) => {
+  try {
+    const authUserId = parseInt(req.user.userId);
+    const requester = await prisma.organisation_Users.findUnique({
+      where: { id: authUserId },
+      select: { 
+        user_type: true,
+        User: { select: { email: true } }
+      }
+    });
+    const isRequesterAdmin = 
+      requester?.user_type?.trim() === 'ADMIN' || 
+      requester?.User?.email === 'gururider35@gmail.com';
+
+    if (!isRequesterAdmin) {
+      return res.status(403).json({ error: 'Only admins can enable users' });
+    }
+
+    const orgUserId = parseInt(req.params.id);
+    await prisma.organisation_Users.update({
+      where: { id: orgUserId },
+      data: { user_type: 'USER' }
+    });
+
+    res.json({ success: true, message: 'User enabled successfully' });
+  } catch (error) {
+    console.error('Admin enable user error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
@@ -1509,12 +1759,16 @@ router.get('/reports/departments', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, search, page = 1, limit = 15 } = req.query;
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
     let queryParams = [];
 
-    let sql = `
+    let baseQuery = `
       SELECT 
-        ou.user_position AS department,
+        COALESCE(oup.user_position, 'PUBLIC') AS department,
         COUNT(DISTINCT CASE WHEN cir.id IS NOT NULL THEN CONCAT(ou.id, '-', ct.id, '-', DATE(cir.created_at)) END) AS total_submissions,
         COALESCE(ROUND(AVG(
           CASE 
@@ -1525,30 +1779,60 @@ router.get('/reports/departments', authenticateToken, async (req, res) => {
         ) * 100, 1), 0) AS avg_completion_rate,
         COUNT(DISTINCT ou.id) AS total_users
       FROM Organisation_Users ou
+      LEFT JOIN Organisation_User_position oup ON ou.id = oup.organisation_user_id
       LEFT JOIN checklist_item_response cir ON ou.id = cir.organisation_user_id
     `;
 
     if (startDate) {
-      sql += ` AND cir.created_at >= ?`;
+      baseQuery += ` AND cir.created_at >= ?`;
       queryParams.push(new Date(startDate));
     }
     if (endDate) {
-      sql += ` AND cir.created_at <= ?`;
+      baseQuery += ` AND cir.created_at <= ?`;
       queryParams.push(new Date(endDate));
     }
 
-    sql += `
+    baseQuery += `
       LEFT JOIN checklist_template_linked_items li ON cir.checklist_template_linked_items_id = li.id
       LEFT JOIN checklist_template_version v ON li.template_version_id = v.version_id
       LEFT JOIN checklist_template ct ON v.checklist_template_id = ct.id
       LEFT JOIN checklist_items ci ON li.checklist_item_id = ci.id
-      WHERE ou.user_position IS NOT NULL
-      GROUP BY ou.user_position
-      ORDER BY total_submissions DESC
+      GROUP BY COALESCE(oup.user_position, 'PUBLIC')
     `;
 
-    const rows = await prisma.$queryRawUnsafe(sql, ...queryParams);
+    let dataSql = `
+      SELECT * FROM (${baseQuery}) AS sub
+      WHERE 1=1
+    `;
+
+    let countSql = `
+      SELECT COUNT(*) AS total FROM (${baseQuery}) AS sub
+      WHERE 1=1
+    `;
+
+    const countParams = [...queryParams];
+
+    if (search) {
+      dataSql += ` AND department LIKE ?`;
+      countSql += ` AND department LIKE ?`;
+      const likeSearch = `%${search}%`;
+      queryParams.push(likeSearch);
+      countParams.push(likeSearch);
+    }
+
+    dataSql += `
+      ORDER BY total_submissions DESC
+      LIMIT ? OFFSET ?
+    `;
+    queryParams.push(limitNum, skip);
+
+    const [rows, countResult] = await Promise.all([
+      prisma.$queryRawUnsafe(dataSql, ...queryParams),
+      prisma.$queryRawUnsafe(countSql, ...countParams)
+    ]);
     
+    const total = Number(countResult[0]?.total || 0);
+
     const formatted = rows.map(r => ({
       department: r.department,
       total_submissions: Number(r.total_submissions),
@@ -1556,7 +1840,12 @@ router.get('/reports/departments', authenticateToken, async (req, res) => {
       total_users: Number(r.total_users)
     }));
 
-    res.json(formatted);
+    res.json({
+      departments: formatted,
+      total,
+      page: pageNum,
+      totalPages: Math.ceil(total / limitNum)
+    });
   } catch (error) {
     console.error('Fetch department reports error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
@@ -1577,10 +1866,14 @@ router.get('/reports/templates', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, search, page = 1, limit = 15 } = req.query;
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
     let queryParams = [];
 
-    let sql = `
+    let baseQuery = `
       SELECT 
         ct.id AS template_id,
         ct.template_name,
@@ -1610,20 +1903,50 @@ router.get('/reports/templates', authenticateToken, async (req, res) => {
     `;
 
     if (startDate) {
-      sql += ` AND cir.created_at >= ?`;
+      baseQuery += ` AND cir.created_at >= ?`;
       queryParams.push(new Date(startDate));
     }
     if (endDate) {
-      sql += ` AND cir.created_at <= ?`;
+      baseQuery += ` AND cir.created_at <= ?`;
       queryParams.push(new Date(endDate));
     }
 
-    sql += `
+    baseQuery += `
       GROUP BY ct.id, ct.template_name, ct.priority, ct.created_at, u_creator.name, u_owner.name
-      ORDER BY total_submissions DESC
     `;
 
-    const rows = await prisma.$queryRawUnsafe(sql, ...queryParams);
+    let dataSql = `
+      SELECT * FROM (${baseQuery}) AS sub
+      WHERE 1=1
+    `;
+
+    let countSql = `
+      SELECT COUNT(*) AS total FROM (${baseQuery}) AS sub
+      WHERE 1=1
+    `;
+
+    const countParams = [...queryParams];
+
+    if (search) {
+      dataSql += ` AND (template_name LIKE ? OR creator_name LIKE ? OR owner_name LIKE ?)`;
+      countSql += ` AND (template_name LIKE ? OR creator_name LIKE ? OR owner_name LIKE ?)`;
+      const likeSearch = `%${search}%`;
+      queryParams.push(likeSearch, likeSearch, likeSearch);
+      countParams.push(likeSearch, likeSearch, likeSearch);
+    }
+
+    dataSql += `
+      ORDER BY total_submissions DESC
+      LIMIT ? OFFSET ?
+    `;
+    queryParams.push(limitNum, skip);
+
+    const [rows, countResult] = await Promise.all([
+      prisma.$queryRawUnsafe(dataSql, ...queryParams),
+      prisma.$queryRawUnsafe(countSql, ...countParams)
+    ]);
+    
+    const total = Number(countResult[0]?.total || 0);
 
     const formatted = rows.map(r => ({
       template_id: Number(r.template_id),
@@ -1637,7 +1960,12 @@ router.get('/reports/templates', authenticateToken, async (req, res) => {
       total_responses: Number(r.total_responses)
     }));
 
-    res.json(formatted);
+    res.json({
+      templates: formatted,
+      total,
+      page: pageNum,
+      totalPages: Math.ceil(total / limitNum)
+    });
   } catch (error) {
     console.error('Fetch template reports error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
