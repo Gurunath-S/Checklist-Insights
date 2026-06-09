@@ -3,6 +3,7 @@ import axios from 'axios';
 import { Sparkles, LogOut, Users, ChevronDown, List, Search } from 'lucide-react';
 import Sidebar from './components/Dashboard/Sidebar';
 import LoginPage from './components/Auth/LoginPage';
+import TourGuide from './components/Dashboard/TourGuide';
 import UserProfileHeader from './components/Dashboard/Summary/UserProfileHeader';
 import DashboardSummary from './components/Dashboard/Summary/DashboardSummary';
 import InsightsChart from './components/Dashboard/Charts/InsightsChart';
@@ -14,6 +15,7 @@ import UserManagement from './components/Dashboard/UserManagement/UserManagement
 import ReportsPage from './components/Dashboard/Reports/ReportsPage';
 import TagReportsView from './components/Dashboard/TagReports/TagReportsView';
 import OrganisationDashboard from './components/Dashboard/Organisation/OrganisationDashboard';
+import ChecklistExplorer from './components/Dashboard/Charts/ChecklistExplorer';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
 
@@ -117,6 +119,32 @@ function App() {
   const [loadingInspect, setLoadingInspect] = useState(false);
   const [selectedOrganisation, setSelectedOrganisation] = useState(null);
   const [overviewTab, setOverviewTab] = useState('dashboard');
+  const [isTourOpen, setIsTourOpen] = useState(false);
+  const [themeChangedOnLogin, setThemeChangedOnLogin] = useState(false);
+  const [selectedChecklistItemName, setSelectedChecklistItemName] = useState(null);
+
+  // Automatically trigger tour for first-time logged in users
+  useEffect(() => {
+    if (user && user.id) {
+      const tourCompleted = localStorage.getItem(`tour_completed_${user.id}`);
+      if (!tourCompleted) {
+        setIsTourOpen(true);
+      }
+    } else {
+      setIsTourOpen(false);
+    }
+  }, [user]);
+
+  const handleCloseTour = () => {
+    setIsTourOpen(false);
+    if (user && user.id) {
+      localStorage.setItem(`tour_completed_${user.id}`, 'true');
+    }
+  };
+
+  const handleStartTour = () => {
+    setIsTourOpen(true);
+  };
 
   useEffect(() => {
     if (!isAdmin && data?.itemStats && data.itemStats.length > 0) {
@@ -149,24 +177,28 @@ function App() {
     }
   }, [data, isAdmin]);
 
-  // Load user-specific theme on login
+  // Load user-specific theme on login or fallback to general theme
   useEffect(() => {
     if (user && user.id) {
-      const userTheme = localStorage.getItem(`theme_${user.id}`) || 'classic';
-      setTheme(userTheme);
+      if (themeChangedOnLogin) {
+        localStorage.setItem(`theme_${user.id}`, theme);
+        setThemeChangedOnLogin(false);
+      } else {
+        const userTheme = localStorage.getItem(`theme_${user.id}`) || localStorage.getItem('theme') || 'classic';
+        setTheme(userTheme);
+      }
     } else {
-      setTheme('classic');
+      const generalTheme = localStorage.getItem('theme') || 'classic';
+      setTheme(generalTheme);
     }
   }, [user]);
 
   // Apply and persist selected theme
   useEffect(() => {
-    if (!user || !user.id) {
-      document.documentElement.setAttribute('data-theme', 'classic');
-    } else {
-      document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+    if (user && user.id) {
       localStorage.setItem(`theme_${user.id}`, theme);
-      localStorage.setItem('theme', theme);
     }
   }, [theme, user]);
 
@@ -175,6 +207,7 @@ function App() {
     setData(null);
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    setThemeChangedOnLogin(false);
   }, []);
 
   // Update the global logout pointer whenever handleLogout is created/updated
@@ -557,6 +590,11 @@ function App() {
         onMicrosoftLoginSuccess={handleMicrosoftLoginSuccess}
         loginError={loginError}
         setLoginError={setLoginError}
+        currentTheme={theme}
+        onChangeTheme={(t) => {
+          setTheme(t);
+          setThemeChangedOnLogin(true);
+        }}
       />
     );
   }
@@ -574,6 +612,7 @@ function App() {
         isAdmin={isAdmin} 
         currentView={currentView}
         onNavigate={navigateToView}
+        onStartTour={handleStartTour}
       />
 
       <main className="flex-1 p-6 lg:p-8 z-10 overflow-y-auto">
@@ -582,6 +621,7 @@ function App() {
             user={user} 
             currentTheme={theme} 
             onChangeTheme={setTheme} 
+            onStartTour={handleStartTour}
           />
         ) : currentView === 'user-management' ? (
           <UserManagement currentUser={user} />
@@ -621,26 +661,31 @@ function App() {
                 {/* Admin Header with Filters & User Search */}
                 <div className="relative z-50 bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-5 shadow-xl flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4">
                   {/* Left: Department Selector Tab Bar */}
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      onClick={() => { setSelectedDepartment('Overview'); setInspectedUser(null); setInspectedData(null); setSelectedOrganisation(null); }}
-                      className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all border cursor-pointer ${selectedDepartment === 'Overview' && !inspectedUser ? 'bg-primary text-white border-primary shadow-lg shadow-primary/30' : 'bg-white/5 border-glass-border text-text-muted hover:text-white hover:bg-white/10'}`}
-                    >
-                      System Overview
-                    </button>
-                    {data?.usersByPositionTags?.map(tag => (
+                  <div className="relative flex-1" id="admin-departments">
+                    <div className="text-[10px] font-black uppercase tracking-widest text-text-muted mb-1.5 px-1">
+                      <span>Departments</span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
                       <button
-                        key={tag.name}
-                        onClick={() => { setSelectedDepartment(tag.name); setInspectedUser(null); setInspectedData(null); setSelectedOrganisation(null); }}
-                        className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all border cursor-pointer capitalize ${selectedDepartment === tag.name && !inspectedUser ? 'bg-primary text-white border-primary shadow-lg shadow-primary/30' : 'bg-white/5 border-glass-border text-text-muted hover:text-white hover:bg-white/10'}`}
+                        onClick={() => { setSelectedDepartment('Overview'); setInspectedUser(null); setInspectedData(null); setSelectedOrganisation(null); }}
+                        className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all border cursor-pointer ${selectedDepartment === 'Overview' && !inspectedUser ? 'bg-primary text-white border-primary shadow-lg shadow-primary/30' : 'bg-white/5 border-glass-border text-text-muted hover:text-white hover:bg-white/10'}`}
                       >
-                        {tag.name.replace(/_/g, ' ')}
+                        System Overview
                       </button>
-                    ))}
+                      {data?.usersByPositionTags?.map(tag => (
+                        <button
+                          key={tag.name}
+                          onClick={() => { setSelectedDepartment(tag.name); setInspectedUser(null); setInspectedData(null); setSelectedOrganisation(null); }}
+                          className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all border cursor-pointer capitalize ${selectedDepartment === tag.name && !inspectedUser ? 'bg-primary text-white border-primary shadow-lg shadow-primary/30' : 'bg-white/5 border-glass-border text-text-muted hover:text-white hover:bg-white/10'}`}
+                        >
+                          {tag.name === 'FULL_STACK_DEVELOPER' ? 'DEVELOPMENT' : tag.name.replace(/_/g, ' ')}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
                   {/* Right: Search User Selector Dropdown */}
-                  <div className="relative w-full lg:w-72">
+                  <div className="relative w-full lg:w-72" id="user-performance-explorer">
                     <div className="text-[10px] font-black uppercase tracking-widest text-text-muted mb-1.5 px-1 flex items-center justify-between">
                       <span>User Performance Explorer</span>
                       {inspectedUser && <span className="text-accent animate-pulse">Inspecting</span>}
@@ -697,7 +742,7 @@ function App() {
                               if (filtered.length === 0) {
                                 return (
                                   <div className="text-center py-3 text-text-muted text-xs">
-                                    No users found for {selectedDepartment === 'Overview' ? 'this search' : `the ${selectedDepartment.replace(/_/g, ' ')} department`}
+                                    No users found for {selectedDepartment === 'Overview' ? 'this search' : `the ${selectedDepartment === 'FULL_STACK_DEVELOPER' ? 'Development' : selectedDepartment.replace(/_/g, ' ')} department`}
                                   </div>
                                 );
                               }
@@ -790,6 +835,11 @@ function App() {
                           startDate={startDate}
                           endDate={endDate}
                         />
+                        <ChecklistExplorer 
+                          userId={inspectedUser?.id} 
+                          globalStartDate={startDate} 
+                          globalEndDate={endDate} 
+                        />
                         <ActivityExplorer user={inspectedUser} />
                       </div>
                     ) : (
@@ -842,6 +892,10 @@ function App() {
                             onSelectOrganisation={(org) => setSelectedOrganisation(org)}
                           />
                           <InsightsChart data={data} isAdmin={isAdmin} user={user} startDate={startDate} endDate={endDate} />
+                          <ChecklistExplorer 
+                            globalStartDate={startDate} 
+                            globalEndDate={endDate} 
+                          />
                         </div>
                       ) : (
                         <div className="animate-fade-in">
@@ -867,6 +921,14 @@ function App() {
                         department={selectedDepartment} 
                         adminStartDate={deptStartDate} 
                         adminEndDate={deptEndDate} 
+                        onDoubleClickItem={setSelectedChecklistItemName}
+                      />
+                      <ChecklistExplorer 
+                        department={selectedDepartment} 
+                        globalStartDate={deptStartDate} 
+                        globalEndDate={deptEndDate} 
+                        selectedItemName={selectedChecklistItemName}
+                        onSelectItemName={setSelectedChecklistItemName}
                       />
                     </div>
                   )}
@@ -893,6 +955,11 @@ function App() {
                   user={user}
                   startDate={startDate}
                   endDate={endDate}
+                />
+                <ChecklistExplorer 
+                  userId={user?.id} 
+                  globalStartDate={startDate} 
+                  globalEndDate={endDate} 
                 />
                 <ActivityExplorer user={user} />
               </div>
@@ -933,6 +1000,9 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* Interactive Tour Guide Overlay */}
+      <TourGuide isOpen={isTourOpen} onClose={handleCloseTour} isAdmin={isAdmin} />
     </div>
   );
 }

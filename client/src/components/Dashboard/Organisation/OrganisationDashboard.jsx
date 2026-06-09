@@ -21,6 +21,7 @@ const getMetricIcon = (name) => {
 
 import ColorfulCard from './ColorfulCard';
 import DoubleMetricCard from './DoubleMetricCard';
+import ChecklistExplorer from '../Charts/ChecklistExplorer';
 
 const OrganisationDashboard = ({ organisation, adminStartDate, adminEndDate, onBack }) => {
   const [data, setData] = useState(null);
@@ -405,6 +406,13 @@ const OrganisationDashboard = ({ organisation, adminStartDate, adminEndDate, onB
           </table>
         </div>
       </div>
+
+      {/* Checklist trend explorer */}
+      <ChecklistExplorer 
+        organisationId={organisation?.id} 
+        globalStartDate={adminStartDate} 
+        globalEndDate={adminEndDate} 
+      />
     </div>
   );
 };

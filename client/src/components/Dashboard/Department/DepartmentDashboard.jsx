@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
-  BarChart, Bar, Cell
+  BarChart, Bar, Cell, PieChart, Pie
 } from 'recharts';
 import { Book, CheckCircle, TrendingUp, Calendar, ChevronDown, List, Activity, Send, Clock, Bug, CheckSquare, Rocket, Users, PlusCircle } from 'lucide-react';
 import LoadingState from '../../UI/LoadingState';
@@ -47,10 +47,94 @@ const DoubleMetricCard = ({ color, icon, label, val1Label, val1, val2Label, val2
   </div>
 );
 
-const DepartmentDashboard = ({ department, adminStartDate, adminEndDate }) => {
+const SpeedometerGauge = ({ value, title }) => {
+  const data = [
+    { name: 'Achieved', value: value },
+    { name: 'Remaining', value: Math.max(0, 100 - value) }
+  ];
+
+  return (
+    <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-4 shadow-xl flex flex-col h-[350px] items-center justify-center relative overflow-hidden">
+      <h3 className="text-base font-bold text-white mb-2 text-center w-full">{title}</h3>
+      <div className="flex-1 w-full flex items-center justify-center relative">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
+          <PieChart>
+            <defs>
+              <linearGradient id="gaugeColor" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor="#f59e0b" />
+                <stop offset="50%" stopColor="#10b981" />
+                <stop offset="100%" stopColor="#3b82f6" />
+              </linearGradient>
+            </defs>
+            <Pie
+              data={data}
+              cx="50%"
+              cy="75%"
+              startAngle={180}
+              endAngle={0}
+              innerRadius="75%"
+              outerRadius="100%"
+              dataKey="value"
+              stroke="none"
+            >
+              <Cell key="cell-0" fill="url(#gaugeColor)" />
+              <Cell key="cell-1" fill="rgba(255,255,255,0.08)" />
+            </Pie>
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="absolute inset-x-0 bottom-12 flex flex-col items-center justify-center">
+          <span className="text-4xl font-extrabold text-white">{value}%</span>
+          <span className="text-xs font-bold text-text-muted mt-1">Goal Achievement</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const FunnelChart = ({ data }) => {
+  const colors = ['#3b82f6', '#8b5cf6', '#ec4899'];
+  return (
+    <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-4 shadow-xl flex flex-col h-[350px]">
+      <h3 className="text-base font-bold text-white mb-4 text-center">Max Campaign Funnel</h3>
+      <div className="flex-1 w-full min-h-0">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
+          <BarChart
+            data={data}
+            layout="vertical"
+            margin={{ top: 20, right: 40, left: 30, bottom: 20 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={false} />
+            <XAxis type="number" stroke="#fff" fontSize={11} tickLine={false} axisLine={false} />
+            <YAxis
+              dataKey="stage"
+              type="category"
+              stroke="var(--color-text-muted)"
+              fontSize={12}
+              tickLine={false}
+              axisLine={false}
+            />
+            <RechartsTooltip
+              contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }}
+              itemStyle={{ color: '#fff' }}
+            />
+            <Bar dataKey="value" fill="#3b82f6" radius={[0, 8, 8, 0]} barSize={32}>
+              {data.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+};
+
+const DepartmentDashboard = ({ department, adminStartDate, adminEndDate, onDoubleClickItem }) => {
   const isHR = department && (department.toUpperCase() === 'HUMAN RESOURCE' || department.toUpperCase() === 'HUMAN_RESOURCE' || department.toUpperCase() === 'HR');
   const isSales = department && department.toUpperCase() === 'SALES';
   const isDT = department && (department.toUpperCase() === 'DIGITAL TRANSFORMATION' || department.toUpperCase() === 'DIGITAL_TRANSFORMATION' || department.toUpperCase() === 'DT');
+  const isMarketing = department && (department.toUpperCase() === 'MARKETING' || department.toUpperCase() === 'MARKETTNG');
+  const isDev = department && (department.toUpperCase() === 'FULL_STACK_DEVELOPER' || department.toUpperCase() === 'DEVELOPMENT' || department.toUpperCase() === 'DEV');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -225,9 +309,23 @@ const DepartmentDashboard = ({ department, adminStartDate, adminEndDate }) => {
                 itemStyle={{ color: '#fff' }}
                 cursor={{fill: 'rgba(255,255,255,0.05)'}}
               />
-              <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={40}>
+              <Bar 
+                dataKey="value" 
+                radius={[4, 4, 0, 0]} 
+                barSize={40}
+                onDoubleClick={(data) => {
+                  if (data && data.name) {
+                    onDoubleClickItem?.(data.name);
+                  }
+                }}
+                style={{ cursor: 'pointer' }}
+              >
                 {chartData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  <Cell 
+                    key={`cell-${index}`} 
+                    fill={COLORS[index % COLORS.length]} 
+                    style={{ cursor: 'pointer' }}
+                  />
                 ))}
               </Bar>
             </BarChart>
@@ -245,7 +343,40 @@ const DepartmentDashboard = ({ department, adminStartDate, adminEndDate }) => {
 
       {/* KPI Cards Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-        {isHR ? (
+        {isDev ? (
+          <>
+            <ColorfulCard 
+              color="from-indigo-600 to-indigo-800" 
+              icon={<Send />} 
+              label="Submissions" 
+              value={data.submissionsCount || 0} 
+            />
+            <ColorfulCard 
+              color="from-purple-500 to-purple-700" 
+              icon={<Users />} 
+              label="Developers" 
+              value={data.devData?.developersCount || 0} 
+            />
+            <ColorfulCard 
+              color="from-rose-500 to-rose-700" 
+              icon={<CheckSquare />} 
+              label="Tasks Completed / Day" 
+              value={data.devData?.tasksPerDay || 0} 
+            />
+            <ColorfulCard 
+              color="from-emerald-500 to-emerald-700" 
+              icon={<Calendar />} 
+              label="Latest Submitted Date" 
+              value={formatDate(data.latestSubmissionDate)} 
+            />
+            <ColorfulCard 
+              color="from-amber-500 to-amber-700" 
+              icon={<TrendingUp />} 
+              label="Completion Rate" 
+              value={`${data.completionRate?.toFixed(1) || '0.0'}%`} 
+            />
+          </>
+        ) : isHR ? (
           <>
             <ColorfulCard 
               color="from-indigo-600 to-indigo-800" 
@@ -315,6 +446,42 @@ const DepartmentDashboard = ({ department, adminStartDate, adminEndDate }) => {
               icon={<Calendar />} 
               label="Latest Submitted Date" 
               value={formatDate(data.latestSubmissionDate)} 
+            />
+          </>
+        ) : isMarketing ? (
+          <>
+            <ColorfulCard 
+              color="from-indigo-600 to-indigo-800" 
+              icon={<Send />} 
+              label="Total Submissions" 
+              value={data.submissionsCount || 0} 
+            />
+            <ColorfulCard 
+              color="from-blue-500 to-indigo-700" 
+              icon={<TrendingUp />} 
+              label="Impressions" 
+              value={data.marketingData?.impressionsTotal || 0} 
+            />
+            <ColorfulCard 
+              color="from-purple-500 to-purple-700" 
+              icon={<Activity />} 
+              label="CTA Clicks" 
+              value={data.marketingData?.ctaClicksTotal || 0} 
+            />
+            <ColorfulCard 
+              color="from-pink-500 to-pink-700" 
+              icon={<CheckCircle />} 
+              label="Conversions" 
+              value={data.marketingData?.conversionsTotal || 0} 
+            />
+            <DoubleMetricCard
+              color="from-amber-500 to-orange-700"
+              icon={<Rocket />}
+              label="Campaign Funnel"
+              val1Label="Launched"
+              val1={data.marketingData?.campaignsCount || 0}
+              val2Label="Boosts"
+              val2={data.marketingData?.boostsCount || 0}
             />
           </>
         ) : isSales ? (
@@ -450,7 +617,153 @@ const DepartmentDashboard = ({ department, adminStartDate, adminEndDate }) => {
       </div>
 
       {/* Charts Row */}
-      {isDT && data.dtData ? (
+      {isMarketing && data.marketingData ? (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <FunnelChart data={data.marketingData.funnel} />
+          <SpeedometerGauge value={data.marketingData.goalAchievement} title="Goal Achievement" />
+          
+          <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-4 shadow-xl flex flex-col h-[350px]">
+            <h3 className="text-base font-bold text-white mb-4 text-center">Campaigns Launched</h3>
+            <div className="flex-1 w-full min-h-0">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
+                <AreaChart data={data.marketingData.campaignsLaunched} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorCampaigns" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <XAxis dataKey="name" stroke="var(--color-text-muted)" fontSize={11} tickLine={false} axisLine={false} minTickGap={30} />
+                  <YAxis stroke="#fff" fontSize={11} tickLine={false} axisLine={false} />
+                  <RechartsTooltip 
+                    contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }}
+                    itemStyle={{ color: '#fff' }}
+                  />
+                  <Area type="monotone" dataKey="value" stroke="#f59e0b" strokeWidth={3} fillOpacity={1} fill="url(#colorCampaigns)" dot={{r: 6, fill: '#f59e0b', stroke: '#fff', strokeWidth: 2}} activeDot={{r: 8}} label={{ position: 'top', fill: '#fff', fontSize: 11, fontWeight: 'bold' }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-4 shadow-xl flex flex-col h-[350px]">
+            <h3 className="text-base font-bold text-white mb-4 text-center">Positive Reaction from Employees</h3>
+            <div className="flex-1 w-full min-h-0">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
+                <AreaChart data={data.marketingData.employeeReactions} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorEmployees" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <XAxis dataKey="name" stroke="var(--color-text-muted)" fontSize={11} tickLine={false} axisLine={false} minTickGap={30} />
+                  <YAxis stroke="#fff" fontSize={11} tickLine={false} axisLine={false} />
+                  <RechartsTooltip 
+                    contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }}
+                    itemStyle={{ color: '#fff' }}
+                  />
+                  <Area type="monotone" dataKey="value" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorEmployees)" dot={{r: 6, fill: '#10b981', stroke: '#fff', strokeWidth: 2}} activeDot={{r: 8}} label={{ position: 'top', fill: '#fff', fontSize: 11, fontWeight: 'bold' }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-4 shadow-xl flex flex-col h-[350px]">
+            <h3 className="text-base font-bold text-white mb-4 text-center">Positive Reaction from Partners</h3>
+            <div className="flex-1 w-full min-h-0">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
+                <AreaChart data={data.marketingData.partnerReactions} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorPartners" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#ec4899" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#ec4899" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <XAxis dataKey="name" stroke="var(--color-text-muted)" fontSize={11} tickLine={false} axisLine={false} minTickGap={30} />
+                  <YAxis stroke="#fff" fontSize={11} tickLine={false} axisLine={false} />
+                  <RechartsTooltip 
+                    contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }}
+                    itemStyle={{ color: '#fff' }}
+                  />
+                  <Area type="monotone" dataKey="value" stroke="#ec4899" strokeWidth={3} fillOpacity={1} fill="url(#colorPartners)" dot={{r: 6, fill: '#ec4899', stroke: '#fff', strokeWidth: 2}} activeDot={{r: 8}} label={{ position: 'top', fill: '#fff', fontSize: 11, fontWeight: 'bold' }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {renderChecklistByInputs()}
+        </div>
+      ) : isDev && data.devData ? (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          {renderChecklistByInputs()}
+
+          {/* Tasks Completed by Users (Bar Chart) */}
+          <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-4 shadow-xl flex flex-col h-[350px]">
+            <h3 className="text-base font-bold text-white mb-4 text-center">Tasks Completed by Users</h3>
+            <div className="flex-1 w-full min-h-0">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
+                <BarChart data={data.devData.tasksCompletedByUser} margin={{ top: 20, right: 30, left: 10, bottom: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <XAxis dataKey="name" stroke="var(--color-text-muted)" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => val.length > 10 ? val.substring(0, 10) + '...' : val} />
+                  <YAxis stroke="#fff" fontSize={11} tickLine={false} axisLine={false} />
+                  <RechartsTooltip 
+                    contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }}
+                    itemStyle={{ color: '#fff' }}
+                  />
+                  <Bar dataKey="value" fill="#8b5cf6" radius={[6, 6, 0, 0]} barSize={24} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Deployed Build Trend (Area Chart) */}
+          <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-4 shadow-xl flex flex-col h-[350px]">
+            <h3 className="text-base font-bold text-white mb-4 text-center">Deployed Build Trend</h3>
+            <div className="flex-1 w-full min-h-0">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
+                <AreaChart data={data.devData.deployedBuildTrend} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorDevBuilds" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <XAxis dataKey="name" stroke="var(--color-text-muted)" fontSize={11} tickLine={false} axisLine={false} />
+                  <YAxis stroke="#fff" fontSize={11} tickLine={false} axisLine={false} />
+                  <RechartsTooltip 
+                    contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }}
+                    itemStyle={{ color: '#fff' }}
+                  />
+                  <Area type="monotone" dataKey="value" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorDevBuilds)" dot={{r: 6, fill: '#10b981', stroke: '#fff', strokeWidth: 2}} activeDot={{r: 8}} label={{ position: 'top', fill: '#fff', fontSize: 11, fontWeight: 'bold' }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Deployed Build by Developer (Bar Chart) */}
+          <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-4 shadow-xl flex flex-col h-[350px]">
+            <h3 className="text-base font-bold text-white mb-4 text-center">Deployed Build by Developer</h3>
+            <div className="flex-1 w-full min-h-0">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
+                <BarChart data={data.devData.deployedBuildByUser} margin={{ top: 20, right: 30, left: 10, bottom: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <XAxis dataKey="name" stroke="var(--color-text-muted)" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => val.length > 10 ? val.substring(0, 10) + '...' : val} />
+                  <YAxis stroke="#fff" fontSize={11} tickLine={false} axisLine={false} />
+                  <RechartsTooltip 
+                    contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }}
+                    itemStyle={{ color: '#fff' }}
+                  />
+                  <Bar dataKey="value" fill="#ec4899" radius={[6, 6, 0, 0]} barSize={24} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      ) : isDT && data.dtData ? (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           {/* Checklist by Inputs */}
           {renderChecklistByInputs()}

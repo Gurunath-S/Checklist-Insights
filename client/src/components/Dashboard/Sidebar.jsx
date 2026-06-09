@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { LayoutDashboard, Users, LogOut, Settings, BarChart, ChevronDown } from 'lucide-react';
+import { LayoutDashboard, Users, LogOut, Settings, BarChart, ChevronDown, HelpCircle } from 'lucide-react';
 
-const Sidebar = ({ isAdmin, currentView, user, onLogout, onNavigate }) => {
+const Sidebar = ({ isAdmin, currentView, user, onLogout, onNavigate, onStartTour }) => {
   const isDashboardActive = currentView === 'dashboard' && !isAdmin;
   const isAdminActive = currentView === 'dashboard' && isAdmin;
   const isSettingsActive = currentView === 'settings';
@@ -25,7 +25,7 @@ const Sidebar = ({ isAdmin, currentView, user, onLogout, onNavigate }) => {
         </span>
       </div>
 
-      <nav className="flex-1">
+      <nav className="flex-1" id="sidebar-menu">
         <div className="mb-6">
           <p className="text-[0.7rem] font-bold uppercase tracking-[0.15em] text-text-muted mb-3 pl-4">
             Main Menu
@@ -45,6 +45,7 @@ const Sidebar = ({ isAdmin, currentView, user, onLogout, onNavigate }) => {
           {user?.user_type?.trim() === 'ADMIN' && (
             <div className="relative">
               <button 
+                id="sidebar-admin-menu"
                 className={`w-full flex items-center justify-between p-2.5 rounded-xl text-sm font-medium transition-all duration-300 mb-1 text-left group cursor-pointer ${
                   (isAdminActive || currentView === 'user-management' || currentView === 'reports')
                     ? 'bg-primary/10 text-white border border-primary/20' 
@@ -65,6 +66,7 @@ const Sidebar = ({ isAdmin, currentView, user, onLogout, onNavigate }) => {
               {isAdminDropdownOpen && (
                 <div className="pl-6 space-y-1 mb-2">
                   <button
+                    id="sidebar-admin-overview"
                     onClick={() => onNavigate('dashboard', true)}
                     className={`w-full flex items-center gap-3 py-2 px-3 rounded-lg text-xs font-bold transition-all duration-200 text-left cursor-pointer ${
                       (currentView === 'dashboard' && isAdmin)
@@ -76,6 +78,7 @@ const Sidebar = ({ isAdmin, currentView, user, onLogout, onNavigate }) => {
                     <span>Overview</span>
                   </button>
                   <button
+                    id="sidebar-user-management"
                     onClick={() => onNavigate('user-management', true)}
                     className={`w-full flex items-center gap-3 py-2 px-3 rounded-lg text-xs font-bold transition-all duration-200 text-left cursor-pointer ${
                       currentView === 'user-management'
@@ -87,6 +90,7 @@ const Sidebar = ({ isAdmin, currentView, user, onLogout, onNavigate }) => {
                     <span>User Management</span>
                   </button>
                   <button
+                    id="sidebar-reports"
                     onClick={() => onNavigate('reports', true)}
                     className={`w-full flex items-center gap-3 py-2 px-3 rounded-lg text-xs font-bold transition-all duration-200 text-left cursor-pointer ${
                       currentView === 'reports'
@@ -108,6 +112,7 @@ const Sidebar = ({ isAdmin, currentView, user, onLogout, onNavigate }) => {
             Preferences
           </p>
           <button 
+            id="sidebar-settings"
             className={`w-full flex items-center gap-4 p-2.5 rounded-xl text-sm font-medium transition-all duration-300 mb-2 text-left group cursor-pointer ${
               isSettingsActive 
                 ? 'bg-primary/15 text-white border border-primary/30 shadow-lg shadow-primary/10' 
@@ -117,6 +122,14 @@ const Sidebar = ({ isAdmin, currentView, user, onLogout, onNavigate }) => {
           >
             <Settings size={20} className={isSettingsActive ? 'text-primary' : 'group-hover:scale-110 transition-transform'} />
             <span>Settings</span>
+          </button>
+
+          <button 
+            className="w-full flex items-center gap-4 p-2.5 rounded-xl text-sm font-medium text-text-muted hover:bg-white/5 hover:text-white hover:translate-x-1 transition-all duration-300 mb-2 text-left group cursor-pointer"
+            onClick={onStartTour}
+          >
+            <HelpCircle size={20} className="group-hover:scale-110 transition-transform" />
+            <span>Help Tour</span>
           </button>
         </div>
       </nav>

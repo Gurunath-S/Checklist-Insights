@@ -1,10 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useMsal } from '@azure/msal-react';
 import { loginRequest } from '../../authConfig';
-import { Sparkles, ShieldCheck, BarChart3, Zap, CheckCircle2, ShieldAlert, X } from 'lucide-react';
-import Genie3D from './Genie3D';
+import { Sparkles, ShieldCheck, BarChart3, Zap, CheckCircle2, ShieldAlert, X, Moon, Sun, Palette } from 'lucide-react';
 
-const LoginPage = ({ onLoginSuccess, onMicrosoftLoginSuccess, loginError, setLoginError }) => {
+const LoginPage = ({ 
+  onLoginSuccess, 
+  onMicrosoftLoginSuccess, 
+  loginError, 
+  setLoginError,
+  currentTheme = 'classic',
+  onChangeTheme = () => {}
+}) => {
   const [coords, setCoords] = useState({ x: 0, y: 0 });
   const [isHoveredGoogle, setIsHoveredGoogle] = useState(false);
   const [isHoveredMS, setIsHoveredMS] = useState(false);
@@ -40,11 +46,43 @@ const LoginPage = ({ onLoginSuccess, onMicrosoftLoginSuccess, loginError, setLog
   };
 
   return (
-    <div className="fixed inset-0 w-screen h-screen flex items-center justify-center overflow-hidden bg-slate-950 font-outfit">
+    <div className="fixed inset-0 w-screen h-screen flex items-center justify-center overflow-hidden bg-bg-dark font-outfit">
       {/* Animated Background Layers */}
       <div className="app-bg"></div>
       <div className="mesh-gradient"></div>
       <div className="stars-overlay"></div>
+
+      {/* Floating Theme Selector Widget */}
+      <div className="absolute top-6 right-6 z-50 flex items-center gap-2 bg-bg-card backdrop-blur-md border border-glass-border p-1.5 rounded-2xl shadow-xl">
+        {[
+          { id: 'classic', icon: <Moon size={16} />, label: 'Classic Dark' },
+          { id: 'genie', icon: <Sparkles size={16} />, label: 'Genie Mode' },
+          { id: 'sapphire', icon: <Palette size={16} />, label: 'Ocean Sapphire' },
+          { id: 'light', icon: <Sun size={16} />, label: 'Light Glass' }
+        ].map((t) => {
+          const isActive = currentTheme === t.id;
+          return (
+            <button
+              key={t.id}
+              onClick={() => onChangeTheme(t.id)}
+              title={t.label}
+              className={`p-2.5 rounded-xl transition-all duration-300 flex items-center justify-center hover:scale-105 active:scale-95 cursor-pointer relative group ${
+                isActive 
+                  ? t.id === 'genie' 
+                    ? 'bg-amber-400/20 text-amber-400 border border-amber-400/30' 
+                    : 'bg-primary/20 text-primary border border-primary/30' 
+                  : 'text-text-muted hover:text-text-main hover:bg-white/5 border border-transparent'
+              }`}
+            >
+              {t.icon}
+              {/* Tooltip */}
+              <span className="absolute top-full mt-2 left-1/2 -translate-x-1/2 px-2 py-1 bg-bg-card border border-glass-border text-[10px] text-text-main rounded-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap shadow-lg z-50">
+                {t.label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
 
 
 
@@ -57,17 +95,13 @@ const LoginPage = ({ onLoginSuccess, onMicrosoftLoginSuccess, loginError, setLog
       <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-12 w-full max-w-6xl px-8 items-center z-10">
         {/* Left Side: Brand & Value Prop */}
         <div className="animate-[slideInLeft_0.8s_cubic-bezier(0.23,1,0.32,1)] flex flex-col justify-center relative">
-          {/* Floating 3D Animated Genie behind Left Content */}
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[550px] h-[550px] lg:w-[700px] lg:h-[700px] opacity-35 pointer-events-none -z-10 select-none">
-            <Genie3D mouseCoords={coords} />
-          </div>
 
           <div className="self-start inline-flex items-center gap-2 bg-primary/10 border border-primary/20 px-4 py-1.5 rounded-full text-xs font-semibold text-primary mb-6 shadow-md shadow-primary/5">
             <Sparkles size={14} className="animate-spin duration-3000" />
             <span>Next-Gen Analytics Platform</span>
           </div>
 
-          <h1 className="text-4xl lg:text-5xl font-extrabold leading-[1.1] tracking-tight text-white mb-6">
+          <h1 className="text-4xl lg:text-5xl font-extrabold leading-[1.1] tracking-tight text-text-main mb-6">
             Unlock the Power of <br />
             <span className="text-gradient drop-shadow-[0_0_30px_var(--color-primary-glow)]">Checklist Genie</span>
           </h1>
@@ -85,7 +119,7 @@ const LoginPage = ({ onLoginSuccess, onMicrosoftLoginSuccess, loginError, setLog
                 <BarChart3 size={18} />
               </div>
               <div>
-                <h4 className="text-base font-semibold text-white mb-0.5 group-hover:text-accent transition-colors">Smart Visualization</h4>
+                <h4 className="text-base font-semibold text-text-main mb-0.5 group-hover:text-accent transition-colors">Smart Visualization</h4>
                 <p className="text-sm text-text-muted">Interactive charts that tell your data's story.</p>
               </div>
             </div>
@@ -95,7 +129,7 @@ const LoginPage = ({ onLoginSuccess, onMicrosoftLoginSuccess, loginError, setLog
                 <Zap size={18} />
               </div>
               <div>
-                <h4 className="text-base font-semibold text-white mb-0.5 group-hover:text-primary transition-colors">Real-time Tracking</h4>
+                <h4 className="text-base font-semibold text-text-main mb-0.5 group-hover:text-primary transition-colors">Real-time Tracking</h4>
                 <p className="text-sm text-text-muted">Instant updates on every checklist submission.</p>
               </div>
             </div>
@@ -103,7 +137,7 @@ const LoginPage = ({ onLoginSuccess, onMicrosoftLoginSuccess, loginError, setLog
         </div>
 
         {/* Right Side: Login Card with rich neon shadow & borders */}
-        <div className="relative group/card bg-slate-900/50 backdrop-blur-[40px] border border-white/10 hover:border-primary/30 rounded-[32px] p-8 lg:p-10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] hover:shadow-[0_20px_50px_rgba(99,102,241,0.15)] transition-all duration-500 text-center animate-[slideInRight_0.8s_cubic-bezier(0.23,1,0.32,1)]">
+        <div className="relative group/card bg-bg-card backdrop-blur-[40px] border border-glass-border hover:border-primary/30 rounded-[32px] p-8 lg:p-10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] hover:shadow-[0_20px_50px_rgba(99,102,241,0.15)] transition-all duration-500 text-center animate-[slideInRight_0.8s_cubic-bezier(0.23,1,0.32,1)]">
           {/* Card subtle background gradient glow */}
           <div className="absolute -inset-[1px] bg-gradient-to-br from-primary/10 to-accent/10 rounded-[32px] -z-10 opacity-50 group-hover/card:opacity-100 transition-opacity duration-500"></div>
 
@@ -111,7 +145,7 @@ const LoginPage = ({ onLoginSuccess, onMicrosoftLoginSuccess, loginError, setLog
             <div className="w-14 h-14 bg-linear-to-br from-primary to-accent rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-xl shadow-primary/30 group-hover/card:scale-105 transition-transform duration-300">
               <ShieldCheck size={28} className="text-white" />
             </div>
-            <h3 className="text-2xl font-bold text-white mb-1">Get Started</h3>
+            <h3 className="text-2xl font-bold text-text-main mb-1">Get Started</h3>
             <p className="text-text-muted">Experience the future of reporting</p>
           </div>
 
@@ -120,7 +154,7 @@ const LoginPage = ({ onLoginSuccess, onMicrosoftLoginSuccess, loginError, setLog
               onClick={() => loginWithGoogle()}
               onMouseEnter={() => setIsHoveredGoogle(true)}
               onMouseLeave={() => setIsHoveredGoogle(false)}
-              className="w-full flex items-center justify-center gap-3 px-5 py-3 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-primary/30 rounded-full transition-all duration-300 group shadow-lg hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+              className="login-btn w-full flex items-center justify-center gap-3 px-5 py-3 rounded-full transition-all duration-300 group shadow-lg hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
             >
               <svg className={`w-5 h-5 transition-transform duration-300 ${isHoveredGoogle ? 'scale-110' : ''}`} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.7 17.74 9.5 24 9.5z" />
@@ -129,14 +163,14 @@ const LoginPage = ({ onLoginSuccess, onMicrosoftLoginSuccess, loginError, setLog
                 <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
                 <path fill="none" d="M0 0h48v48H0z" />
               </svg>
-              <span className="text-white font-semibold">Continue with Google</span>
+              <span className="font-semibold">Continue with Google</span>
             </button>
 
             <button
               onClick={handleMicrosoftLogin}
               onMouseEnter={() => setIsHoveredMS(true)}
               onMouseLeave={() => setIsHoveredMS(false)}
-              className="w-full flex items-center justify-center gap-3 px-5 py-3 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-accent/30 rounded-full transition-all duration-300 group shadow-lg hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+              className="login-btn w-full flex items-center justify-center gap-3 px-5 py-3 rounded-full transition-all duration-300 group shadow-lg hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
             >
               <svg className={`w-5 h-5 transition-transform duration-300 ${isHoveredMS ? 'scale-110' : ''}`} viewBox="0 0 23 23" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M0 0H10.8V10.8H0V0Z" fill="#F25022" />
@@ -144,11 +178,11 @@ const LoginPage = ({ onLoginSuccess, onMicrosoftLoginSuccess, loginError, setLog
                 <path d="M0 12.2H10.8V23H0V12.2Z" fill="#00A4EF" />
                 <path d="M12.2 12.2H23V23H12.2V12.2Z" fill="#FFB900" />
               </svg>
-              <span className="text-white font-semibold">Continue with Microsoft</span>
+              <span className="font-semibold">Continue with Microsoft</span>
             </button>
           </div>
 
-          <div className="mt-6 flex items-center gap-4 text-white/10">
+          <div className="mt-6 flex items-center gap-4 text-glass-border">
             <div className="flex-1 h-px bg-current"></div>
             <span className="text-[10px] uppercase tracking-widest font-black text-text-muted">Secure Access</span>
             <div className="flex-1 h-px bg-current"></div>

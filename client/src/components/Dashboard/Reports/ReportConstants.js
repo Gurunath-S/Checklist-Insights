@@ -5,7 +5,9 @@ export const POSITIONS = [
   'HUMAN_RESOURCE',
   'TESTING',
   'SALESFORCE',
-  'PUBLIC'
+  'PUBLIC',
+  'DIGITAL_TRANSFORMATION',
+  'MARKETING'
 ];
 
 export const DATE_PRESETS = [

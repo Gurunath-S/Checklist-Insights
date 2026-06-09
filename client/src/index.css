@@ -325,3 +325,26 @@
     transform: translateY(-12px) rotate(2deg);
   }
 }
+
+/* Custom login buttons style for light and dark theme compatibility */
+.login-btn {
+  background-color: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+.login-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-color: var(--color-primary);
+}
+
+[data-theme="light"] .login-btn {
+  background-color: #ffffff !important;
+  border-color: rgba(15, 23, 42, 0.12) !important;
+  color: #0f172a !important;
+  box-shadow: 0 4px 15px rgba(15, 23, 42, 0.05) !important;
+}
+[data-theme="light"] .login-btn:hover {
+  background-color: rgba(15, 23, 42, 0.03) !important;
+  border-color: var(--color-primary) !important;
+}

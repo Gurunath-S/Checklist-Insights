@@ -1,7 +1,6 @@
-import React from 'react';
-import { User, Palette, Check, Sparkles, Moon, Sun, Leaf } from 'lucide-react';
+import { User, Palette, Check, Sparkles, Moon, Sun, Leaf, HelpCircle, Play } from 'lucide-react';
 
-const SettingsPage = ({ user, currentTheme, onChangeTheme }) => {
+const SettingsPage = ({ user, currentTheme, onChangeTheme, onStartTour }) => {
   const themes = [
     {
       id: 'classic',
@@ -49,37 +48,65 @@ const SettingsPage = ({ user, currentTheme, onChangeTheme }) => {
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.8fr] gap-10">
         
-        {/* Left Side: Profile Card */}
-        <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-6 shadow-xl flex flex-col items-center text-center h-fit">
-          <div className="relative mb-4">
-            <img 
-              src={user?.image || `https://ui-avatars.com/api/?name=${user?.name || 'User'}&background=6366f1&color=fff`} 
-              alt="User Avatar" 
-              className="w-20 h-20 rounded-2xl object-cover border-2 border-glass-border shadow-2xl shadow-primary/20" 
-            />
-            <div className="absolute -bottom-2 -right-2 bg-primary text-white p-2 rounded-xl shadow-lg border border-glass-border">
-              <User size={16} />
+        {/* Left Side: Profile Card & Help Card */}
+        <div className="space-y-6 h-fit">
+          {/* Profile Card */}
+          <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-6 shadow-xl flex flex-col items-center text-center">
+            <div className="relative mb-4">
+              <img 
+                src={user?.image || `https://ui-avatars.com/api/?name=${user?.name || 'User'}&background=6366f1&color=fff`} 
+                alt="User Avatar" 
+                className="w-20 h-20 rounded-2xl object-cover border-2 border-glass-border shadow-2xl shadow-primary/20" 
+              />
+              <div className="absolute -bottom-2 -right-2 bg-primary text-white p-2 rounded-xl shadow-lg border border-glass-border">
+                <User size={16} />
+              </div>
+            </div>
+
+            <h3 className="text-lg font-bold text-white mb-1">{user?.name || 'User'}</h3>
+            <p className="text-sm text-text-muted mb-6">{user?.email || 'user@example.com'}</p>
+
+            <div className="w-full space-y-3 pt-4 border-t border-glass-border text-left">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-text-muted">Employee ID</span>
+                <span className="font-semibold text-white">{user?.employeeId || 'N/A'}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-text-muted">Current Role</span>
+                <span className="font-semibold text-accent capitalize">{user?.role || 'Team Member'}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-text-muted">Member Since</span>
+                <span className="font-semibold text-white">
+                  {user?.doj ? new Date(user.doj).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A'}
+                </span>
+              </div>
             </div>
           </div>
 
-          <h3 className="text-lg font-bold text-white mb-1">{user?.name || 'User'}</h3>
-          <p className="text-sm text-text-muted mb-6">{user?.email || 'user@example.com'}</p>
+          {/* Help & Assistance Card */}
+          <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-6 shadow-xl flex flex-col gap-4 text-left">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-primary/15 border border-primary/25 rounded-xl text-primary">
+                <HelpCircle size={20} />
+              </div>
+              <div>
+                <h4 className="text-base font-bold text-white">Interactive Help</h4>
+                <p className="text-[10px] text-text-muted">Guided tour of the workspace</p>
+              </div>
+            </div>
 
-          <div className="w-full space-y-3 pt-4 border-t border-glass-border text-left">
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-text-muted">Employee ID</span>
-              <span className="font-semibold text-white">{user?.employeeId || 'N/A'}</span>
-            </div>
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-text-muted">Current Role</span>
-              <span className="font-semibold text-accent capitalize">{user?.role || 'Team Member'}</span>
-            </div>
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-text-muted">Member Since</span>
-              <span className="font-semibold text-white">
-                {user?.doj ? new Date(user.doj).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A'}
-              </span>
-            </div>
+            <p className="text-xs text-text-muted leading-relaxed">
+              Explore the system layout, discover department-level filters, and learn about user exploration metrics step-by-step.
+            </p>
+
+            <button
+              onClick={onStartTour}
+              className="w-full flex items-center justify-center gap-2 py-3 bg-primary hover:bg-primary/95 text-white rounded-xl text-xs font-bold transition-all duration-300 shadow-lg shadow-primary/10 hover:shadow-primary/30 cursor-pointer"
+            >
+              <Play size={12} fill="currentColor" />
+              <span>Restart Tour Guide</span>
+            </button>
           </div>
         </div>
 
