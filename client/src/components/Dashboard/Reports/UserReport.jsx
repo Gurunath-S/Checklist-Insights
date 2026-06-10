@@ -188,7 +188,7 @@ export default function UserReport() {
                         </div>
                       </td>
                       <td className="px-6 py-4 capitalize font-semibold text-white">
-                        {u.user_position ? u.user_position.replace(/_/g, ' ').toLowerCase() : 'public'}
+                        {u.user_position ? (u.user_position === 'POWER_BI_DEVELOPER' ? 'data analytics' : u.user_position === 'TESTING' ? 'qa testing' : u.user_position.replace(/_/g, ' ').toLowerCase()) : 'public'}
                       </td>
                       <td className="px-6 py-4 font-semibold text-accent-light">
                         {u.total_submissions} checklists

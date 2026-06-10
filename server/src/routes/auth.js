@@ -49,10 +49,6 @@ router.post('/google', async (req, res) => {
       where: { user_id: userRecord.id },
     });
 
-    if (orgUser && orgUser.user_type?.trim() === 'DISABLED') {
-      return res.status(403).json({ error: 'Your account has been disabled. Please contact the administrator.' });
-    }
-
     if (!orgUser) {
       let defaultOrg = await prisma.organisation.findFirst();
       if (!defaultOrg) {
@@ -134,10 +130,6 @@ router.post('/microsoft', async (req, res) => {
       where: { user_id: userRecord.id },
     });
 
-    if (orgUser && orgUser.user_type?.trim() === 'DISABLED') {
-      return res.status(403).json({ error: 'Your account has been disabled. Please contact the administrator.' });
-    }
-
     if (!orgUser) {
       let defaultOrg = await prisma.organisation.findFirst();
       if (!defaultOrg) {
@@ -200,9 +192,6 @@ router.get('/verify', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    if (user.user_type?.trim() === 'DISABLED') {
-      return res.status(403).json({ error: 'Your account has been disabled. Please contact the administrator.' });
-    }
 
     const userData = {
       id: user.id,

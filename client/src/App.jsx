@@ -672,15 +672,18 @@ function App() {
                       >
                         System Overview
                       </button>
-                      {data?.usersByPositionTags?.map(tag => (
-                        <button
-                          key={tag.name}
-                          onClick={() => { setSelectedDepartment(tag.name); setInspectedUser(null); setInspectedData(null); setSelectedOrganisation(null); }}
-                          className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all border cursor-pointer capitalize ${selectedDepartment === tag.name && !inspectedUser ? 'bg-primary text-white border-primary shadow-lg shadow-primary/30' : 'bg-white/5 border-glass-border text-text-muted hover:text-white hover:bg-white/10'}`}
-                        >
-                          {tag.name === 'FULL_STACK_DEVELOPER' ? 'DEVELOPMENT' : tag.name.replace(/_/g, ' ')}
-                        </button>
-                      ))}
+                      {data?.usersByPositionTags?.filter(tag => tag.name !== 'PUBLIC')?.map(tag => {
+                        const label = tag.name === 'FULL_STACK_DEVELOPER' ? 'DEVELOPMENT' : tag.name === 'POWER_BI_DEVELOPER' ? 'DATA ANALYTICS' : tag.name === 'TESTING' ? 'QA TESTING' : tag.name.replace(/_/g, ' ');
+                        return (
+                          <button
+                            key={tag.name}
+                            onClick={() => { setSelectedDepartment(tag.name); setInspectedUser(null); setInspectedData(null); setSelectedOrganisation(null); }}
+                            className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all border cursor-pointer capitalize ${selectedDepartment === tag.name && !inspectedUser ? 'bg-primary text-white border-primary shadow-lg shadow-primary/30' : 'bg-white/5 border-glass-border text-text-muted hover:text-white hover:bg-white/10'}`}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -742,7 +745,7 @@ function App() {
                               if (filtered.length === 0) {
                                 return (
                                   <div className="text-center py-3 text-text-muted text-xs">
-                                    No users found for {selectedDepartment === 'Overview' ? 'this search' : `the ${selectedDepartment === 'FULL_STACK_DEVELOPER' ? 'Development' : selectedDepartment.replace(/_/g, ' ')} department`}
+                                    No users found for {selectedDepartment === 'Overview' ? 'this search' : `the ${selectedDepartment === 'FULL_STACK_DEVELOPER' ? 'Development' : selectedDepartment === 'POWER_BI_DEVELOPER' ? 'Data Analytics' : selectedDepartment.replace(/_/g, ' ')} department`}
                                   </div>
                                 );
                               }
@@ -764,7 +767,7 @@ function App() {
                                     <span className="text-[10px] text-text-muted truncate">{u.email}</span>
                                   </div>
                                   <span className="text-[9px] font-black uppercase tracking-wider bg-white/5 border border-white/10 px-2 py-0.5 rounded-full text-white/60 capitalize shrink-0 ml-2">
-                                    {u.user_position.replace(/_/g, ' ')}
+                                    {u.user_position === 'POWER_BI_DEVELOPER' ? 'Data Analytics' : u.user_position.replace(/_/g, ' ')}
                                   </span>
                                 </button>
                               ));
@@ -802,7 +805,7 @@ function App() {
                                 Viewing {inspectedUser.name}'s Personalized Dashboard
                               </h2>
                               <p className="text-xs text-text-muted mt-0.5">
-                                Role: <span className="text-white font-semibold">{inspectedUser.user_position}</span> | Type: <span className="text-white font-semibold">{inspectedUser.user_type}</span>
+                                Role: <span className="text-white font-semibold">{inspectedUser.user_position === 'POWER_BI_DEVELOPER' ? 'Data Analytics' : inspectedUser.user_position.replace(/_/g, ' ')}</span> | Type: <span className="text-white font-semibold">{inspectedUser.user_type}</span>
                               </p>
                             </div>
                           </div>

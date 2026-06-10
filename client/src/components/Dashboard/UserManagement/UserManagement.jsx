@@ -264,7 +264,7 @@ export default function UserManagement({ currentUser }) {
                     }}
                     className={`w-full text-left px-3 py-2 rounded-xl text-xs transition-all hover:bg-white/5 ${filterPosition === p ? 'bg-primary/10 text-white font-semibold' : 'text-text-muted'}`}
                   >
-                    {p.replace(/_/g, ' ')}
+                    {p === 'POWER_BI_DEVELOPER' ? 'DATA ANALYTICS' : p === 'TESTING' ? 'QA TESTING' : p.replace(/_/g, ' ')}
                   </button>
                 ))}
               </div>
@@ -401,7 +401,7 @@ export default function UserManagement({ currentUser }) {
                         </div>
                       </td>
                       <td className="px-6 py-4 font-semibold text-white capitalize">
-                        {u.user_position.replace(/_/g, ' ').toLowerCase()}
+                        {u.user_position === 'POWER_BI_DEVELOPER' ? 'data analytics' : u.user_position === 'TESTING' ? 'qa testing' : u.user_position.replace(/_/g, ' ').toLowerCase()}
                       </td>
                       <td className="px-6 py-4 font-semibold text-text-muted">
                         {u.organisation || 'N/A'}
@@ -621,7 +621,7 @@ export default function UserManagement({ currentUser }) {
                           }}
                           className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-all hover:bg-white/5 ${editPosition === p ? 'bg-primary/10 text-white font-semibold' : 'text-text-muted'}`}
                         >
-                          {p.replace(/_/g, ' ')}
+                          {p === 'POWER_BI_DEVELOPER' ? 'Data Analytics' : p === 'TESTING' ? 'QA Testing' : p.replace(/_/g, ' ')}
                         </button>
                       ))}
                     </div>

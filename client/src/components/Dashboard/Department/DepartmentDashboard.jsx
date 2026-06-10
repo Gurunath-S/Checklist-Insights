@@ -19,8 +19,11 @@ const getMetricIcon = (name) => {
   return <Activity />;
 };
 
-const ColorfulCard = ({ color, icon, label, value }) => (
-  <div className={`bg-linear-to-br ${color} rounded-2xl p-4 flex flex-col items-center justify-center gap-2 text-white shadow-xl shadow-black/20 hover:-translate-y-2 hover:scale-105 transition-all duration-300 cursor-default aspect-square lg:aspect-auto min-h-[100px]`}>
+const ColorfulCard = ({ color, icon, label, value, onClick }) => (
+  <div 
+    onClick={onClick}
+    className={`bg-linear-to-br ${color} rounded-2xl p-4 flex flex-col items-center justify-center gap-2 text-white shadow-xl shadow-black/20 hover:-translate-y-2 hover:scale-105 transition-all duration-300 ${onClick ? 'cursor-pointer hover:shadow-primary/20' : 'cursor-default'} aspect-square lg:aspect-auto min-h-[100px]`}
+  >
     {React.cloneElement(icon, { size: 24, className: "opacity-90" })}
     <span className="text-[0.7rem] font-bold uppercase tracking-wide opacity-80 text-center truncate w-full" title={label}>{label}</span>
     <span className="text-xl font-extrabold">{value}</span>
@@ -135,6 +138,8 @@ const DepartmentDashboard = ({ department, adminStartDate, adminEndDate, onDoubl
   const isDT = department && (department.toUpperCase() === 'DIGITAL TRANSFORMATION' || department.toUpperCase() === 'DIGITAL_TRANSFORMATION' || department.toUpperCase() === 'DT');
   const isMarketing = department && (department.toUpperCase() === 'MARKETING' || department.toUpperCase() === 'MARKETTNG');
   const isDev = department && (department.toUpperCase() === 'FULL_STACK_DEVELOPER' || department.toUpperCase() === 'DEVELOPMENT' || department.toUpperCase() === 'DEV');
+  const isDataAnalytics = department && (department.toUpperCase() === 'POWER_BI_DEVELOPER' || department.toUpperCase() === 'POWER BI DEVELOPER' || department.toUpperCase() === 'DATA_ANALYTICS' || department.toUpperCase() === 'DATA ANALYTICS');
+  const isTesting = department && (department.toUpperCase() === 'TESTING' || department.toUpperCase() === 'QA TESTING' || department.toUpperCase() === 'QA_TESTING');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -147,6 +152,86 @@ const DepartmentDashboard = ({ department, adminStartDate, adminEndDate, onDoubl
   const [loadingChart, setLoadingChart] = useState(false);
   const [meetingsLimit, setMeetingsLimit] = useState(3);
   const [closuresLimit, setClosuresLimit] = useState(3);
+  const [analyticsTimeOption, setAnalyticsTimeOption] = useState('monthly');
+  const [testingTimeOption, setTestingTimeOption] = useState('monthly');
+
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [isUsersModalOpen, setIsUsersModalOpen] = useState(false);
+  const [deptUsers, setDeptUsers] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [usersError, setUsersError] = useState(null);
+  const [actionInProgress, setActionInProgress] = useState(null);
+
+  const refreshDashboardData = () => {
+    setRefreshTrigger(prev => prev + 1);
+  };
+
+  const fetchDeptUsers = async () => {
+    if (!department) return;
+    setLoadingUsers(true);
+    setUsersError(null);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.get(`${API_BASE}/insights/admin/department/${department}/users`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setDeptUsers(res.data);
+    } catch (err) {
+      console.error("Failed to fetch department users", err);
+      setUsersError("Failed to load department users.");
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  const handleUsersCardClick = () => {
+    setIsUsersModalOpen(true);
+    fetchDeptUsers();
+  };
+
+  const handleToggleExclude = async (user) => {
+    setActionInProgress(user.id);
+    try {
+      const token = localStorage.getItem('token');
+      const targetExclude = !user.exclude_from_reports;
+      await axios.put(`${API_BASE}/insights/admin/users/${user.id}/exclude`, 
+        { exclude: targetExclude },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setDeptUsers(prev => prev.map(u => u.id === user.id ? { ...u, exclude_from_reports: targetExclude } : u));
+      refreshDashboardData();
+    } catch (err) {
+      console.error("Failed to toggle user data exclusion", err);
+      alert(err.response?.data?.error || "Failed to update data exclusion status");
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  const handleToggleDeactivate = async (user) => {
+    setActionInProgress(user.id);
+    try {
+      const token = localStorage.getItem('token');
+      const isActive = user.user_type !== 'DISABLED';
+      if (isActive) {
+        await axios.delete(`${API_BASE}/insights/admin/users/${user.id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setDeptUsers(prev => prev.map(u => u.id === user.id ? { ...u, user_type: 'DISABLED' } : u));
+      } else {
+        await axios.put(`${API_BASE}/insights/admin/users/${user.id}/enable`, {}, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setDeptUsers(prev => prev.map(u => u.id === user.id ? { ...u, user_type: 'USER' } : u));
+      }
+      refreshDashboardData();
+    } catch (err) {
+      console.error("Failed to toggle user activation status", err);
+      alert(err.response?.data?.error || "Failed to update user status");
+    } finally {
+      setActionInProgress(null);
+    }
+  };
 
   useEffect(() => {
     const fetchDepartmentData = async () => {
@@ -174,7 +259,7 @@ const DepartmentDashboard = ({ department, adminStartDate, adminEndDate, onDoubl
     if (department) {
       fetchDepartmentData();
     }
-  }, [department, adminStartDate, adminEndDate]);
+  }, [department, adminStartDate, adminEndDate, refreshTrigger]);
 
   useEffect(() => {
     Promise.resolve().then(() => setPage(1));
@@ -205,7 +290,7 @@ const DepartmentDashboard = ({ department, adminStartDate, adminEndDate, onDoubl
     };
 
     fetchChartData();
-  }, [department, page, limit, adminStartDate, adminEndDate]);
+  }, [department, page, limit, adminStartDate, adminEndDate, refreshTrigger]);
 
   if (loading) return <LoadingState />;
   if (error) return <div className="text-danger text-center p-8">{error}</div>;
@@ -338,12 +423,80 @@ const DepartmentDashboard = ({ department, adminStartDate, adminEndDate, onDoubl
   return (
     <div className="space-y-8 animate-fade-in">
       <div className="flex items-center justify-between mb-2">
-        <h2 className="text-xl font-bold text-white capitalize">{department.replace(/_/g, ' ')}</h2>
+        <h2 className="text-xl font-bold text-white capitalize">{isDataAnalytics ? 'Data Analytics' : department.replace(/_/g, ' ')}</h2>
       </div>
 
       {/* KPI Cards Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-        {isDev ? (
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+        {isDataAnalytics ? (
+          <>
+            <ColorfulCard 
+              color="from-indigo-600 to-indigo-800" 
+              icon={<Send />} 
+              label="Total Submissions" 
+              value={data.submissionsCount || 0} 
+            />
+            <ColorfulCard 
+              color="from-purple-500 to-purple-700" 
+              icon={<Users />} 
+              label="Analysts" 
+              value={data.usersCount || 0}
+              onClick={() => handleUsersCardClick()}
+            />
+            <ColorfulCard 
+              color="from-rose-500 to-rose-700" 
+              icon={<CheckSquare />} 
+              label="Task / Day" 
+              value={data.analyticsData?.tasksPerDay || 0} 
+            />
+            <ColorfulCard 
+              color="from-emerald-500 to-emerald-700" 
+              icon={<Calendar />} 
+              label="Last Submitted Date" 
+              value={formatDate(data.latestSubmissionDate)} 
+            />
+            <ColorfulCard 
+              color="from-amber-500 to-amber-700" 
+              icon={<TrendingUp />} 
+              label="Completion Rate" 
+              value={`${data.completionRate?.toFixed(1) || '0.0'}%`} 
+            />
+          </>
+        ) : isTesting ? (
+          <>
+            <ColorfulCard 
+              color="from-indigo-600 to-indigo-800" 
+              icon={<Send />} 
+              label="Total Submissions" 
+              value={data.submissionsCount || 0} 
+            />
+            <ColorfulCard 
+              color="from-purple-500 to-purple-700" 
+              icon={<Users />} 
+              label="Testers" 
+              value={data.usersCount || 0}
+              onClick={() => handleUsersCardClick()}
+            />
+            <ColorfulCard 
+              color="from-rose-500 to-rose-700" 
+              icon={<CheckSquare />} 
+              label="Tasks / Day" 
+              value={data.testingData?.tasksPerDay || 0} 
+            />
+            <ColorfulCard 
+              color="from-emerald-500 to-emerald-700" 
+              icon={<Calendar />} 
+              label="Last Submitted Day" 
+              value={formatDate(data.latestSubmissionDate)} 
+            />
+            <ColorfulCard 
+              color="from-amber-500 to-amber-700" 
+              icon={<TrendingUp />} 
+              label="Completion Rate" 
+              value={`${data.completionRate?.toFixed(1) || '0.0'}%`} 
+            />
+          </>
+        ) : isDev ? (
           <>
             <ColorfulCard 
               color="from-indigo-600 to-indigo-800" 
@@ -355,7 +508,8 @@ const DepartmentDashboard = ({ department, adminStartDate, adminEndDate, onDoubl
               color="from-purple-500 to-purple-700" 
               icon={<Users />} 
               label="Developers" 
-              value={data.devData?.developersCount || 0} 
+              value={data.usersCount || data.devData?.developersCount || 0} 
+              onClick={() => handleUsersCardClick()}
             />
             <ColorfulCard 
               color="from-rose-500 to-rose-700" 
@@ -383,6 +537,13 @@ const DepartmentDashboard = ({ department, adminStartDate, adminEndDate, onDoubl
               icon={<Send />} 
               label="Total Submissions" 
               value={data.submissionsCount || 0} 
+            />
+            <ColorfulCard 
+              color="from-purple-500 to-purple-700" 
+              icon={<Users />} 
+              label="Employees" 
+              value={data.usersCount || 0}
+              onClick={() => handleUsersCardClick()}
             />
             <ColorfulCard 
               color="from-purple-500 to-purple-700" 
@@ -430,6 +591,13 @@ const DepartmentDashboard = ({ department, adminStartDate, adminEndDate, onDoubl
               value={data.submissionsCount || 0} 
             />
             <ColorfulCard 
+              color="from-purple-500 to-purple-700" 
+              icon={<Users />} 
+              label="DT Specialists" 
+              value={data.usersCount || 0}
+              onClick={() => handleUsersCardClick()}
+            />
+            <ColorfulCard 
               color="from-rose-500 to-rose-700" 
               icon={<PlusCircle />} 
               label="Tasks Entered" 
@@ -455,6 +623,13 @@ const DepartmentDashboard = ({ department, adminStartDate, adminEndDate, onDoubl
               icon={<Send />} 
               label="Total Submissions" 
               value={data.submissionsCount || 0} 
+            />
+            <ColorfulCard 
+              color="from-purple-500 to-purple-700" 
+              icon={<Users />} 
+              label="Marketers" 
+              value={data.usersCount || 0}
+              onClick={() => handleUsersCardClick()}
             />
             <ColorfulCard 
               color="from-blue-500 to-indigo-700" 
@@ -496,7 +671,8 @@ const DepartmentDashboard = ({ department, adminStartDate, adminEndDate, onDoubl
               color="from-purple-500 to-purple-700" 
               icon={<Users />} 
               label="Sales Persons" 
-              value={data.salesData?.totalSalesPersons || 0} 
+              value={data.usersCount || data.salesData?.totalSalesPersons || 0} 
+              onClick={() => handleUsersCardClick()}
             />
             <ColorfulCard 
               color="from-emerald-500 to-emerald-700" 
@@ -524,6 +700,19 @@ const DepartmentDashboard = ({ department, adminStartDate, adminEndDate, onDoubl
               icon={<Send />} 
               label="Submissions" 
               value={data.submissionsCount || 0} 
+            />
+            <ColorfulCard 
+              color="from-purple-500 to-purple-700" 
+              icon={<Users />} 
+              label={(() => {
+                const deptUpper = department?.toUpperCase() || '';
+                if (deptUpper === 'TESTING') return 'Testers';
+                if (deptUpper === 'SALESFORCE') return 'Salesforce Developers';
+                if (deptUpper === 'PUBLIC') return 'Public Users';
+                return 'Users';
+              })()} 
+              value={data.usersCount || 0}
+              onClick={() => handleUsersCardClick()}
             />
 
             {(() => {
@@ -696,6 +885,146 @@ const DepartmentDashboard = ({ department, adminStartDate, adminEndDate, onDoubl
 
           {renderChecklistByInputs()}
         </div>
+      ) : isDataAnalytics && data.analyticsData ? (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          {renderChecklistByInputs()}
+
+          {/* Avg Dashboard Updated Items */}
+          <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-4 shadow-xl flex flex-col h-[350px]">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-base font-bold text-white">Avg Dashboard Updated Items</h3>
+              <div className="flex gap-1.5 bg-white/5 border border-glass-border p-0.5 rounded-xl">
+                {['monthly', 'yearly'].map(timeOpt => (
+                  <button
+                    key={timeOpt}
+                    onClick={() => setAnalyticsTimeOption(timeOpt)}
+                    className={`px-3 py-1 text-[10px] font-bold rounded-lg transition-all capitalize cursor-pointer ${
+                      analyticsTimeOption === timeOpt 
+                        ? 'bg-primary text-white shadow-md' 
+                        : 'text-text-muted hover:text-white'
+                    }`}
+                  >
+                    {timeOpt}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex-1 w-full min-h-0">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
+                <AreaChart 
+                  data={analyticsTimeOption === 'monthly' ? data.analyticsData.dashboardUpdatedMonthly : data.analyticsData.dashboardUpdatedYearly} 
+                  margin={{ top: 20, right: 30, left: 0, bottom: 0 }}
+                >
+                  <defs>
+                    <linearGradient id="colorDashUpdated" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <XAxis dataKey="name" stroke="var(--color-text-muted)" fontSize={11} tickLine={false} axisLine={false} />
+                  <YAxis stroke="#fff" fontSize={11} tickLine={false} axisLine={false} />
+                  <RechartsTooltip 
+                    contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }}
+                    itemStyle={{ color: '#fff' }}
+                  />
+                  <Area type="monotone" dataKey="value" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorDashUpdated)" dot={{r: 6, fill: '#10b981', stroke: '#fff', strokeWidth: 2}} activeDot={{r: 8}} label={{ position: 'top', fill: '#fff', fontSize: 11, fontWeight: 'bold' }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Tasks Completed by Analysts */}
+          <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-4 shadow-xl flex flex-col h-[350px]">
+            <h3 className="text-base font-bold text-white mb-4 text-center">Tasks Completed by Analysts</h3>
+            <div className="flex-1 w-full min-h-0">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
+                <BarChart data={data.analyticsData.tasksCompletedByUser} margin={{ top: 20, right: 30, left: 10, bottom: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <XAxis dataKey="name" stroke="var(--color-text-muted)" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => val.length > 10 ? val.substring(0, 10) + '...' : val} />
+                  <YAxis stroke="#fff" fontSize={11} tickLine={false} axisLine={false} />
+                  <RechartsTooltip 
+                    contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }}
+                    itemStyle={{ color: '#fff' }}
+                  />
+                  <Bar dataKey="value" fill="#8b5cf6" radius={[6, 6, 0, 0]} barSize={24} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      ) : isTesting && data.testingData ? (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          {/* Top Checklist Items Chart */}
+          <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-4 shadow-xl flex flex-col h-[350px]">
+            <h3 className="text-base font-bold text-white mb-4 text-center">Top Checklist Items</h3>
+            <div className="flex-1 w-full min-h-0">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
+                <BarChart data={data.testingData.topChecklistItems} margin={{ top: 20, right: 30, left: 10, bottom: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <XAxis dataKey="name" stroke="var(--color-text-muted)" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => val.length > 15 ? val.substring(0, 15) + '...' : val} />
+                  <YAxis stroke="#fff" fontSize={11} tickLine={false} axisLine={false} />
+                  <RechartsTooltip 
+                    contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }}
+                    itemStyle={{ color: '#fff' }}
+                  />
+                  <Bar dataKey="value" fill="#3b82f6" radius={[6, 6, 0, 0]} barSize={24} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Bugs in Manual Test Graph */}
+          <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-4 shadow-xl flex flex-col h-[350px]">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-base font-bold text-white">Bugs in Manual Test</h3>
+              <div className="flex gap-1.5 bg-white/5 border border-glass-border p-0.5 rounded-xl">
+                {['daily', 'monthly', 'yearly'].map(timeOpt => (
+                  <button
+                    key={timeOpt}
+                    onClick={() => setTestingTimeOption(timeOpt)}
+                    className={`px-3 py-1 text-[10px] font-bold rounded-lg transition-all capitalize cursor-pointer ${
+                      testingTimeOption === timeOpt 
+                        ? 'bg-primary text-white shadow-md' 
+                        : 'text-text-muted hover:text-white'
+                    }`}
+                  >
+                    {timeOpt}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex-1 w-full min-h-0">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
+                <AreaChart 
+                  data={
+                    testingTimeOption === 'daily' 
+                      ? data.testingData.bugsDaily 
+                      : testingTimeOption === 'monthly' 
+                        ? data.testingData.bugsMonthly 
+                        : data.testingData.bugsYearly
+                  } 
+                  margin={{ top: 20, right: 30, left: 0, bottom: 0 }}
+                >
+                  <defs>
+                    <linearGradient id="colorBugsManual" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#f43f5e" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <XAxis dataKey="name" stroke="var(--color-text-muted)" fontSize={11} tickLine={false} axisLine={false} />
+                  <YAxis stroke="#fff" fontSize={11} tickLine={false} axisLine={false} />
+                  <RechartsTooltip 
+                    contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }}
+                    itemStyle={{ color: '#fff' }}
+                  />
+                  <Area type="monotone" dataKey="value" stroke="#f43f5e" strokeWidth={3} fillOpacity={1} fill="url(#colorBugsManual)" dot={{r: 6, fill: '#f43f5e', stroke: '#fff', strokeWidth: 2}} activeDot={{r: 8}} label={{ position: 'top', fill: '#fff', fontSize: 11, fontWeight: 'bold' }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
       ) : isDev && data.devData ? (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           {renderChecklistByInputs()}
@@ -819,7 +1148,8 @@ const DepartmentDashboard = ({ department, adminStartDate, adminEndDate, onDoubl
           </div>
         </div>
       ) : isSales && data.salesData ? (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           {/* Chart 1: Prospects Identified (Recent Months) */}
           <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-4 shadow-xl flex flex-col h-[350px]">
             <h3 className="text-base font-bold text-white mb-4 text-center">Prospects Identified (Recent Months)</h3>
@@ -1015,6 +1345,182 @@ const DepartmentDashboard = ({ department, adminStartDate, adminEndDate, onDoubl
 
           {/* Chart 8: Top 10 checklist by input */}
           {renderChecklistByInputs()}
+          </div>
+
+        {/* ─── Sales Qualification Sub-Dashboard ─── */}
+        {data.salesQualificationData && (
+          <div className="space-y-6 mt-2">
+            {/* Section Title */}
+            <div className="flex items-center gap-3">
+              <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+              <span className="text-xs font-black uppercase tracking-widest text-accent px-3 py-1 bg-accent/10 border border-accent/20 rounded-full">
+                Sales Qualification Insights
+              </span>
+              <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+            </div>
+
+            {/* KPI Cards Row */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <ColorfulCard
+                color="from-violet-600 to-violet-800"
+                icon={<Users />}
+                label="Client Qualifications"
+                value={data.salesQualificationData.totalQualifications}
+              />
+              <ColorfulCard
+                color="from-emerald-500 to-emerald-700"
+                icon={<CheckCircle />}
+                label="Qualified"
+                value={data.salesQualificationData.qualifiedCount}
+              />
+              <ColorfulCard
+                color="from-amber-500 to-amber-700"
+                icon={<Clock />}
+                label="Avg Wait Before Proposal"
+                value={`${data.salesQualificationData.avgWaitBeforeProposal} days`}
+              />
+              <ColorfulCard
+                color="from-rose-500 to-rose-700"
+                icon={<Activity />}
+                label="Dur. of Call / Meet"
+                value={`${data.salesQualificationData.avgCallDuration} hrs`}
+              />
+            </div>
+
+            {/* Charts Row: 3 gauges */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Gauge 1: Has Budget */}
+              <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-5 shadow-xl flex flex-col items-center justify-center h-[280px] relative overflow-hidden">
+                <h3 className="text-sm font-bold text-white mb-1 text-center">Has Budget?</h3>
+                <div className="w-full flex-1 relative">
+                  <ResponsiveContainer width="100%" height="100%" debounce={100}>
+                    <PieChart>
+                      <defs>
+                        <linearGradient id="sqBudgetGrad" x1="0" y1="0" x2="1" y2="0">
+                          <stop offset="0%" stopColor="#f59e0b" />
+                          <stop offset="60%" stopColor="#10b981" />
+                          <stop offset="100%" stopColor="#3b82f6" />
+                        </linearGradient>
+                      </defs>
+                      <Pie
+                        data={[
+                          { name: 'Yes', value: data.salesQualificationData.hasBudgetPercent },
+                          { name: 'No', value: Math.max(0, 100 - data.salesQualificationData.hasBudgetPercent) }
+                        ]}
+                        cx="50%" cy="80%"
+                        startAngle={180} endAngle={0}
+                        innerRadius="60%" outerRadius="90%"
+                        dataKey="value" stroke="none"
+                      >
+                        <Cell fill="url(#sqBudgetGrad)" />
+                        <Cell fill="rgba(255,255,255,0.06)" />
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="absolute inset-x-0 bottom-0 flex flex-col items-center pb-2">
+                    <span className="text-3xl font-extrabold text-white">{data.salesQualificationData.hasBudgetPercent}%</span>
+                    <span className="text-[10px] text-text-muted font-bold mt-0.5">of prospects</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Gauge 2: Prospect Received Brochure */}
+              <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-5 shadow-xl flex flex-col items-center justify-center h-[280px] relative overflow-hidden">
+                <h3 className="text-sm font-bold text-white mb-1 text-center">Prospect Received Brochure?</h3>
+                <div className="w-full flex-1 relative">
+                  <ResponsiveContainer width="100%" height="100%" debounce={100}>
+                    <PieChart>
+                      <defs>
+                        <linearGradient id="sqBrochureGrad" x1="0" y1="0" x2="1" y2="0">
+                          <stop offset="0%" stopColor="#a855f7" />
+                          <stop offset="60%" stopColor="#ec4899" />
+                          <stop offset="100%" stopColor="#f43f5e" />
+                        </linearGradient>
+                      </defs>
+                      <Pie
+                        data={[
+                          { name: 'Yes', value: data.salesQualificationData.brochurePercent },
+                          { name: 'No', value: Math.max(0, 100 - data.salesQualificationData.brochurePercent) }
+                        ]}
+                        cx="50%" cy="80%"
+                        startAngle={180} endAngle={0}
+                        innerRadius="60%" outerRadius="90%"
+                        dataKey="value" stroke="none"
+                      >
+                        <Cell fill="url(#sqBrochureGrad)" />
+                        <Cell fill="rgba(255,255,255,0.06)" />
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="absolute inset-x-0 bottom-0 flex flex-col items-center pb-2">
+                    <span className="text-3xl font-extrabold text-white">{data.salesQualificationData.brochurePercent}%</span>
+                    <span className="text-[10px] text-text-muted font-bold mt-0.5">of prospects</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Gauge 3: Referral */}
+              <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-5 shadow-xl flex flex-col items-center justify-center h-[280px] relative overflow-hidden">
+                <h3 className="text-sm font-bold text-white mb-1 text-center">Is a Referral?</h3>
+                <div className="w-full flex-1 relative">
+                  <ResponsiveContainer width="100%" height="100%" debounce={100}>
+                    <PieChart>
+                      <defs>
+                        <linearGradient id="sqReferralGrad" x1="0" y1="0" x2="1" y2="0">
+                          <stop offset="0%" stopColor="#06b6d4" />
+                          <stop offset="60%" stopColor="#3b82f6" />
+                          <stop offset="100%" stopColor="#6366f1" />
+                        </linearGradient>
+                      </defs>
+                      <Pie
+                        data={[
+                          { name: 'Yes', value: data.salesQualificationData.referralPercent },
+                          { name: 'No', value: Math.max(0, 100 - data.salesQualificationData.referralPercent) }
+                        ]}
+                        cx="50%" cy="80%"
+                        startAngle={180} endAngle={0}
+                        innerRadius="60%" outerRadius="90%"
+                        dataKey="value" stroke="none"
+                      >
+                        <Cell fill="url(#sqReferralGrad)" />
+                        <Cell fill="rgba(255,255,255,0.06)" />
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="absolute inset-x-0 bottom-0 flex flex-col items-center pb-2">
+                    <span className="text-3xl font-extrabold text-white">{data.salesQualificationData.referralPercent}%</span>
+                    <span className="text-[10px] text-text-muted font-bold mt-0.5">of prospects</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Full-width: Agreed for Follow-up Meeting trend */}
+            <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-6 shadow-xl flex flex-col h-[350px]">
+              <h3 className="text-base font-bold text-white mb-4 text-center">Agreed for Follow-up Meeting</h3>
+              <div className="flex-1 w-full min-h-0">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
+                  <AreaChart data={data.salesQualificationData.followUpMeetingTrend} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="sqFollowUpGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.35} />
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                    <XAxis dataKey="name" stroke="var(--color-text-muted)" fontSize={11} tickLine={false} axisLine={false} minTickGap={30} />
+                    <YAxis stroke="#fff" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
+                    <RechartsTooltip
+                      contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }}
+                      itemStyle={{ color: '#fff' }}
+                    />
+                    <Area type="monotone" dataKey="value" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#sqFollowUpGrad)" dot={{ r: 6, fill: '#10b981', stroke: '#fff', strokeWidth: 2 }} activeDot={{ r: 8 }} label={{ position: 'top', fill: '#fff', fontSize: 11, fontWeight: 'bold' }} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+        )}
         </div>
       ) : (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 h-[380px]">
@@ -1070,6 +1576,126 @@ const DepartmentDashboard = ({ department, adminStartDate, adminEndDate, onDoubl
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {isUsersModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div 
+            className="absolute inset-0 bg-black/60 backdrop-blur-md" 
+            onClick={() => setIsUsersModalOpen(false)}
+          ></div>
+          
+          <div className="relative w-full max-w-4xl bg-bg-card backdrop-blur-2xl border border-glass-border rounded-3xl p-6 shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between pb-4 border-b border-white/10">
+              <div>
+                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                  <Users className="text-primary" />
+                  <span>{isDataAnalytics ? 'Data Analytics' : department.replace(/_/g, ' ')} Department Members</span>
+                </h3>
+                <p className="text-xs text-text-muted mt-1">
+                  Manage user profiles, exclude data from reports, or deactivate accounts.
+                </p>
+              </div>
+              <button 
+                onClick={() => setIsUsersModalOpen(false)}
+                className="p-2 text-text-muted hover:text-white rounded-xl hover:bg-white/5 transition-all cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto py-4 min-h-[200px]">
+              {loadingUsers ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-3">
+                  <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary"></div>
+                  <span className="text-xs text-text-muted font-bold">Loading department members...</span>
+                </div>
+              ) : usersError ? (
+                <div className="text-center py-12 text-rose-500 text-sm font-semibold">
+                  {usersError}
+                </div>
+              ) : deptUsers.length === 0 ? (
+                <div className="text-center py-12 text-text-muted text-sm font-semibold">
+                  No members found in this department.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-white/5 text-[10px] uppercase tracking-wider text-text-muted font-black">
+                        <th className="pb-3 pl-2">User</th>
+                        <th className="pb-3">Email</th>
+                        <th className="pb-3 text-center">Status</th>
+                        <th className="pb-3 text-center">Report Exclusion</th>
+                        <th className="pb-3 pr-2 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {deptUsers.map(u => {
+                        const isExcluded = u.exclude_from_reports;
+                        const isDisabled = u.user_type === 'DISABLED';
+                        const isWorking = actionInProgress === u.id;
+                        
+                        return (
+                          <tr key={u.id} className="text-xs text-white hover:bg-white/[0.02] transition-colors">
+                            <td className="py-3 pl-2 flex items-center gap-2.5 font-bold">
+                              {u.image ? (
+                                <img src={u.image} alt={u.name} className="w-7 h-7 rounded-full object-cover border border-white/10" />
+                              ) : (
+                                <div className="w-7 h-7 rounded-full bg-primary/20 text-primary flex items-center justify-center font-black uppercase text-[10px]">
+                                  {u.name.slice(0, 2)}
+                                </div>
+                              )}
+                              <span>{u.name}</span>
+                            </td>
+                            <td className="py-3 text-text-muted font-medium">{u.email}</td>
+                            <td className="py-3 text-center">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black tracking-wide ${isDisabled ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'}`}>
+                                {isDisabled ? 'INACTIVE' : 'ACTIVE'}
+                              </span>
+                            </td>
+                            <td className="py-3 text-center">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black tracking-wide ${isExcluded ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-slate-500/10 text-slate-400 border border-slate-500/20'}`}>
+                                {isExcluded ? 'EXCLUDED' : 'INCLUDED'}
+                              </span>
+                            </td>
+                            <td className="py-3 pr-2 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  disabled={isWorking}
+                                  onClick={() => handleToggleExclude(u)}
+                                  className={`px-3 py-1 rounded-xl text-[10px] font-bold transition-all border cursor-pointer ${isExcluded ? 'bg-slate-500/10 border-slate-500/20 text-slate-300 hover:bg-slate-500/20' : 'bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/20'}`}
+                                >
+                                  {isWorking ? '...' : isExcluded ? 'Include Data' : 'Exclude Data'}
+                                </button>
+                                <button
+                                  disabled={isWorking}
+                                  onClick={() => handleToggleDeactivate(u)}
+                                  className={`px-3 py-1 rounded-xl text-[10px] font-bold transition-all border cursor-pointer ${isDisabled ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20' : 'bg-rose-500/10 border-rose-500/20 text-rose-400 hover:bg-rose-500/20'}`}
+                                >
+                                  {isWorking ? '...' : isDisabled ? 'Activate' : 'Deactivate'}
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+            
+            <div className="pt-4 border-t border-white/10 flex justify-end">
+              <button 
+                onClick={() => setIsUsersModalOpen(false)}
+                className="px-4 py-2 bg-white/5 border border-glass-border hover:bg-white/10 text-white font-bold rounded-2xl text-xs transition-all cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

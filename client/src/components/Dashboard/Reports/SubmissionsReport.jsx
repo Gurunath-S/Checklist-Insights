@@ -140,7 +140,7 @@ export default function SubmissionsReport() {
                       onClick={() => { setPosition(p); setIsPosOpen(false); }}
                       className={`w-full text-left px-3 py-2 rounded-xl text-xs transition-all hover:bg-white/5 ${position === p ? 'bg-primary/10 text-white font-semibold' : 'text-text-muted'}`}
                     >
-                      {p.replace(/_/g, ' ')}
+                      {p === 'POWER_BI_DEVELOPER' ? 'DATA ANALYTICS' : p === 'TESTING' ? 'QA TESTING' : p.replace(/_/g, ' ')}
                     </button>
                   ))}
                 </div>
@@ -266,7 +266,7 @@ export default function SubmissionsReport() {
                           </div>
                         </td>
                         <td className="px-6 py-4 capitalize font-semibold text-white">
-                          {r.user_position ? r.user_position.replace(/_/g, ' ').toLowerCase() : 'public'}
+                          {r.user_position ? (r.user_position === 'POWER_BI_DEVELOPER' ? 'data analytics' : r.user_position === 'TESTING' ? 'qa testing' : r.user_position.replace(/_/g, ' ').toLowerCase()) : 'public'}
                         </td>
                         <td className="px-6 py-4 font-semibold text-accent">{r.template_name}</td>
                         <td className="px-6 py-4 text-white">

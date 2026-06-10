@@ -380,7 +380,17 @@ router.get('/admin/summary', authenticateToken, async (req, res) => {
 
     const [userCount, submissionCount, templateCount, tagCount, itemCount, typeStatsRaw, tagsByPosRaw, orgUserPosRaw] = await Promise.all([
       prisma.organisation_Users.count(),
-      prisma.checklist_item_response.count({ where: Object.keys(dateFilter).length ? dateFilter : undefined }),
+      prisma.checklist_item_response.count({ 
+        where: {
+          ...(Object.keys(dateFilter).length ? dateFilter : {}),
+          user: {
+            OR: [
+              { exclude_from_reports: null },
+              { exclude_from_reports: false }
+            ]
+          }
+        }
+      }),
       prisma.checklist_template.count(),
       prisma.tags.count(),
       prisma.checklist_items.count(),
@@ -394,6 +404,11 @@ router.get('/admin/summary', authenticateToken, async (req, res) => {
       }),
       prisma.organisation_User_position.groupBy({
         by: ['user_position'],
+        where: {
+          Organisation_Users: {
+            user_type: { not: 'DISABLED' }
+          }
+        },
         _count: { id: true }
       })
     ]);
@@ -405,7 +420,8 @@ router.get('/admin/summary', authenticateToken, async (req, res) => {
       JOIN checklist_template_version v ON li.template_version_id = v.version_id
       JOIN checklist_template ct ON v.checklist_template_id = ct.id
       JOIN tags t ON ct.tag_id = t.id
-      WHERE 1=1
+      JOIN Organisation_Users ou ON r.organisation_user_id = ou.id
+      WHERE (ou.exclude_from_reports IS NULL OR ou.exclude_from_reports = FALSE)
     `;
     const deptQueryParams = [];
     if (startDate) {
@@ -439,7 +455,7 @@ router.get('/admin/summary', authenticateToken, async (req, res) => {
           END
         ) * 100, 1), 0) AS avg_completion_rate
       FROM Organisation o
-      LEFT JOIN Organisation_Users ou ON o.id = ou.organisation_id
+      LEFT JOIN Organisation_Users ou ON o.id = ou.organisation_id AND (ou.exclude_from_reports IS NULL OR ou.exclude_from_reports = FALSE)
       LEFT JOIN checklist_item_response cir ON ou.id = cir.organisation_user_id
     `;
     const orgQueryParams = [];
@@ -767,7 +783,13 @@ router.get('/admin/department/:department', authenticateToken, async (req, res) 
     if (department && (department.toUpperCase() === 'MARKETING' || department.toUpperCase() === 'MARKETTNG')) {
       dbPosition = 'MARKETING';
     }
+    if (department && (department.toUpperCase() === 'POWER_BI_DEVELOPER' || department.toUpperCase() === 'POWER BI DEVELOPER' || department.toUpperCase() === 'DATA_ANALYTICS' || department.toUpperCase() === 'DATA ANALYTICS')) {
+      dbPosition = 'POWER_BI_DEVELOPER';
+    }
 
+    if (department && (department.toUpperCase() === 'TESTING' || department.toUpperCase() === 'QA TESTING' || department.toUpperCase() === 'QA_TESTING')) {
+      dbPosition = 'TESTING';
+    }
     const queryParams = [dbPosition];
 
     if (startDate) {
@@ -784,11 +806,13 @@ router.get('/admin/department/:department', authenticateToken, async (req, res) 
         COUNT(r.id) AS submissionsCount,
         MAX(r.created_at) AS latestSubmissionDate
       FROM checklist_item_response r
+      JOIN Organisation_Users ou ON r.organisation_user_id = ou.id
       JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
       JOIN checklist_template_version v ON li.template_version_id = v.version_id
       JOIN checklist_template ct ON v.checklist_template_id = ct.id
       JOIN tags t ON ct.tag_id = t.id
       WHERE t.user_position = ?
+        AND (ou.exclude_from_reports IS NULL OR ou.exclude_from_reports = FALSE)
       ${dateFilterSql}
     `;
 
@@ -806,12 +830,14 @@ router.get('/admin/department/:department', authenticateToken, async (req, res) 
           ELSE 0 
         END) AS boolean_count
       FROM checklist_item_response r
+      JOIN Organisation_Users ou ON r.organisation_user_id = ou.id
       JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
       JOIN checklist_items ci ON li.checklist_item_id = ci.id
       JOIN checklist_template_version v ON li.template_version_id = v.version_id
       JOIN checklist_template ct ON v.checklist_template_id = ct.id
       JOIN tags t ON ct.tag_id = t.id
       WHERE t.user_position = ?
+        AND (ou.exclude_from_reports IS NULL OR ou.exclude_from_reports = FALSE)
       ${dateFilterSql}
       GROUP BY ci.checklist_name, ci.input_type
     `;
@@ -822,11 +848,13 @@ router.get('/admin/department/:department', authenticateToken, async (req, res) 
         COUNT(r.id) AS submissions,
         DATE_FORMAT(r.created_at, '%Y-%m') AS sortKey
       FROM checklist_item_response r
+      JOIN Organisation_Users ou ON r.organisation_user_id = ou.id
       JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
       JOIN checklist_template_version v ON li.template_version_id = v.version_id
       JOIN checklist_template ct ON v.checklist_template_id = ct.id
       JOIN tags t ON ct.tag_id = t.id
       WHERE t.user_position = ?
+        AND (ou.exclude_from_reports IS NULL OR ou.exclude_from_reports = FALSE)
       ${dateFilterSql}
       GROUP BY DATE_FORMAT(r.created_at, '%b %Y'), DATE_FORMAT(r.created_at, '%Y-%m')
       ORDER BY sortKey ASC
@@ -840,12 +868,14 @@ router.get('/admin/department/:department', authenticateToken, async (req, res) 
           ELSE 0.0
         END) AS completionRate
       FROM checklist_item_response r
+      JOIN Organisation_Users ou ON r.organisation_user_id = ou.id
       JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
       JOIN checklist_items ci ON li.checklist_item_id = ci.id
       JOIN checklist_template_version v ON li.template_version_id = v.version_id
       JOIN checklist_template ct ON v.checklist_template_id = ct.id
       JOIN tags t ON ct.tag_id = t.id
       WHERE t.user_position = ?
+        AND (ou.exclude_from_reports IS NULL OR ou.exclude_from_reports = FALSE)
       ${dateFilterSql}
     `;
 
@@ -1103,6 +1133,124 @@ router.get('/admin/department/:department', authenticateToken, async (req, res) 
         totalSalesPersons,
         totalClosures,
         totalTasksCompleted
+      };
+    }
+
+    let salesQualificationData = null;
+    if (department && department.toUpperCase() === 'SALES') {
+      // KPI: Total client qualification submissions from 'Sales Qualification' template
+      const sqSubmissionsQuery = `
+        SELECT COUNT(DISTINCT r.id) AS totalQualifications
+        FROM checklist_item_response r
+        JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+        JOIN checklist_template_version v ON li.template_version_id = v.version_id
+        JOIN checklist_template ct ON v.checklist_template_id = ct.id
+        WHERE ct.template_name = 'Sales Qualification'
+        ${dateFilterSql.replace(/t\.user_position/g, 'ct.id IS NOT NULL AND 1')}
+      `;
+
+      // Use a simpler query that doesn't rely on dateFilterSql format issues
+      const sqKpiQuery = `
+        SELECT
+          SUM(CASE WHEN ci.checklist_name = 'Qualified?' AND (r.input = 'Yes' OR r.input = '1' OR r.status = 1) THEN 1 ELSE 0 END) AS qualifiedCount,
+          COUNT(DISTINCT CASE WHEN ci.checklist_name = 'Qualified?' THEN r.organisation_user_id END) AS totalQualifications,
+          AVG(CASE WHEN ci.checklist_name = 'How long we will have to wait before we can send a proposal?' AND r.input IS NOT NULL AND r.input != '' THEN CAST(r.input AS DECIMAL(10,2)) END) AS avgWaitBeforeProposal,
+          AVG(CASE WHEN ci.checklist_name = 'Duration of call/meeting  in hours before showing interest/not showing interest ' AND r.input IS NOT NULL AND r.input != '' THEN CAST(r.input AS DECIMAL(10,2)) END) AS avgCallDuration
+        FROM checklist_item_response r
+        JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+        JOIN checklist_items ci ON li.checklist_item_id = ci.id
+        JOIN checklist_template_version v ON li.template_version_id = v.version_id
+        JOIN checklist_template ct ON v.checklist_template_id = ct.id
+        WHERE ct.template_name = 'Sales Qualification'
+      `;
+
+      // Boolean gauge: Has budget? - count yes vs total
+      const hasBudgetQuery = `
+        SELECT
+          SUM(CASE WHEN (r.input = 'Yes' OR r.input = '1' OR r.status = 1) THEN 1 ELSE 0 END) AS yesCount,
+          COUNT(r.id) AS totalCount
+        FROM checklist_item_response r
+        JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+        JOIN checklist_items ci ON li.checklist_item_id = ci.id
+        JOIN checklist_template_version v ON li.template_version_id = v.version_id
+        JOIN checklist_template ct ON v.checklist_template_id = ct.id
+        WHERE ct.template_name = 'Sales Qualification'
+          AND ci.checklist_name = 'Has budget?'
+      `;
+
+      // Boolean gauge: Prospect received brochure?
+      const brochureQuery = `
+        SELECT
+          SUM(CASE WHEN (r.input = 'Yes' OR r.input = '1' OR r.status = 1) THEN 1 ELSE 0 END) AS yesCount,
+          COUNT(r.id) AS totalCount
+        FROM checklist_item_response r
+        JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+        JOIN checklist_items ci ON li.checklist_item_id = ci.id
+        JOIN checklist_template_version v ON li.template_version_id = v.version_id
+        JOIN checklist_template ct ON v.checklist_template_id = ct.id
+        WHERE ct.template_name = 'Sales Qualification'
+          AND ci.checklist_name = 'Prospect received a brochure?'
+      `;
+
+      // Boolean gauge: is this a referral?
+      const referralQuery = `
+        SELECT
+          SUM(CASE WHEN (r.input = 'Yes' OR r.input = '1' OR r.status = 1) THEN 1 ELSE 0 END) AS yesCount,
+          COUNT(r.id) AS totalCount
+        FROM checklist_item_response r
+        JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+        JOIN checklist_items ci ON li.checklist_item_id = ci.id
+        JOIN checklist_template_version v ON li.template_version_id = v.version_id
+        JOIN checklist_template ct ON v.checklist_template_id = ct.id
+        WHERE ct.template_name = 'Sales Qualification'
+          AND ci.checklist_name = 'is this a referral?'
+      `;
+
+      // Area trend: Agreed for follow up meeting? over time
+      const followUpMeetingTrendQuery = `
+        SELECT
+          DATE_FORMAT(r.created_at, '%b %Y') AS name,
+          SUM(CASE WHEN (r.input = 'Yes' OR r.input = '1' OR r.status = 1) THEN 1 ELSE 0 END) AS value,
+          DATE_FORMAT(r.created_at, '%Y-%m') AS sortKey
+        FROM checklist_item_response r
+        JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+        JOIN checklist_items ci ON li.checklist_item_id = ci.id
+        JOIN checklist_template_version v ON li.template_version_id = v.version_id
+        JOIN checklist_template ct ON v.checklist_template_id = ct.id
+        WHERE ct.template_name = 'Sales Qualification'
+          AND ci.checklist_name = 'Agreed for a follow up meeting?'
+        GROUP BY DATE_FORMAT(r.created_at, '%b %Y'), DATE_FORMAT(r.created_at, '%Y-%m')
+        ORDER BY sortKey ASC
+      `;
+
+      const [sqKpiResult, hasBudgetResult, brochureResult, referralResult, followUpMeetingResult] = await Promise.all([
+        prisma.$queryRawUnsafe(sqKpiQuery),
+        prisma.$queryRawUnsafe(hasBudgetQuery),
+        prisma.$queryRawUnsafe(brochureQuery),
+        prisma.$queryRawUnsafe(referralQuery),
+        prisma.$queryRawUnsafe(followUpMeetingTrendQuery)
+      ]);
+
+      const sqKpi = sqKpiResult[0] || {};
+      const hasBudget = hasBudgetResult[0] || {};
+      const brochure = brochureResult[0] || {};
+      const referral = referralResult[0] || {};
+
+      const calcPercent = (row) => {
+        const yes = Number(row.yesCount || 0);
+        const total = Number(row.totalCount || 0);
+        return total > 0 ? Math.round((yes / total) * 100) : 0;
+      };
+
+      salesQualificationData = {
+        totalQualifications: Number(sqKpi.totalQualifications || 0),
+        qualifiedCount: Number(sqKpi.qualifiedCount || 0),
+        avgWaitBeforeProposal: Number(sqKpi.avgWaitBeforeProposal || 0).toFixed(1),
+        avgCallDuration: Number(sqKpi.avgCallDuration || 0).toFixed(1),
+        hasBudgetPercent: calcPercent(hasBudget),
+        brochurePercent: calcPercent(brochure),
+        referralPercent: calcPercent(referral),
+        followUpMeetingTrend: followUpMeetingResult.map(r => ({ name: r.name, value: Number(r.value || 0) }))
       };
     }
 
@@ -1424,6 +1572,246 @@ router.get('/admin/department/:department', authenticateToken, async (req, res) 
       };
     }
 
+    let analyticsData = null;
+    if (dbPosition === 'POWER_BI_DEVELOPER') {
+      const analyticsQueryParams = ['POWER_BI_DEVELOPER'];
+      if (startDate) {
+        analyticsQueryParams.push(new Date(startDate));
+      }
+      if (endDate) {
+        analyticsQueryParams.push(new Date(endDate));
+      }
+
+      const distinctDaysQuery = `
+        SELECT COUNT(DISTINCT DATE(r.created_at)) AS daysCount
+        FROM checklist_item_response r
+        JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+        JOIN checklist_template_version v ON li.template_version_id = v.version_id
+        JOIN checklist_template ct ON v.checklist_template_id = ct.id
+        JOIN tags t ON ct.tag_id = t.id
+        WHERE t.user_position = ?
+          ${dateFilterSql}
+      `;
+
+      const totalTasksQuery = `
+        SELECT SUM(CAST(COALESCE(NULLIF(r.input, ''), '0') AS DECIMAL(10,2))) AS totalTasks
+        FROM checklist_item_response r
+        JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+        JOIN checklist_items ci ON li.checklist_item_id = ci.id
+        JOIN checklist_template_version v ON li.template_version_id = v.version_id
+        JOIN checklist_template ct ON v.checklist_template_id = ct.id
+        JOIN tags t ON ct.tag_id = t.id
+        WHERE t.user_position = ?
+          AND ci.checklist_name IN ('No of Tasks completed', 'Task Completed')
+          ${dateFilterSql}
+      `;
+
+      const dashboardMonthlyQuery = `
+        SELECT 
+          DATE_FORMAT(r.created_at, '%b %Y') AS name,
+          AVG(CAST(COALESCE(NULLIF(r.input, ''), '0') AS DECIMAL(10,2))) AS value,
+          DATE_FORMAT(r.created_at, '%Y-%m') AS sortKey
+        FROM checklist_item_response r
+        JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+        JOIN checklist_items ci ON li.checklist_item_id = ci.id
+        JOIN checklist_template_version v ON li.template_version_id = v.version_id
+        JOIN checklist_template ct ON v.checklist_template_id = ct.id
+        JOIN tags t ON ct.tag_id = t.id
+        WHERE t.user_position = ?
+          AND ci.checklist_name IN ('No of Dashboards Updated', 'No of dashboards created/updated', 'No of Dashboards Created')
+          ${dateFilterSql}
+        GROUP BY DATE_FORMAT(r.created_at, '%b %Y'), DATE_FORMAT(r.created_at, '%Y-%m')
+        ORDER BY sortKey ASC
+      `;
+
+      const dashboardYearlyQuery = `
+        SELECT 
+          DATE_FORMAT(r.created_at, '%Y') AS name,
+          AVG(CAST(COALESCE(NULLIF(r.input, ''), '0') AS DECIMAL(10,2))) AS value
+        FROM checklist_item_response r
+        JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+        JOIN checklist_items ci ON li.checklist_item_id = ci.id
+        JOIN checklist_template_version v ON li.template_version_id = v.version_id
+        JOIN checklist_template ct ON v.checklist_template_id = ct.id
+        JOIN tags t ON ct.tag_id = t.id
+        WHERE t.user_position = ?
+          AND ci.checklist_name IN ('No of Dashboards Updated', 'No of dashboards created/updated', 'No of Dashboards Created')
+          ${dateFilterSql}
+        GROUP BY DATE_FORMAT(r.created_at, '%Y')
+        ORDER BY name ASC
+      `;
+
+      const tasksCompletedByUserQuery = `
+        SELECT 
+          u.name AS name,
+          SUM(CAST(COALESCE(NULLIF(r.input, ''), '0') AS DECIMAL(10,2))) AS value
+        FROM checklist_item_response r
+        JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+        JOIN checklist_items ci ON li.checklist_item_id = ci.id
+        JOIN checklist_template_version v ON li.template_version_id = v.version_id
+        JOIN checklist_template ct ON v.checklist_template_id = ct.id
+        JOIN tags t ON ct.tag_id = t.id
+        JOIN Organisation_Users ou ON r.organisation_user_id = ou.id
+        JOIN User u ON ou.user_id = u.id
+        WHERE t.user_position = ?
+          AND ci.checklist_name IN ('No of Tasks completed', 'Task Completed')
+          ${dateFilterSql}
+        GROUP BY u.name
+      `;
+
+      const [distinctDaysResult, totalTasksResult, dashboardMonthlyResult, dashboardYearlyResult, tasksCompletedByUserResult] = await Promise.all([
+        prisma.$queryRawUnsafe(distinctDaysQuery, ...analyticsQueryParams),
+        prisma.$queryRawUnsafe(totalTasksQuery, ...analyticsQueryParams),
+        prisma.$queryRawUnsafe(dashboardMonthlyQuery, ...analyticsQueryParams),
+        prisma.$queryRawUnsafe(dashboardYearlyQuery, ...analyticsQueryParams),
+        prisma.$queryRawUnsafe(tasksCompletedByUserQuery, ...analyticsQueryParams)
+      ]);
+
+      const daysCount = Number(distinctDaysResult[0]?.daysCount || 0);
+      const totalTasks = Number(totalTasksResult[0]?.totalTasks || 0);
+      const tasksPerDay = daysCount > 0 ? Number((totalTasks / daysCount).toFixed(1)) : 0;
+
+      analyticsData = {
+        tasksPerDay,
+        dashboardUpdatedMonthly: dashboardMonthlyResult.map(r => ({ name: r.name, value: Number(Number(r.value || 0).toFixed(1)) })),
+        dashboardUpdatedYearly: dashboardYearlyResult.map(r => ({ name: r.name, value: Number(Number(r.value || 0).toFixed(1)) })),
+        tasksCompletedByUser: tasksCompletedByUserResult.map(r => ({ name: r.name, value: Number(r.value || 0) }))
+      };
+    }
+
+    let testingData = null;
+    if (dbPosition === 'TESTING') {
+      const testingQueryParams = ['TESTING'];
+      if (startDate) {
+        testingQueryParams.push(new Date(startDate));
+      }
+      if (endDate) {
+        testingQueryParams.push(new Date(endDate));
+      }
+
+      const distinctDaysQuery = `
+        SELECT COUNT(DISTINCT DATE(r.created_at)) AS daysCount
+        FROM checklist_item_response r
+        JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+        JOIN checklist_template_version v ON li.template_version_id = v.version_id
+        JOIN checklist_template ct ON v.checklist_template_id = ct.id
+        JOIN tags t ON ct.tag_id = t.id
+        WHERE t.user_position = ?
+          ${dateFilterSql}
+      `;
+
+      const totalTasksQuery = `
+        SELECT SUM(CAST(COALESCE(NULLIF(r.input, ''), '0') AS DECIMAL(10,2))) AS totalTasks
+        FROM checklist_item_response r
+        JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+        JOIN checklist_items ci ON li.checklist_item_id = ci.id
+        JOIN checklist_template_version v ON li.template_version_id = v.version_id
+        JOIN checklist_template ct ON v.checklist_template_id = ct.id
+        JOIN tags t ON ct.tag_id = t.id
+        WHERE t.user_position = ?
+          AND ci.checklist_name IN ('No of Tasks Completed', 'No of Tasks Worked')
+          ${dateFilterSql}
+      `;
+
+      const bugsMonthlyQuery = `
+        SELECT 
+          DATE_FORMAT(r.created_at, '%b %Y') AS name,
+          SUM(CAST(COALESCE(NULLIF(r.input, ''), '0') AS DECIMAL(10,2))) AS value,
+          DATE_FORMAT(r.created_at, '%Y-%m') AS sortKey
+        FROM checklist_item_response r
+        JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+        JOIN checklist_items ci ON li.checklist_item_id = ci.id
+        JOIN checklist_template_version v ON li.template_version_id = v.version_id
+        JOIN checklist_template ct ON v.checklist_template_id = ct.id
+        JOIN tags t ON ct.tag_id = t.id
+        WHERE t.user_position = ?
+          AND ci.checklist_name IN ('Bugs identified during Manual testing', 'Number of bugs reported')
+          ${dateFilterSql}
+        GROUP BY DATE_FORMAT(r.created_at, '%b %Y'), DATE_FORMAT(r.created_at, '%Y-%m')
+        ORDER BY sortKey ASC
+      `;
+
+      const bugsYearlyQuery = `
+        SELECT 
+          DATE_FORMAT(r.created_at, '%Y') AS name,
+          SUM(CAST(COALESCE(NULLIF(r.input, ''), '0') AS DECIMAL(10,2))) AS value
+        FROM checklist_item_response r
+        JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+        JOIN checklist_items ci ON li.checklist_item_id = ci.id
+        JOIN checklist_template_version v ON li.template_version_id = v.version_id
+        JOIN checklist_template ct ON v.checklist_template_id = ct.id
+        JOIN tags t ON ct.tag_id = t.id
+        WHERE t.user_position = ?
+          AND ci.checklist_name IN ('Bugs identified during Manual testing', 'Number of bugs reported')
+          ${dateFilterSql}
+        GROUP BY DATE_FORMAT(r.created_at, '%Y')
+        ORDER BY name ASC
+      `;
+
+      const bugsDailyQuery = `
+        SELECT 
+          DATE_FORMAT(r.created_at, '%Y-%m-%d') AS name,
+          SUM(CAST(COALESCE(NULLIF(r.input, ''), '0') AS DECIMAL(10,2))) AS value
+        FROM checklist_item_response r
+        JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+        JOIN checklist_items ci ON li.checklist_item_id = ci.id
+        JOIN checklist_template_version v ON li.template_version_id = v.version_id
+        JOIN checklist_template ct ON v.checklist_template_id = ct.id
+        JOIN tags t ON ct.tag_id = t.id
+        WHERE t.user_position = ?
+          AND ci.checklist_name IN ('Bugs identified during Manual testing', 'Number of bugs reported')
+          ${dateFilterSql}
+        GROUP BY DATE_FORMAT(r.created_at, '%Y-%m-%d')
+        ORDER BY name ASC
+      `;
+
+      const topChecklistItemsQuery = `
+        SELECT ci.checklist_name AS name, COUNT(r.id) AS value
+        FROM checklist_item_response r
+        JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+        JOIN checklist_items ci ON li.checklist_item_id = ci.id
+        JOIN checklist_template_version v ON li.template_version_id = v.version_id
+        JOIN checklist_template ct ON v.checklist_template_id = ct.id
+        JOIN tags t ON ct.tag_id = t.id
+        WHERE t.user_position = ?
+          AND (r.input IS NOT NULL AND r.input != '' OR r.status = 1)
+          ${dateFilterSql}
+        GROUP BY ci.checklist_name
+        ORDER BY value DESC
+        LIMIT 10
+      `;
+
+      const [distinctDaysResult, totalTasksResult, bugsMonthlyResult, bugsYearlyResult, bugsDailyResult, topChecklistItemsResult] = await Promise.all([
+        prisma.$queryRawUnsafe(distinctDaysQuery, ...testingQueryParams),
+        prisma.$queryRawUnsafe(totalTasksQuery, ...testingQueryParams),
+        prisma.$queryRawUnsafe(bugsMonthlyQuery, ...testingQueryParams),
+        prisma.$queryRawUnsafe(bugsYearlyQuery, ...testingQueryParams),
+        prisma.$queryRawUnsafe(bugsDailyQuery, ...testingQueryParams),
+        prisma.$queryRawUnsafe(topChecklistItemsQuery, ...testingQueryParams)
+      ]);
+
+      const daysCount = Number(distinctDaysResult[0]?.daysCount || 0);
+      const totalTasks = Number(totalTasksResult[0]?.totalTasks || 0);
+      const tasksPerDay = daysCount > 0 ? Number((totalTasks / daysCount).toFixed(1)) : 0;
+
+      testingData = {
+        tasksPerDay,
+        bugsMonthly: bugsMonthlyResult.map(r => ({ name: r.name, value: Number(r.value || 0) })),
+        bugsYearly: bugsYearlyResult.map(r => ({ name: r.name, value: Number(r.value || 0) })),
+        bugsDaily: bugsDailyResult.map(r => ({ name: r.name, value: Number(r.value || 0) })),
+        topChecklistItems: topChecklistItemsResult.map(r => ({ name: r.name, value: Number(r.value || 0) }))
+      };
+    }
+
+    const usersCount = await prisma.organisation_User_position.count({
+      where: {
+        user_position: dbPosition,
+        Organisation_Users: {
+          user_type: { not: 'DISABLED' }
+        }
+      }
+    });
+
     res.json({
       department,
       submissionsCount,
@@ -1432,14 +1820,147 @@ router.get('/admin/department/:department', authenticateToken, async (req, res) 
       recentMonths,
       topKPIs,
       completionRate,
+      usersCount,
       ...(salesData ? { salesData } : {}),
+      ...(salesQualificationData ? { salesQualificationData } : {}),
       ...(hrData ? { hrData } : {}),
       ...(dtData ? { dtData } : {}),
       ...(marketingData ? { marketingData } : {}),
-      ...(devData ? { devData } : {})
+      ...(devData ? { devData } : {}),
+      ...(analyticsData ? { analyticsData } : {}),
+      ...(testingData ? { testingData } : {})
     });
   } catch (error) {
     console.error('Admin department error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// Get Department Users
+router.get('/admin/department/:department/users', authenticateToken, async (req, res) => {
+  try {
+    const authUserId = parseInt(req.user.userId);
+    const requester = await prisma.organisation_Users.findUnique({
+      where: { id: authUserId },
+      select: { 
+        user_type: true,
+        User: { select: { email: true } }
+      }
+    });
+    const isRequesterAdmin = 
+      requester?.user_type?.trim() === 'ADMIN' || 
+      requester?.User?.email === 'gururider35@gmail.com';
+
+    if (!isRequesterAdmin) {
+      return res.status(403).json({ error: 'Only admins can view department users' });
+    }
+
+    const { department } = req.params;
+     let dbPosition = department;
+    if (department && (department.toUpperCase() === 'DEVELOPMENT' || department.toUpperCase() === 'DEV' || department.toUpperCase() === 'FULL_STACK_DEVELOPER')) {
+      dbPosition = 'FULL_STACK_DEVELOPER';
+    }
+    if (department && (department.toUpperCase() === 'MARKETING' || department.toUpperCase() === 'MARKETTNG')) {
+      dbPosition = 'MARKETING';
+    }
+    if (department && (department.toUpperCase() === 'POWER_BI_DEVELOPER' || department.toUpperCase() === 'POWER BI DEVELOPER' || department.toUpperCase() === 'DATA_ANALYTICS' || department.toUpperCase() === 'DATA ANALYTICS')) {
+      dbPosition = 'POWER_BI_DEVELOPER';
+    }
+    if (department && (department.toUpperCase() === 'TESTING' || department.toUpperCase() === 'QA TESTING' || department.toUpperCase() === 'QA_TESTING')) {
+      dbPosition = 'TESTING';
+    }
+
+    const deptUsers = await prisma.organisation_Users.findMany({
+      where: {
+        Organisation_User_position: {
+          some: { user_position: dbPosition }
+        }
+      },
+      select: {
+        id: true,
+        user_type: true,
+        exclude_from_reports: true,
+        created_at: true,
+        User: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            image: true
+          }
+        },
+        _count: {
+          select: { responses: true }
+        }
+      }
+    });
+
+    const now = new Date();
+    const gracePeriod = 24 * 60 * 60 * 1000; // 24 hours grace period for new signups
+
+    const formattedUsers = [];
+    for (const u of deptUsers) {
+      let userType = u.user_type?.trim() || 'USER';
+      const createdTime = u.created_at ? new Date(u.created_at) : null;
+      const isPastGrace = createdTime ? (now - createdTime) > gracePeriod : true;
+
+      // Auto-deactivate if user is not an admin, has 0 responses, and is past the signup grace period
+      if (userType !== 'DISABLED' && userType !== 'ADMIN' && u._count.responses === 0 && isPastGrace) {
+        await prisma.organisation_Users.update({
+          where: { id: u.id },
+          data: { user_type: 'DISABLED' }
+        });
+        userType = 'DISABLED';
+      }
+
+      formattedUsers.push({
+        id: u.id,
+        realUserId: u.User?.id || 0,
+        name: u.User?.name || 'User',
+        email: u.User?.email || '',
+        image: u.User?.image || null,
+        user_type: userType,
+        exclude_from_reports: !!u.exclude_from_reports
+      });
+    }
+
+    res.json(formattedUsers);
+  } catch (error) {
+    console.error('Admin get department users error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// Toggle user exclusion
+router.put('/admin/users/:id/exclude', authenticateToken, async (req, res) => {
+  try {
+    const authUserId = parseInt(req.user.userId);
+    const requester = await prisma.organisation_Users.findUnique({
+      where: { id: authUserId },
+      select: { 
+        user_type: true,
+        User: { select: { email: true } }
+      }
+    });
+    const isRequesterAdmin = 
+      requester?.user_type?.trim() === 'ADMIN' || 
+      requester?.User?.email === 'gururider35@gmail.com';
+
+    if (!isRequesterAdmin) {
+      return res.status(403).json({ error: 'Only admins can modify user exclusion' });
+    }
+
+    const orgUserId = parseInt(req.params.id);
+    const { exclude } = req.body;
+
+    await prisma.organisation_Users.update({
+      where: { id: orgUserId },
+      data: { exclude_from_reports: !!exclude }
+    });
+
+    res.json({ success: true, message: `User data ${exclude ? 'excluded from' : 'included in'} reporting` });
+  } catch (error) {
+    console.error('Admin exclude user error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
@@ -1461,6 +1982,12 @@ router.get('/admin/department/:department/chart-data', authenticateToken, async 
     }
     if (department && (department.toUpperCase() === 'MARKETING' || department.toUpperCase() === 'MARKETTNG')) {
       dbPosition = 'MARKETING';
+    }
+    if (department && (department.toUpperCase() === 'POWER_BI_DEVELOPER' || department.toUpperCase() === 'POWER BI DEVELOPER' || department.toUpperCase() === 'DATA_ANALYTICS' || department.toUpperCase() === 'DATA ANALYTICS')) {
+      dbPosition = 'POWER_BI_DEVELOPER';
+    }
+    if (department && (department.toUpperCase() === 'TESTING' || department.toUpperCase() === 'QA TESTING' || department.toUpperCase() === 'QA_TESTING')) {
+      dbPosition = 'TESTING';
     }
 
     const queryParams = [dbPosition];
@@ -1487,12 +2014,14 @@ router.get('/admin/department/:department/chart-data', authenticateToken, async 
           ELSE 0 
         END) AS boolean_count
       FROM checklist_item_response r
+      JOIN Organisation_Users ou ON r.organisation_user_id = ou.id
       JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
       JOIN checklist_items ci ON li.checklist_item_id = ci.id
       JOIN checklist_template_version v ON li.template_version_id = v.version_id
       JOIN checklist_template ct ON v.checklist_template_id = ct.id
       JOIN tags t ON ct.tag_id = t.id
       WHERE t.user_position = ?
+        AND (ou.exclude_from_reports IS NULL OR ou.exclude_from_reports = FALSE)
       ${dateFilterSql}
       GROUP BY ci.checklist_name, ci.input_type
     `;
@@ -1508,12 +2037,14 @@ router.get('/admin/department/:department/chart-data', authenticateToken, async 
       SELECT COUNT(*) as total FROM (
         SELECT ci.checklist_name 
         FROM checklist_item_response r
+        JOIN Organisation_Users ou ON r.organisation_user_id = ou.id
         JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
         JOIN checklist_items ci ON li.checklist_item_id = ci.id
         JOIN checklist_template_version v ON li.template_version_id = v.version_id
         JOIN checklist_template ct ON v.checklist_template_id = ct.id
         JOIN tags t ON ct.tag_id = t.id
         WHERE t.user_position = ?
+          AND (ou.exclude_from_reports IS NULL OR ou.exclude_from_reports = FALSE)
         ${dateFilterSql}
         GROUP BY ci.checklist_name, ci.input_type
       ) as sub
@@ -1663,23 +2194,45 @@ router.get('/admin/users-list', authenticateToken, async (req, res) => {
         take: limit,
         include: {
           User: true,
-          Organisation: true
+          Organisation: true,
+          _count: {
+            select: { responses: true }
+          }
         }
       })
     ]);
 
-    const formatted = users.map(u => ({
-      id: u.id,
-      realUserId: u.User?.id || 0,
-      name: u.User?.name || 'User',
-      email: u.User?.email || '',
-      image: u.User?.image || null,
-      user_type: u.user_type?.trim() || 'USER',
-      user_position: u.user_position || 'PUBLIC',
-      organisation: u.Organisation?.organisation || '',
-      organisation_id: u.organisation_id,
-      created_at: u.created_at || u.User?.created_at
-    }));
+    const now = new Date();
+    const gracePeriod = 24 * 60 * 60 * 1000; // 24 hours grace period for new signups
+
+    const formatted = [];
+    for (const u of users) {
+      let userType = u.user_type?.trim() || 'USER';
+      const createdTime = u.created_at ? new Date(u.created_at) : null;
+      const isPastGrace = createdTime ? (now - createdTime) > gracePeriod : true;
+
+      // Auto-deactivate if user is not an admin, has 0 responses, and is past signup grace period
+      if (userType !== 'DISABLED' && userType !== 'ADMIN' && u._count?.responses === 0 && isPastGrace) {
+        await prisma.organisation_Users.update({
+          where: { id: u.id },
+          data: { user_type: 'DISABLED' }
+        });
+        userType = 'DISABLED';
+      }
+
+      formatted.push({
+        id: u.id,
+        realUserId: u.User?.id || 0,
+        name: u.User?.name || 'User',
+        email: u.User?.email || '',
+        image: u.User?.image || null,
+        user_type: userType,
+        user_position: u.user_position || 'PUBLIC',
+        organisation: u.Organisation?.organisation || '',
+        organisation_id: u.organisation_id,
+        created_at: u.created_at || u.User?.created_at
+      });
+    }
 
     res.json({
       users: formatted,

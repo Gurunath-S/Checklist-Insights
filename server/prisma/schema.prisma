@@ -147,6 +147,7 @@ model Organisation_Users {
   user_type                  String?                      @default("USER ")
   user_position              String?
   created_at                 DateTime?
+  exclude_from_reports       Boolean?                     @default(false)
   Organisation_User_position Organisation_User_position[]
   Organisation               Organisation                 @relation(fields: [organisation_id], references: [id])
   User                       User                         @relation(fields: [user_id], references: [id])
