@@ -198,8 +198,7 @@ enum Organisation_User_position_user_position {
   PUBLIC
   DIGITAL_TRANSFORMATION
   MARKETING
-
-  
+  ERODE_INTERN
 }
 
 enum checklist_template_priority {
@@ -218,6 +217,7 @@ enum tags_user_position {
   PUBLIC
   DIGITAL_TRANSFORMATION
   MARKETING
+  ERODE_INTERN
 }
 
 enum checklist_items_input_type {

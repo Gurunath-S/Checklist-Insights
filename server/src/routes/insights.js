@@ -790,7 +790,28 @@ router.get('/admin/department/:department', authenticateToken, async (req, res) 
     if (department && (department.toUpperCase() === 'TESTING' || department.toUpperCase() === 'QA TESTING' || department.toUpperCase() === 'QA_TESTING')) {
       dbPosition = 'TESTING';
     }
-    const queryParams = [dbPosition];
+    const isErodeIntern = department && (department.toUpperCase() === 'ERODE_INTERN' || department.toUpperCase() === 'ERODE_INTERNS' || department.toUpperCase() === 'ERODE INTERNS');
+
+    let internOrgUserIds = [];
+    let internOrgUserIdsCsv = '0';
+    if (isErodeIntern) {
+      dbPosition = 'ERODE_INTERN';
+      const interns = await prisma.organisation_User_position.findMany({
+        where: { user_position: 'ERODE_INTERN' },
+        select: { organisation_user_id: true }
+      });
+      internOrgUserIds = interns.map(i => i.organisation_user_id);
+      internOrgUserIdsCsv = internOrgUserIds.length > 0 ? internOrgUserIds.join(',') : '0';
+    }
+
+    let filterConditionSql = '';
+    let queryParams = [];
+    if (isErodeIntern) {
+      filterConditionSql = `r.organisation_user_id IN (${internOrgUserIdsCsv})`;
+    } else {
+      filterConditionSql = `t.user_position = ?`;
+      queryParams.push(dbPosition);
+    }
 
     if (startDate) {
       dateFilterSql += ` AND r.created_at >= ?`;
@@ -811,7 +832,7 @@ router.get('/admin/department/:department', authenticateToken, async (req, res) 
       JOIN checklist_template_version v ON li.template_version_id = v.version_id
       JOIN checklist_template ct ON v.checklist_template_id = ct.id
       JOIN tags t ON ct.tag_id = t.id
-      WHERE t.user_position = ?
+      WHERE ${filterConditionSql}
         AND (ou.exclude_from_reports IS NULL OR ou.exclude_from_reports = FALSE)
       ${dateFilterSql}
     `;
@@ -836,7 +857,7 @@ router.get('/admin/department/:department', authenticateToken, async (req, res) 
       JOIN checklist_template_version v ON li.template_version_id = v.version_id
       JOIN checklist_template ct ON v.checklist_template_id = ct.id
       JOIN tags t ON ct.tag_id = t.id
-      WHERE t.user_position = ?
+      WHERE ${filterConditionSql}
         AND (ou.exclude_from_reports IS NULL OR ou.exclude_from_reports = FALSE)
       ${dateFilterSql}
       GROUP BY ci.checklist_name, ci.input_type
@@ -853,7 +874,7 @@ router.get('/admin/department/:department', authenticateToken, async (req, res) 
       JOIN checklist_template_version v ON li.template_version_id = v.version_id
       JOIN checklist_template ct ON v.checklist_template_id = ct.id
       JOIN tags t ON ct.tag_id = t.id
-      WHERE t.user_position = ?
+      WHERE ${filterConditionSql}
         AND (ou.exclude_from_reports IS NULL OR ou.exclude_from_reports = FALSE)
       ${dateFilterSql}
       GROUP BY DATE_FORMAT(r.created_at, '%b %Y'), DATE_FORMAT(r.created_at, '%Y-%m')
@@ -874,7 +895,7 @@ router.get('/admin/department/:department', authenticateToken, async (req, res) 
       JOIN checklist_template_version v ON li.template_version_id = v.version_id
       JOIN checklist_template ct ON v.checklist_template_id = ct.id
       JOIN tags t ON ct.tag_id = t.id
-      WHERE t.user_position = ?
+      WHERE ${filterConditionSql}
         AND (ou.exclude_from_reports IS NULL OR ou.exclude_from_reports = FALSE)
       ${dateFilterSql}
     `;
@@ -1803,14 +1824,137 @@ router.get('/admin/department/:department', authenticateToken, async (req, res) 
       };
     }
 
-    const usersCount = await prisma.organisation_User_position.count({
+    let erodeInternsData = null;
+    if (isErodeIntern) {
+      const erodeQueryParams = [];
+      if (startDate) {
+        erodeQueryParams.push(new Date(startDate));
+      }
+      if (endDate) {
+        erodeQueryParams.push(new Date(endDate));
+      }
+
+      // Developers count
+      const devs = await prisma.organisation_User_position.findMany({
+        where: {
+          user_position: 'FULL_STACK_DEVELOPER',
+          organisation_user_id: { in: internOrgUserIds }
+        },
+        select: { organisation_user_id: true }
+      });
+      const devSubmissions = await prisma.$queryRawUnsafe(`
+        SELECT DISTINCT r.organisation_user_id
+        FROM checklist_item_response r
+        JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+        JOIN checklist_template_version v ON li.template_version_id = v.version_id
+        JOIN checklist_template ct ON v.checklist_template_id = ct.id
+        JOIN tags t ON ct.tag_id = t.id
+        WHERE t.user_position = 'FULL_STACK_DEVELOPER'
+          AND r.organisation_user_id IN (${internOrgUserIdsCsv})
+      `);
+      const devOrgUserIdsFromSubmissions = devSubmissions.map(s => Number(s.organisation_user_id));
+      const devOrgUserIdsFromPositions = devs.map(d => d.organisation_user_id);
+      const developersCount = new Set([...devOrgUserIdsFromSubmissions, ...devOrgUserIdsFromPositions]).size;
+
+      // Testers count
+      const testers = await prisma.organisation_User_position.findMany({
+        where: {
+          user_position: 'TESTING',
+          organisation_user_id: { in: internOrgUserIds }
+        },
+        select: { organisation_user_id: true }
+      });
+      const testerSubmissions = await prisma.$queryRawUnsafe(`
+        SELECT DISTINCT r.organisation_user_id
+        FROM checklist_item_response r
+        JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+        JOIN checklist_template_version v ON li.template_version_id = v.version_id
+        JOIN checklist_template ct ON v.checklist_template_id = ct.id
+        JOIN tags t ON ct.tag_id = t.id
+        WHERE t.user_position = 'TESTING'
+          AND r.organisation_user_id IN (${internOrgUserIdsCsv})
+      `);
+      const testerOrgUserIdsFromSubmissions = testerSubmissions.map(s => Number(s.organisation_user_id));
+      const testerOrgUserIdsFromPositions = testers.map(t => t.organisation_user_id);
+      const testersCount = new Set([...testerOrgUserIdsFromSubmissions, ...testerOrgUserIdsFromPositions]).size;
+
+      // Tasks per day
+      const totalTasksQuery = `
+        SELECT SUM(CAST(COALESCE(NULLIF(r.input, ''), '0') AS DECIMAL(10,2))) AS totalTasks
+        FROM checklist_item_response r
+        JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+        JOIN checklist_items ci ON li.checklist_item_id = ci.id
+        WHERE r.organisation_user_id IN (${internOrgUserIdsCsv})
+          AND ci.checklist_name IN ('No of Tasks Completed', 'No of Tasks Worked')
+          ${dateFilterSql}
+      `;
+      const distinctDaysQuery = `
+        SELECT COUNT(DISTINCT DATE(r.created_at)) AS daysCount
+        FROM checklist_item_response r
+        WHERE r.organisation_user_id IN (${internOrgUserIdsCsv})
+          ${dateFilterSql}
+      `;
+
+      const tasksCompletedByUserQuery = `
+        SELECT 
+          u.name AS name,
+          SUM(CAST(COALESCE(NULLIF(r.input, ''), '0') AS DECIMAL(10,2))) AS value
+        FROM checklist_item_response r
+        JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+        JOIN checklist_items ci ON li.checklist_item_id = ci.id
+        JOIN Organisation_Users ou ON r.organisation_user_id = ou.id
+        JOIN User u ON ou.user_id = u.id
+        WHERE r.organisation_user_id IN (${internOrgUserIdsCsv})
+          AND ci.checklist_name IN ('No of Tasks Completed', 'No of Tasks Worked')
+          ${dateFilterSql}
+        GROUP BY u.name
+        ORDER BY value DESC
+      `;
+
+      const [totalTasksResult, distinctDaysResult, tasksCompletedByUser] = await Promise.all([
+        prisma.$queryRawUnsafe(totalTasksQuery, ...erodeQueryParams),
+        prisma.$queryRawUnsafe(distinctDaysQuery, ...erodeQueryParams),
+        prisma.$queryRawUnsafe(tasksCompletedByUserQuery, ...erodeQueryParams)
+      ]);
+
+      const daysCount = Number(distinctDaysResult[0]?.daysCount || 0);
+      const totalTasks = Number(totalTasksResult[0]?.totalTasks || 0);
+      const tasksPerDay = daysCount > 0 ? Number((totalTasks / daysCount).toFixed(1)) : 0;
+
+      erodeInternsData = {
+        developersCount,
+        testersCount,
+        tasksPerDay,
+        tasksCompletedByUser: tasksCompletedByUser.map(r => ({ name: r.name, value: Number(r.value || 0) }))
+      };
+    }
+
+    const assignedUsers = await prisma.organisation_User_position.findMany({
       where: {
         user_position: dbPosition,
         Organisation_Users: {
           user_type: { not: 'DISABLED' }
         }
-      }
+      },
+      select: { organisation_user_id: true }
     });
+    const assignedUserIds = assignedUsers.map(u => u.organisation_user_id);
+
+    const activeSubmissionsUsers = await prisma.$queryRawUnsafe(`
+      SELECT DISTINCT r.organisation_user_id
+      FROM checklist_item_response r
+      JOIN Organisation_Users ou ON r.organisation_user_id = ou.id
+      JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+      JOIN checklist_template_version v ON li.template_version_id = v.version_id
+      JOIN checklist_template ct ON v.checklist_template_id = ct.id
+      JOIN tags t ON ct.tag_id = t.id
+      WHERE ${filterConditionSql}
+        AND ou.user_type != 'DISABLED'
+    `, ...(isErodeIntern ? [] : [dbPosition]));
+    const submissionsUserIds = activeSubmissionsUsers.map(u => Number(u.organisation_user_id));
+
+    const allDeptUserIds = [...new Set([...assignedUserIds, ...submissionsUserIds])];
+    const usersCount = allDeptUserIds.length;
 
     res.json({
       department,
@@ -1828,7 +1972,8 @@ router.get('/admin/department/:department', authenticateToken, async (req, res) 
       ...(marketingData ? { marketingData } : {}),
       ...(devData ? { devData } : {}),
       ...(analyticsData ? { analyticsData } : {}),
-      ...(testingData ? { testingData } : {})
+      ...(testingData ? { testingData } : {}),
+      ...(erodeInternsData ? { erodeInternsData } : {})
     });
   } catch (error) {
     console.error('Admin department error:', error);
@@ -1870,11 +2015,51 @@ router.get('/admin/department/:department/users', authenticateToken, async (req,
       dbPosition = 'TESTING';
     }
 
+    const isErodeIntern = department && (department.toUpperCase() === 'ERODE_INTERN' || department.toUpperCase() === 'ERODE_INTERNS' || department.toUpperCase() === 'ERODE INTERNS');
+
+    let internOrgUserIdsCsv = '0';
+    if (isErodeIntern) {
+      dbPosition = 'ERODE_INTERN';
+      const interns = await prisma.organisation_User_position.findMany({
+        where: { user_position: 'ERODE_INTERN' },
+        select: { organisation_user_id: true }
+      });
+      const ids = interns.map(i => i.organisation_user_id);
+      internOrgUserIdsCsv = ids.length > 0 ? ids.join(',') : '0';
+    }
+
+    let filterConditionSql = '';
+    if (isErodeIntern) {
+      filterConditionSql = `r.organisation_user_id IN (${internOrgUserIdsCsv})`;
+    } else {
+      filterConditionSql = `t.user_position = ?`;
+    }
+
+    const assignedUsers = await prisma.organisation_User_position.findMany({
+      where: {
+        user_position: dbPosition
+      },
+      select: { organisation_user_id: true }
+    });
+    const assignedUserIds = assignedUsers.map(u => u.organisation_user_id);
+
+    const activeSubmissionsUsers = await prisma.$queryRawUnsafe(`
+      SELECT DISTINCT r.organisation_user_id
+      FROM checklist_item_response r
+      JOIN Organisation_Users ou ON r.organisation_user_id = ou.id
+      JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
+      JOIN checklist_template_version v ON li.template_version_id = v.version_id
+      JOIN checklist_template ct ON v.checklist_template_id = ct.id
+      JOIN tags t ON ct.tag_id = t.id
+      WHERE ${filterConditionSql}
+    `, ...(isErodeIntern ? [] : [dbPosition]));
+    const submissionsUserIds = activeSubmissionsUsers.map(u => Number(u.organisation_user_id));
+
+    const allDeptUserIds = [...new Set([...assignedUserIds, ...submissionsUserIds])];
+
     const deptUsers = await prisma.organisation_Users.findMany({
       where: {
-        Organisation_User_position: {
-          some: { user_position: dbPosition }
-        }
+        id: { in: allDeptUserIds }
       },
       select: {
         id: true,
@@ -1990,7 +2175,27 @@ router.get('/admin/department/:department/chart-data', authenticateToken, async 
       dbPosition = 'TESTING';
     }
 
-    const queryParams = [dbPosition];
+    const isErodeIntern = department && (department.toUpperCase() === 'ERODE_INTERN' || department.toUpperCase() === 'ERODE_INTERNS' || department.toUpperCase() === 'ERODE INTERNS');
+
+    let internOrgUserIdsCsv = '0';
+    if (isErodeIntern) {
+      dbPosition = 'ERODE_INTERN';
+      const interns = await prisma.organisation_User_position.findMany({
+        where: { user_position: 'ERODE_INTERN' },
+        select: { organisation_user_id: true }
+      });
+      const ids = interns.map(i => i.organisation_user_id);
+      internOrgUserIdsCsv = ids.length > 0 ? ids.join(',') : '0';
+    }
+
+    let filterConditionSql = '';
+    let queryParams = [];
+    if (isErodeIntern) {
+      filterConditionSql = `r.organisation_user_id IN (${internOrgUserIdsCsv})`;
+    } else {
+      filterConditionSql = `t.user_position = ?`;
+      queryParams.push(dbPosition);
+    }
 
     if (startDate) {
       dateFilterSql += ` AND r.created_at >= ?`;
@@ -2020,7 +2225,7 @@ router.get('/admin/department/:department/chart-data', authenticateToken, async 
       JOIN checklist_template_version v ON li.template_version_id = v.version_id
       JOIN checklist_template ct ON v.checklist_template_id = ct.id
       JOIN tags t ON ct.tag_id = t.id
-      WHERE t.user_position = ?
+      WHERE ${filterConditionSql}
         AND (ou.exclude_from_reports IS NULL OR ou.exclude_from_reports = FALSE)
       ${dateFilterSql}
       GROUP BY ci.checklist_name, ci.input_type
@@ -2043,7 +2248,7 @@ router.get('/admin/department/:department/chart-data', authenticateToken, async 
         JOIN checklist_template_version v ON li.template_version_id = v.version_id
         JOIN checklist_template ct ON v.checklist_template_id = ct.id
         JOIN tags t ON ct.tag_id = t.id
-        WHERE t.user_position = ?
+        WHERE ${filterConditionSql}
           AND (ou.exclude_from_reports IS NULL OR ou.exclude_from_reports = FALSE)
         ${dateFilterSql}
         GROUP BY ci.checklist_name, ci.input_type
@@ -2122,8 +2327,8 @@ router.get('/admin/users', authenticateToken, async (req, res) => {
 
     const formatted = users.map(u => {
       const positions = u.Organisation_User_position?.map(p => p.user_position) || [];
-      const nonPublicPosition = positions.find(p => p !== 'PUBLIC');
-      const mainPosition = nonPublicPosition || positions[0] || 'PUBLIC';
+      const nonPublicPosition = positions.find(p => p !== 'PUBLIC' && p !== 'ERODE_INTERN');
+      const mainPosition = nonPublicPosition || positions.find(p => p === 'ERODE_INTERN') || 'PUBLIC';
 
       return {
         id: u.id,
@@ -2390,6 +2595,102 @@ router.put('/admin/users/:id/enable', authenticateToken, async (req, res) => {
     res.json({ success: true, message: 'User enabled successfully' });
   } catch (error) {
     console.error('Admin enable user error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// Add user to Erode Interns group without changing primary position
+router.post('/admin/department/erode-interns/add-user', authenticateToken, async (req, res) => {
+  try {
+    const authUserId = parseInt(req.user.userId);
+    const requester = await prisma.organisation_Users.findUnique({
+      where: { id: authUserId },
+      select: { 
+        user_type: true,
+        User: { select: { email: true } }
+      }
+    });
+    const isRequesterAdmin = 
+      requester?.user_type?.trim() === 'ADMIN' || 
+      requester?.User?.email === 'gururider35@gmail.com';
+
+    if (!isRequesterAdmin) {
+      return res.status(403).json({ error: 'Only admins can manage department users' });
+    }
+
+    const { organisation_user_id } = req.body;
+    if (!organisation_user_id) {
+      return res.status(400).json({ error: 'organisation_user_id is required' });
+    }
+
+    const orgUser = await prisma.organisation_Users.findUnique({
+      where: { id: parseInt(organisation_user_id) },
+      include: { User: true }
+    });
+
+    if (!orgUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Check if ERODE_INTERN position already exists for this user
+    const existing = await prisma.organisation_User_position.findFirst({
+      where: {
+        organisation_user_id: orgUser.id,
+        user_position: 'ERODE_INTERN'
+      }
+    });
+
+    if (!existing) {
+      await prisma.organisation_User_position.create({
+        data: {
+          organisation_user_id: orgUser.id,
+          user_id: orgUser.User?.id,
+          user_position: 'ERODE_INTERN'
+        }
+      });
+    }
+
+    res.json({ success: true, message: 'User added to Erode Interns successfully' });
+  } catch (error) {
+    console.error('Add Erode Intern error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// Remove user from Erode Interns group without changing primary position
+router.post('/admin/department/erode-interns/remove-user', authenticateToken, async (req, res) => {
+  try {
+    const authUserId = parseInt(req.user.userId);
+    const requester = await prisma.organisation_Users.findUnique({
+      where: { id: authUserId },
+      select: { 
+        user_type: true,
+        User: { select: { email: true } }
+      }
+    });
+    const isRequesterAdmin = 
+      requester?.user_type?.trim() === 'ADMIN' || 
+      requester?.User?.email === 'gururider35@gmail.com';
+
+    if (!isRequesterAdmin) {
+      return res.status(403).json({ error: 'Only admins can manage department users' });
+    }
+
+    const { organisation_user_id } = req.body;
+    if (!organisation_user_id) {
+      return res.status(400).json({ error: 'organisation_user_id is required' });
+    }
+
+    await prisma.organisation_User_position.deleteMany({
+      where: {
+        organisation_user_id: parseInt(organisation_user_id),
+        user_position: 'ERODE_INTERN'
+      }
+    });
+
+    res.json({ success: true, message: 'User removed from Erode Interns successfully' });
+  } catch (error) {
+    console.error('Remove Erode Intern error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
@@ -3095,7 +3396,7 @@ router.get('/reports/users', authenticateToken, async (req, res) => {
   }
 });
 
-// Get list of distinct checklist items that have responses (filtered by role/organisation)
+// Get list of distinct checklist items that have responses (filtered by role/organisation/department)
 router.get('/checklist-items/list', authenticateToken, async (req, res) => {
   try {
     const authUserId = parseInt(req.user.userId);
@@ -3110,19 +3411,28 @@ router.get('/checklist-items/list', authenticateToken, async (req, res) => {
     }
 
     const isAdmin = requester.user_type?.trim() === 'ADMIN';
+    const { department } = req.query;
 
     let query = `
-      SELECT DISTINCT ci.checklist_name, ci.input_type
+      SELECT ci.checklist_name, ci.input_type, COUNT(r.id) as usage_count
       FROM checklist_items ci
       JOIN checklist_template_linked_items li ON ci.id = li.checklist_item_id
       JOIN checklist_item_response r ON li.id = r.checklist_template_linked_items_id
       JOIN Organisation_Users ou ON r.organisation_user_id = ou.id
     `;
-    const queryParams = [];
+    
+    const isErodeIntern = department && (department.toUpperCase() === 'ERODE_INTERN' || department.toUpperCase() === 'ERODE_INTERNS' || department.toUpperCase() === 'ERODE INTERNS');
 
-    // Filter by organisation of the responses
+    if (department && department.toLowerCase() !== 'overview' && !isErodeIntern) {
+      query += `
+        JOIN checklist_template_version v ON li.template_version_id = v.version_id
+        JOIN checklist_template ct ON v.checklist_template_id = ct.id
+        JOIN tags t ON ct.tag_id = t.id
+      `;
+    }
+
     query += ` WHERE ou.organisation_id = ? `;
-    queryParams.push(requester.organisation_id);
+    const queryParams = [requester.organisation_id];
 
     if (!isAdmin) {
       // Regular users only see responses they submitted
@@ -3130,10 +3440,52 @@ router.get('/checklist-items/list', authenticateToken, async (req, res) => {
       queryParams.push(authUserId);
     }
 
-    query += ` ORDER BY ci.checklist_name ASC `;
+    if (department && department.toLowerCase() !== 'overview') {
+      if (isErodeIntern) {
+        const interns = await prisma.organisation_User_position.findMany({
+          where: { user_position: 'ERODE_INTERN' },
+          select: { organisation_user_id: true }
+        });
+        const ids = interns.map(i => i.organisation_user_id);
+        const internOrgUserIdsCsv = ids.length > 0 ? ids.join(',') : '0';
+        query += ` AND r.organisation_user_id IN (${internOrgUserIdsCsv}) `;
+      } else {
+        let dbPosition = department;
+        if (department.toUpperCase() === 'DEVELOPMENT' || department.toUpperCase() === 'DEV' || department.toUpperCase() === 'FULL_STACK_DEVELOPER') {
+          dbPosition = 'FULL_STACK_DEVELOPER';
+        } else if (department.toUpperCase() === 'MARKETING' || department.toUpperCase() === 'MARKETTNG') {
+          dbPosition = 'MARKETING';
+        } else if (department.toUpperCase() === 'POWER_BI_DEVELOPER' || department.toUpperCase() === 'POWER BI DEVELOPER' || department.toUpperCase() === 'DATA_ANALYTICS' || department.toUpperCase() === 'DATA ANALYTICS') {
+          dbPosition = 'POWER_BI_DEVELOPER';
+        } else if (department.toUpperCase() === 'TESTING' || department.toUpperCase() === 'QA TESTING' || department.toUpperCase() === 'QA_TESTING') {
+          dbPosition = 'TESTING';
+        } else if (department.toUpperCase() === 'HR' || department.toUpperCase() === 'HUMAN_RESOURCE' || department.toUpperCase() === 'HUMAN RESOURCE') {
+          dbPosition = 'HUMAN_RESOURCE';
+        } else if (department.toUpperCase() === 'DT' || department.toUpperCase() === 'DIGITAL_TRANSFORMATION' || department.toUpperCase() === 'DIGITAL TRANSFORMATION') {
+          dbPosition = 'DIGITAL_TRANSFORMATION';
+        } else if (department.toUpperCase() === 'SALES') {
+          dbPosition = 'SALES';
+        }
+        query += ` AND t.user_position = ? `;
+        queryParams.push(dbPosition);
+      }
+    }
+
+    query += `
+      GROUP BY ci.checklist_name, ci.input_type
+      ORDER BY usage_count DESC, ci.checklist_name ASC
+    `;
 
     const items = await prisma.$queryRawUnsafe(query, ...queryParams);
-    res.json(items);
+    
+    // Cast bigint usage_count to number
+    const formattedItems = items.map(item => ({
+      checklist_name: item.checklist_name,
+      input_type: item.input_type,
+      usage_count: Number(item.usage_count)
+    }));
+
+    res.json(formattedItems);
   } catch (error) {
     console.error('Error fetching checklist items list:', error);
     res.status(500).json({ error: 'Internal Server Error' });
@@ -3171,11 +3523,13 @@ router.get('/checklist-items/history', authenticateToken, async (req, res) => {
         r.created_at,
         r.input,
         r.status,
-        ci.input_type
+        ci.input_type,
+        u.name as user_name
       FROM checklist_item_response r
       JOIN checklist_template_linked_items li ON r.checklist_template_linked_items_id = li.id
       JOIN checklist_items ci ON li.checklist_item_id = ci.id
       JOIN Organisation_Users ou ON r.organisation_user_id = ou.id
+      JOIN User u ON ou.user_id = u.id
       LEFT JOIN checklist_template_version v ON li.template_version_id = v.version_id
       LEFT JOIN checklist_template ct ON v.checklist_template_id = ct.id
       LEFT JOIN tags t ON ct.tag_id = t.id
@@ -3194,15 +3548,36 @@ router.get('/checklist-items/history', authenticateToken, async (req, res) => {
         query += ` AND r.organisation_user_id = ? `;
         queryParams.push(parseInt(targetUserId));
       }
-      if (targetDepartment) {
-        let dbPosition = targetDepartment;
-        if (targetDepartment.toUpperCase() === 'DEVELOPMENT' || targetDepartment.toUpperCase() === 'DEV' || targetDepartment.toUpperCase() === 'FULL_STACK_DEVELOPER') {
-          dbPosition = 'FULL_STACK_DEVELOPER';
-        } else if (targetDepartment.toUpperCase() === 'MARKETING' || targetDepartment.toUpperCase() === 'MARKETTNG') {
-          dbPosition = 'MARKETING';
+      if (targetDepartment && targetDepartment.toLowerCase() !== 'overview') {
+        const isErodeIntern = targetDepartment.toUpperCase() === 'ERODE_INTERN' || targetDepartment.toUpperCase() === 'ERODE_INTERNS' || targetDepartment.toUpperCase() === 'ERODE INTERNS';
+        if (isErodeIntern) {
+          const interns = await prisma.organisation_User_position.findMany({
+            where: { user_position: 'ERODE_INTERN' },
+            select: { organisation_user_id: true }
+          });
+          const ids = interns.map(i => i.organisation_user_id);
+          const internOrgUserIdsCsv = ids.length > 0 ? ids.join(',') : '0';
+          query += ` AND r.organisation_user_id IN (${internOrgUserIdsCsv}) `;
+        } else {
+          let dbPosition = targetDepartment;
+          if (targetDepartment.toUpperCase() === 'DEVELOPMENT' || targetDepartment.toUpperCase() === 'DEV' || targetDepartment.toUpperCase() === 'FULL_STACK_DEVELOPER') {
+            dbPosition = 'FULL_STACK_DEVELOPER';
+          } else if (targetDepartment.toUpperCase() === 'MARKETING' || targetDepartment.toUpperCase() === 'MARKETTNG') {
+            dbPosition = 'MARKETING';
+          } else if (targetDepartment.toUpperCase() === 'POWER_BI_DEVELOPER' || targetDepartment.toUpperCase() === 'POWER BI DEVELOPER' || targetDepartment.toUpperCase() === 'DATA_ANALYTICS' || targetDepartment.toUpperCase() === 'DATA ANALYTICS') {
+            dbPosition = 'POWER_BI_DEVELOPER';
+          } else if (targetDepartment.toUpperCase() === 'TESTING' || targetDepartment.toUpperCase() === 'QA TESTING' || targetDepartment.toUpperCase() === 'QA_TESTING') {
+            dbPosition = 'TESTING';
+          } else if (targetDepartment.toUpperCase() === 'HR' || targetDepartment.toUpperCase() === 'HUMAN_RESOURCE' || targetDepartment.toUpperCase() === 'HUMAN RESOURCE') {
+            dbPosition = 'HUMAN_RESOURCE';
+          } else if (targetDepartment.toUpperCase() === 'DT' || targetDepartment.toUpperCase() === 'DIGITAL_TRANSFORMATION' || targetDepartment.toUpperCase() === 'DIGITAL TRANSFORMATION') {
+            dbPosition = 'DIGITAL_TRANSFORMATION';
+          } else if (targetDepartment.toUpperCase() === 'SALES') {
+            dbPosition = 'SALES';
+          }
+          query += ` AND t.user_position = ? `;
+          queryParams.push(dbPosition);
         }
-        query += ` AND t.user_position = ? `;
-        queryParams.push(dbPosition);
       }
     }
 
@@ -3222,7 +3597,8 @@ router.get('/checklist-items/history', authenticateToken, async (req, res) => {
         itemName,
         inputType: 'Boolean',
         groupBy,
-        chartData: []
+        chartData: [],
+        userBreakdown: []
       });
     }
 
@@ -3254,6 +3630,7 @@ router.get('/checklist-items/history', authenticateToken, async (req, res) => {
     };
 
     const grouped = {};
+    const userGrouped = {};
 
     responses.forEach(r => {
       const key = getGroupKey(r.created_at, r.selected_date, groupBy);
@@ -3270,16 +3647,29 @@ router.get('/checklist-items/history', authenticateToken, async (req, res) => {
       }
 
       grouped[key].count += 1;
+
+      const uName = r.user_name || 'Unknown User';
+      if (!userGrouped[uName]) {
+        userGrouped[uName] = {
+          name: uName,
+          count: 0,
+          numericSum: 0,
+          booleanYes: 0,
+        };
+      }
+      userGrouped[uName].count += 1;
       
       if (inputType === 'Numeric') {
         const val = parseFloat(r.input || '0');
         const numVal = isNaN(val) ? 0 : val;
         grouped[key].numericSum += numVal;
         grouped[key].numericValues.push(numVal);
+        userGrouped[uName].numericSum += numVal;
       } else {
         const isYes = r.input === 'Yes' || r.input === '1' || r.input === 'true' || r.status === 1;
         if (isYes) {
           grouped[key].booleanYes += 1;
+          userGrouped[uName].booleanYes += 1;
         } else {
           grouped[key].booleanNo += 1;
         }
@@ -3315,11 +3705,26 @@ router.get('/checklist-items/history', authenticateToken, async (req, res) => {
       delete d.rawDate;
     });
 
+    const userBreakdown = Object.values(userGrouped).map(u => {
+      const res = {
+        name: u.name,
+        count: u.count
+      };
+      if (inputType === 'Numeric') {
+        res.avg = u.count > 0 ? Number((u.numericSum / u.count).toFixed(2)) : 0;
+        res.sum = Number(u.numericSum.toFixed(2));
+      } else {
+        res.yesPercentage = u.count > 0 ? Number(((u.booleanYes / u.count) * 100).toFixed(1)) : 0;
+      }
+      return res;
+    }).sort((a, b) => b.count - a.count);
+
     res.json({
       itemName,
       inputType,
       groupBy,
-      chartData
+      chartData,
+      userBreakdown
     });
 
   } catch (error) {

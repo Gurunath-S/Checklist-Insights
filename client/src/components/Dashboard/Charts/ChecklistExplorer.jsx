@@ -24,6 +24,7 @@ const ChecklistExplorer = ({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [groupBy, setGroupBy] = useState('day');
   const [chartData, setChartData] = useState([]);
+  const [userBreakdown, setUserBreakdown] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingItems, setLoadingItems] = useState(false);
   
@@ -52,29 +53,34 @@ const ChecklistExplorer = ({
       try {
         const token = localStorage.getItem('token');
         const res = await axios.get(`${API_BASE}/insights/checklist-items/list`, {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` },
+          params: { department }
         });
         setItemsList(res.data || []);
         
         // Auto-select first item if exists and nothing is selected
-        if (res.data && res.data.length > 0 && !selectedItem) {
-          const matchedItem = selectedItemName ? res.data.find(item => item.checklist_name === selectedItemName) : null;
-          if (matchedItem) {
-            setSelectedItem(matchedItem);
-            setSearchTerm(matchedItem.checklist_name);
-            if (matchedItem.input_type === 'Numeric') {
-              setPlotMetric('sum');
-            }
-          } else {
-            // Look for 'Approx time saved using AI' first to fulfill the specific AI use-case
-            const aiItem = res.data.find(item => 
-              item.checklist_name.toLowerCase().includes('ai') || 
-              item.checklist_name.toLowerCase().includes('time saved')
-            );
-            const defaultItem = aiItem || res.data[0];
-            setSelectedItem(defaultItem);
-            setSearchTerm(defaultItem.checklist_name);
+        const matchedItem = selectedItemName ? res.data.find(item => item.checklist_name === selectedItemName) : null;
+        if (matchedItem) {
+          setSelectedItem(matchedItem);
+          setSearchTerm(matchedItem.checklist_name);
+          if (matchedItem.input_type === 'Numeric') {
+            setPlotMetric('sum');
           }
+        } else if (res.data && res.data.length > 0) {
+          // Find first item that is NOT a login/logout item
+          const nonLogItem = res.data.find(item => {
+            const name = item.checklist_name.toLowerCase();
+            return !name.includes('login') && !name.includes('logout') && !name.includes('log in') && !name.includes('log out');
+          });
+          const defaultItem = nonLogItem || res.data[0];
+          setSelectedItem(defaultItem);
+          setSearchTerm(defaultItem.checklist_name);
+          if (defaultItem.input_type === 'Numeric') {
+            setPlotMetric('sum');
+          }
+        } else {
+          setSelectedItem(null);
+          setSearchTerm('');
         }
       } catch (err) {
         console.error('Failed to fetch checklist items list:', err);
@@ -83,7 +89,7 @@ const ChecklistExplorer = ({
       }
     };
     fetchItems();
-  }, []);
+  }, [department]);
 
   // Sync selected item with external prop selectedItemName
   useEffect(() => {
@@ -101,7 +107,11 @@ const ChecklistExplorer = ({
 
   // Fetch trend data when selected item or settings change
   useEffect(() => {
-    if (!selectedItem) return;
+    if (!selectedItem) {
+      setChartData([]);
+      setUserBreakdown([]);
+      return;
+    }
 
     const fetchHistory = async () => {
       setLoading(true);
@@ -122,6 +132,7 @@ const ChecklistExplorer = ({
           params
         });
         setChartData(res.data.chartData || []);
+        setUserBreakdown(res.data.userBreakdown || []);
       } catch (err) {
         console.error('Failed to fetch item history trend:', err);
       } finally {
@@ -482,6 +493,68 @@ const ChecklistExplorer = ({
               </AreaChart>
             </ResponsiveContainer>
           </div>
+
+          {/* User Breakdown Panel */}
+          {userBreakdown && userBreakdown.length > 0 && (
+            <div className="bg-white/2 border border-glass-border/30 rounded-3xl p-5 space-y-4">
+              <div>
+                <h4 className="text-sm font-bold text-white uppercase tracking-wider">Top Contributors / Users</h4>
+                <p className="text-[10px] text-text-muted">Users who submitted this checklist item the most</p>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Leaderboard List */}
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
+                  {userBreakdown.slice(0, 5).map((user, idx) => (
+                    <div key={user.name} className="flex items-center justify-between p-3 bg-white/5 border border-glass-border/50 rounded-xl text-xs hover:bg-white/[0.08] transition-all">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-6 h-6 rounded-lg bg-primary/20 text-primary flex items-center justify-center font-bold text-[10px]">
+                          #{idx + 1}
+                        </div>
+                        <span className="font-bold text-white">{user.name}</span>
+                      </div>
+                      <div className="flex items-center gap-4 text-right">
+                        <div>
+                          <div className="text-[10px] text-text-muted uppercase tracking-wider font-bold">Submissions</div>
+                          <div className="font-extrabold text-white text-xs">{user.count}</div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-text-muted uppercase tracking-wider font-bold">
+                            {selectedItem.input_type === 'Boolean' ? 'Compliance' : 'Average'}
+                          </div>
+                          <div className="font-extrabold text-primary text-xs">
+                            {selectedItem.input_type === 'Boolean' ? `${user.yesPercentage}%` : user.avg}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                {/* Mini comparison bar chart */}
+                <div className="bg-white/[0.02] border border-glass-border/20 rounded-2xl p-4 flex flex-col justify-center">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-text-muted mb-3 block">Submission Share Comparison</span>
+                  <div className="space-y-3">
+                    {userBreakdown.slice(0, 3).map((user) => {
+                      const maxCount = userBreakdown[0]?.count || 1;
+                      const pct = (user.count / maxCount) * 100;
+                      return (
+                        <div key={user.name} className="space-y-1">
+                          <div className="flex justify-between text-[10px] font-bold">
+                            <span className="text-white">{user.name}</span>
+                            <span className="text-text-muted">{user.count} ({Math.round((user.count / totalSubmissions) * 100)}%)</span>
+                          </div>
+                          <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden">
+                            <div className="bg-primary h-full rounded-full transition-all duration-500" style={{ width: `${pct}%` }}></div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

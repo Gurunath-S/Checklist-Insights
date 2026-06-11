@@ -10,15 +10,16 @@ import { getPaginationRange } from '../../UI/paginationHelper';
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
 
 const POSITIONS = [
+  'HUMAN_RESOURCE',
+  'DIGITAL_TRANSFORMATION',
+  'SALES',
+  'MARKETING',
   'FULL_STACK_DEVELOPER',
   'POWER_BI_DEVELOPER',
-  'SALES',
-  'HUMAN_RESOURCE',
   'TESTING',
   'SALESFORCE',
-  'PUBLIC',
-  'DIGITAL_TRANSFORMATION',
-  'MARKETING'
+  'ERODE_INTERN',
+  'PUBLIC'
 ];
 
 const USER_TYPES = ['USER', 'ADMIN'];

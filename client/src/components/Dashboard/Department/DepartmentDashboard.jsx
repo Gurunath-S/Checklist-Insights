@@ -140,6 +140,7 @@ const DepartmentDashboard = ({ department, adminStartDate, adminEndDate, onDoubl
   const isDev = department && (department.toUpperCase() === 'FULL_STACK_DEVELOPER' || department.toUpperCase() === 'DEVELOPMENT' || department.toUpperCase() === 'DEV');
   const isDataAnalytics = department && (department.toUpperCase() === 'POWER_BI_DEVELOPER' || department.toUpperCase() === 'POWER BI DEVELOPER' || department.toUpperCase() === 'DATA_ANALYTICS' || department.toUpperCase() === 'DATA ANALYTICS');
   const isTesting = department && (department.toUpperCase() === 'TESTING' || department.toUpperCase() === 'QA TESTING' || department.toUpperCase() === 'QA_TESTING');
+  const isErodeIntern = department && (department.toUpperCase() === 'ERODE_INTERN' || department.toUpperCase() === 'ERODE_INTERNS' || department.toUpperCase() === 'ERODE INTERNS');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -161,6 +162,75 @@ const DepartmentDashboard = ({ department, adminStartDate, adminEndDate, onDoubl
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [usersError, setUsersError] = useState(null);
   const [actionInProgress, setActionInProgress] = useState(null);
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchingUsers, setSearchingUsers] = useState(false);
+  const [isAddingUser, setIsAddingUser] = useState(null);
+
+  const handleSearchUsers = async (val) => {
+    setSearchTerm(val);
+    if (!val.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    setSearchingUsers(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.get(`${API_BASE}/insights/admin/users-list`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { search: val, limit: 10 }
+      });
+      const filtered = (res.data.users || []).filter(
+        orgUser => !deptUsers.some(du => du.id === orgUser.id)
+      );
+      setSearchResults(filtered);
+    } catch (err) {
+      console.error("Failed to search users", err);
+    } finally {
+      setSearchingUsers(false);
+    }
+  };
+
+  const handleAddIntern = async (orgUser) => {
+    setIsAddingUser(orgUser.id);
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`${API_BASE}/insights/admin/department/erode-interns/add-user`, {
+        organisation_user_id: orgUser.id
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      await fetchDeptUsers();
+      refreshDashboardData();
+      setSearchResults(prev => prev.filter(u => u.id !== orgUser.id));
+      setSearchTerm('');
+    } catch (err) {
+      console.error("Failed to add user to erode interns", err);
+      alert(err.response?.data?.error || "Failed to add user to Erode Interns");
+    } finally {
+      setIsAddingUser(null);
+    }
+  };
+
+  const handleRemoveIntern = async (user) => {
+    setActionInProgress(user.id);
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`${API_BASE}/insights/admin/department/erode-interns/remove-user`, {
+        organisation_user_id: user.id
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      await fetchDeptUsers();
+      refreshDashboardData();
+    } catch (err) {
+      console.error("Failed to remove user from erode interns", err);
+      alert(err.response?.data?.error || "Failed to remove user");
+    } finally {
+      setActionInProgress(null);
+    }
+  };
 
   const refreshDashboardData = () => {
     setRefreshTrigger(prev => prev + 1);
@@ -460,6 +530,46 @@ const DepartmentDashboard = ({ department, adminStartDate, adminEndDate, onDoubl
               icon={<TrendingUp />} 
               label="Completion Rate" 
               value={`${data.completionRate?.toFixed(1) || '0.0'}%`} 
+            />
+          </>
+        ) : isErodeIntern ? (
+          <>
+            <ColorfulCard 
+              color="from-indigo-600 to-indigo-800" 
+              icon={<Send />} 
+              label="Total Submissions" 
+              value={data.submissionsCount || 0} 
+            />
+            <ColorfulCard 
+              color="from-purple-500 to-purple-700" 
+              icon={<Users />} 
+              label="Erode Interns" 
+              value={data.usersCount || 0}
+              onClick={() => handleUsersCardClick()}
+            />
+            <ColorfulCard 
+              color="from-blue-500 to-blue-700" 
+              icon={<Users />} 
+              label="Developers" 
+              value={data.erodeInternsData?.developersCount || 0} 
+            />
+            <ColorfulCard 
+              color="from-teal-500 to-teal-700" 
+              icon={<Users />} 
+              label="Testers" 
+              value={data.erodeInternsData?.testersCount || 0} 
+            />
+            <ColorfulCard 
+              color="from-rose-500 to-rose-700" 
+              icon={<CheckSquare />} 
+              label="Task / Day" 
+              value={data.erodeInternsData?.tasksPerDay || 0} 
+            />
+            <ColorfulCard 
+              color="from-emerald-500 to-emerald-700" 
+              icon={<Calendar />} 
+              label="Last Submitted Date" 
+              value={formatDate(data.latestSubmissionDate)} 
             />
           </>
         ) : isTesting ? (
@@ -940,6 +1050,29 @@ const DepartmentDashboard = ({ department, adminStartDate, adminEndDate, onDoubl
             <div className="flex-1 w-full min-h-0">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
                 <BarChart data={data.analyticsData.tasksCompletedByUser} margin={{ top: 20, right: 30, left: 10, bottom: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <XAxis dataKey="name" stroke="var(--color-text-muted)" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => val.length > 10 ? val.substring(0, 10) + '...' : val} />
+                  <YAxis stroke="#fff" fontSize={11} tickLine={false} axisLine={false} />
+                  <RechartsTooltip 
+                    contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }}
+                    itemStyle={{ color: '#fff' }}
+                  />
+                  <Bar dataKey="value" fill="#8b5cf6" radius={[6, 6, 0, 0]} barSize={24} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      ) : isErodeIntern && data.erodeInternsData ? (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          {renderChecklistByInputs()}
+
+          {/* Tasks Completed by Users (Bar Chart) */}
+          <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-4 shadow-xl flex flex-col h-[350px]">
+            <h3 className="text-base font-bold text-white mb-4 text-center">Tasks Completed by Users</h3>
+            <div className="flex-1 w-full min-h-0">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
+                <BarChart data={data.erodeInternsData.tasksCompletedByUser} margin={{ top: 20, right: 30, left: 10, bottom: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                   <XAxis dataKey="name" stroke="var(--color-text-muted)" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => val.length > 10 ? val.substring(0, 10) + '...' : val} />
                   <YAxis stroke="#fff" fontSize={11} tickLine={false} axisLine={false} />
@@ -1606,6 +1739,60 @@ const DepartmentDashboard = ({ department, adminStartDate, adminEndDate, onDoubl
             </div>
             
             <div className="flex-1 overflow-y-auto py-4 min-h-[200px]">
+              {isErodeIntern && (
+                <div className="mb-6 bg-white/5 border border-glass-border/30 rounded-2xl p-4 flex flex-col gap-3">
+                  <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                    <PlusCircle size={16} className="text-primary" />
+                    <span>Add User to Erode Interns</span>
+                  </h4>
+                  <div className="flex gap-2 relative">
+                    <div className="flex-1 relative">
+                      <input 
+                        type="text"
+                        placeholder="Search users by name or email..."
+                        value={searchTerm}
+                        onChange={(e) => handleSearchUsers(e.target.value)}
+                        className="w-full bg-white/5 border border-glass-border rounded-xl px-4 py-2 text-xs text-white placeholder-text-muted focus:outline-none focus:border-primary transition-all"
+                      />
+                      {searchingUsers && (
+                        <div className="absolute right-3 top-2.5">
+                          <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-primary"></div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {searchResults.length > 0 && (
+                    <div className="bg-bg-card border border-glass-border rounded-xl overflow-hidden max-h-48 overflow-y-auto divide-y divide-white/5 mt-1 shadow-2xl z-50">
+                      {searchResults.map(orgUser => (
+                        <div key={orgUser.id} className="flex items-center justify-between p-2 hover:bg-white/5 transition-all text-xs">
+                          <div className="flex items-center gap-2">
+                            {orgUser.User?.image ? (
+                              <img src={orgUser.User.image} alt={orgUser.User.name} className="w-6 h-6 rounded-full object-cover border border-white/10" />
+                            ) : (
+                              <div className="w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center font-black uppercase text-[9px]">
+                                {(orgUser.User?.name || 'US').slice(0, 2)}
+                              </div>
+                            )}
+                            <div>
+                              <div className="font-bold text-white">{orgUser.User?.name}</div>
+                              <div className="text-[10px] text-text-muted">{orgUser.User?.email} • {orgUser.user_position || 'No Position'}</div>
+                            </div>
+                          </div>
+                          <button
+                            disabled={isAddingUser === orgUser.id}
+                            onClick={() => handleAddIntern(orgUser)}
+                            className="px-3 py-1 bg-primary hover:bg-primary-hover text-white text-[10px] font-black rounded-lg transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+                          >
+                            {isAddingUser === orgUser.id ? 'Adding...' : 'Add to Interns'}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {loadingUsers ? (
                 <div className="flex flex-col items-center justify-center py-12 gap-3">
                   <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary"></div>
@@ -1669,13 +1856,23 @@ const DepartmentDashboard = ({ department, adminStartDate, adminEndDate, onDoubl
                                 >
                                   {isWorking ? '...' : isExcluded ? 'Include Data' : 'Exclude Data'}
                                 </button>
-                                <button
-                                  disabled={isWorking}
-                                  onClick={() => handleToggleDeactivate(u)}
-                                  className={`px-3 py-1 rounded-xl text-[10px] font-bold transition-all border cursor-pointer ${isDisabled ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20' : 'bg-rose-500/10 border-rose-500/20 text-rose-400 hover:bg-rose-500/20'}`}
-                                >
-                                  {isWorking ? '...' : isDisabled ? 'Activate' : 'Deactivate'}
-                                </button>
+                                {isErodeIntern ? (
+                                  <button
+                                    disabled={isWorking}
+                                    onClick={() => handleRemoveIntern(u)}
+                                    className="px-3 py-1 rounded-xl text-[10px] font-bold transition-all border border-rose-500/20 text-rose-400 hover:bg-rose-500/10 cursor-pointer"
+                                  >
+                                    {isWorking ? '...' : 'Remove'}
+                                  </button>
+                                ) : (
+                                  <button
+                                    disabled={isWorking}
+                                    onClick={() => handleToggleDeactivate(u)}
+                                    className={`px-3 py-1 rounded-xl text-[10px] font-bold transition-all border cursor-pointer ${isDisabled ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20' : 'bg-rose-500/10 border-rose-500/20 text-rose-400 hover:bg-rose-500/20'}`}
+                                  >
+                                    {isWorking ? '...' : isDisabled ? 'Activate' : 'Deactivate'}
+                                  </button>
+                                )}
                               </div>
                             </td>
                           </tr>

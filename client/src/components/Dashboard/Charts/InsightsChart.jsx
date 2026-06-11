@@ -7,6 +7,27 @@ import {
 import { Activity, ChevronDown, BarChart2, LineChart, List } from 'lucide-react';
 import ErrorBoundary from '../../UI/ErrorBoundary';
 
+const DEPT_ORDER = {
+  'HUMAN_RESOURCE': 1,
+  'HR': 1,
+  'DIGITAL_TRANSFORMATION': 2,
+  'DT': 2,
+  'SALES': 3,
+  'MARKETING': 4,
+  'FULL_STACK_DEVELOPER': 5,
+  'DEVELOPMENT': 5,
+  'POWER_BI_DEVELOPER': 6,
+  'DATA_ANALYTICS': 6,
+  'DATA ANALYTICS': 6,
+  'TESTING': 7,
+  'QA_TESTING': 7,
+  'QA TESTING': 7,
+  'SALESFORCE': 8,
+  'ERODE_INTERN': 9,
+  'ERODE_INTERNS': 9,
+  'ERODE INTERNS': 9
+};
+
 const InsightsChart = ({ data, isAdmin, selectedMetrics = [], user, startDate, endDate }) => {
   const [activeChart, setActiveChart] = useState('checklist');
   const [isChartDropdownOpen, setIsChartDropdownOpen] = useState(false);
@@ -70,9 +91,15 @@ const InsightsChart = ({ data, isAdmin, selectedMetrics = [], user, startDate, e
   }, [activeChart, page, limit, startDate, endDate, user?.id, isAdmin]);
 
   // Memoize admin variables to prevent changing array references on each render
-  const adminUsersByPositionTags = useMemo(() => data?.usersByPositionTags || [], [data?.usersByPositionTags]);
+  const adminUsersByPositionTags = useMemo(() => {
+    const tags = data?.usersByPositionTags || [];
+    return [...tags].sort((a, b) => (DEPT_ORDER[a.name] || 999) - (DEPT_ORDER[b.name] || 999));
+  }, [data?.usersByPositionTags]);
   const adminUsersByType = useMemo(() => data?.usersByType || [], [data?.usersByType]);
-  const adminUsersByPosition = useMemo(() => data?.usersByPosition || [], [data?.usersByPosition]);
+  const adminUsersByPosition = useMemo(() => {
+    const positions = data?.usersByPosition || [];
+    return [...positions].sort((a, b) => (DEPT_ORDER[a.name] || 999) - (DEPT_ORDER[b.name] || 999));
+  }, [data?.usersByPosition]);
 
   // Memoize sliced performance trend to keep a stable reference
   const slicedPerformanceTrend = useMemo(() => {

@@ -672,18 +672,47 @@ function App() {
                       >
                         System Overview
                       </button>
-                      {data?.usersByPositionTags?.filter(tag => tag.name !== 'PUBLIC')?.map(tag => {
-                        const label = tag.name === 'FULL_STACK_DEVELOPER' ? 'DEVELOPMENT' : tag.name === 'POWER_BI_DEVELOPER' ? 'DATA ANALYTICS' : tag.name === 'TESTING' ? 'QA TESTING' : tag.name.replace(/_/g, ' ');
-                        return (
-                          <button
-                            key={tag.name}
-                            onClick={() => { setSelectedDepartment(tag.name); setInspectedUser(null); setInspectedData(null); setSelectedOrganisation(null); }}
-                            className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all border cursor-pointer capitalize ${selectedDepartment === tag.name && !inspectedUser ? 'bg-primary text-white border-primary shadow-lg shadow-primary/30' : 'bg-white/5 border-glass-border text-text-muted hover:text-white hover:bg-white/10'}`}
-                          >
-                            {label}
-                          </button>
-                        );
-                      })}
+                      {(() => {
+                        const DEPT_ORDER = {
+                          'HUMAN_RESOURCE': 1,
+                          'HR': 1,
+                          'DIGITAL_TRANSFORMATION': 2,
+                          'DT': 2,
+                          'SALES': 3,
+                          'MARKETING': 4,
+                          'FULL_STACK_DEVELOPER': 5,
+                          'DEVELOPMENT': 5,
+                          'POWER_BI_DEVELOPER': 6,
+                          'DATA_ANALYTICS': 6,
+                          'DATA ANALYTICS': 6,
+                          'TESTING': 7,
+                          'QA_TESTING': 7,
+                          'QA TESTING': 7,
+                          'SALESFORCE': 8,
+                          'ERODE_INTERN': 9,
+                          'ERODE_INTERNS': 9,
+                          'ERODE INTERNS': 9
+                        };
+                        const tagsList = [...(data?.usersByPositionTags || [])];
+                        if (!tagsList.some(tag => tag.name === 'ERODE_INTERN')) {
+                          tagsList.push({ name: 'ERODE_INTERN', value: 0 });
+                        }
+                        return tagsList
+                          .filter(tag => tag.name !== 'PUBLIC')
+                          .sort((a, b) => (DEPT_ORDER[a.name] || 999) - (DEPT_ORDER[b.name] || 999))
+                          .map(tag => {
+                            const label = tag.name === 'FULL_STACK_DEVELOPER' ? 'DEVELOPMENT' : tag.name === 'POWER_BI_DEVELOPER' ? 'DATA ANALYTICS' : tag.name === 'TESTING' ? 'QA TESTING' : tag.name === 'ERODE_INTERN' ? 'Erode Interns' : tag.name.replace(/_/g, ' ');
+                            return (
+                              <button
+                                key={tag.name}
+                                onClick={() => { setSelectedDepartment(tag.name); setInspectedUser(null); setInspectedData(null); setSelectedOrganisation(null); }}
+                                className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all border cursor-pointer capitalize ${selectedDepartment === tag.name && !inspectedUser ? 'bg-primary text-white border-primary shadow-lg shadow-primary/30' : 'bg-white/5 border-glass-border text-text-muted hover:text-white hover:bg-white/10'}`}
+                              >
+                                {label}
+                              </button>
+                            );
+                          });
+                      })()}
                     </div>
                   </div>
 
