@@ -67,16 +67,28 @@ const ChecklistExplorer = ({
             setPlotMetric('sum');
           }
         } else if (res.data && res.data.length > 0) {
-          // Find first item that is NOT a login/logout item
+          // Find first item that is NOT a login/logout or clock-in/clock-out item
           const nonLogItem = res.data.find(item => {
             const name = item.checklist_name.toLowerCase();
-            return !name.includes('login') && !name.includes('logout') && !name.includes('log in') && !name.includes('log out');
+            return !name.includes('login') && 
+                   !name.includes('logout') && 
+                   !name.includes('log in') && 
+                   !name.includes('log out') &&
+                   !name.includes('clock in') &&
+                   !name.includes('clock out') &&
+                   !name.includes('clock-in') &&
+                   !name.includes('clock-out');
           });
-          const defaultItem = nonLogItem || res.data[0];
-          setSelectedItem(defaultItem);
-          setSearchTerm(defaultItem.checklist_name);
-          if (defaultItem.input_type === 'Numeric') {
-            setPlotMetric('sum');
+          
+          if (nonLogItem) {
+            setSelectedItem(nonLogItem);
+            setSearchTerm(nonLogItem.checklist_name);
+            if (nonLogItem.input_type === 'Numeric') {
+              setPlotMetric('sum');
+            }
+          } else {
+            setSelectedItem(null);
+            setSearchTerm('');
           }
         } else {
           setSelectedItem(null);
