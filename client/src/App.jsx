@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { Sparkles, LogOut, Users, ChevronDown, List, Search } from 'lucide-react';
+import { Sparkles, LogOut, Users, ChevronDown, List, Search, Moon, Sun, Palette } from 'lucide-react';
 import Sidebar from './components/Dashboard/Sidebar';
 import LoginPage from './components/Auth/LoginPage';
 import TourGuide from './components/Dashboard/TourGuide';
@@ -107,6 +107,8 @@ function App() {
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [loginError, setLoginError] = useState(null);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isMicrosoftLoading, setIsMicrosoftLoading] = useState(false);
   const [selectedMetrics, setSelectedMetrics] = useState([]);
 
   // Admin User Selector & Inspection local states
@@ -226,10 +228,25 @@ function App() {
       const hash = window.location.hash.substring(1);
       const hashParams = new URLSearchParams(hash);
       const googleAccessToken = hashParams.get('access_token');
+      const googleState = hashParams.get('state');
+
       if (googleAccessToken) {
+        setIsGoogleLoading(true);
         // Clean the hash so it doesn't linger in the URL bar
         window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
         
+        // Retrieve and clear stored state for CSRF protection
+        const storedState = sessionStorage.getItem('oauth_state');
+        sessionStorage.removeItem('oauth_state');
+
+        if (!googleState || googleState !== storedState) {
+          console.error('CSRF verification failed: OAuth state mismatch.');
+          setLoginError('Authentication failed: Secure session validation mismatch (CSRF alert).');
+          setIsGoogleLoading(false);
+          setIsValidatingSession(false);
+          return;
+        }
+
         setLoading(true);
         try {
           const res = await axios.post(`${API_BASE}/auth/google`, { 
@@ -246,6 +263,7 @@ function App() {
           const errMsg = err.response?.data?.error || err.message;
           setLoginError(`Google Login failed: ${errMsg}`);
         } finally {
+          setIsGoogleLoading(false);
           setLoading(false);
           setIsValidatingSession(false);
         }
@@ -255,6 +273,7 @@ function App() {
       // First, check if we just came back from a Microsoft redirect
       const pendingMsalToken = sessionStorage.getItem('msal_pending_token');
       if (pendingMsalToken) {
+        setIsMicrosoftLoading(true);
         sessionStorage.removeItem('msal_pending_token');
         setLoading(true);
         try {
@@ -271,6 +290,7 @@ function App() {
           const errMsg = err.response?.data?.error || err.message;
           setLoginError(`Microsoft Login failed: ${errMsg}`);
         } finally {
+          setIsMicrosoftLoading(false);
           setLoading(false);
           setIsValidatingSession(false);
         }
@@ -578,7 +598,7 @@ function App() {
 
 
   // Prevent flash of login page while validating session
-  if (loading && !user) {
+  if (loading && !user && !isGoogleLoading && !isMicrosoftLoading) {
     return <LoadingState />;
   }
 
@@ -595,6 +615,8 @@ function App() {
           setTheme(t);
           setThemeChangedOnLogin(true);
         }}
+        isGoogleLoading={isGoogleLoading}
+        isMicrosoftLoading={isMicrosoftLoading}
       />
     );
   }
@@ -631,8 +653,8 @@ function App() {
           <>
             {!isAdmin && <UserProfileHeader user={user} />}
             
-            <header className="mb-8">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <header className="mb-8" id="app-header">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 w-full">
                 <div>
                   <h1 className="text-2xl lg:text-3xl font-extrabold tracking-tight">
                     {isAdmin ? 'Admin' : 'Performance'} <span className="text-accent">Insights</span>
@@ -640,6 +662,31 @@ function App() {
                   <p className="text-text-muted mt-1 text-sm">
                     {isAdmin ? 'System-wide analytics overview.' : 'Your personalized checklist performance data.'}
                   </p>
+                </div>
+
+                {/* Header Quick Theme Switcher */}
+                <div className="flex items-center gap-2 bg-bg-card backdrop-blur-xl border border-glass-border p-1.5 rounded-2xl shadow-lg self-end md:self-auto">
+                  {[
+                    { id: 'classic', name: 'Classic Dark', icon: <Moon size={14} />, color: 'text-indigo-400' },
+                    { id: 'genie', name: 'Genie Mode', icon: <Sparkles size={14} />, color: 'text-amber-400' },
+                    { id: 'sapphire', name: 'Ocean Sapphire', icon: <Palette size={14} />, color: 'text-blue-400' },
+                    { id: 'light', name: 'Light Glass', icon: <Sun size={14} />, color: 'text-amber-500' }
+                  ].map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => setTheme(t.id)}
+                      className={`flex items-center justify-center p-2 rounded-xl transition-all duration-300 cursor-pointer ${
+                        theme === t.id
+                          ? 'bg-primary/20 text-white border border-primary/30 shadow-md scale-105'
+                          : 'text-text-muted hover:bg-white/5 hover:text-white'
+                      }`}
+                      title={`Switch to ${t.name}`}
+                    >
+                      <span className={theme === t.id ? 'text-primary' : t.color}>
+                        {t.icon}
+                      </span>
+                    </button>
+                  ))}
                 </div>
               </div>
             </header>

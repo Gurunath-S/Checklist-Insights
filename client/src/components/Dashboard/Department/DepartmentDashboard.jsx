@@ -415,17 +415,17 @@ const DepartmentDashboard = ({ department, adminStartDate, adminEndDate, onDoubl
             <button 
               onClick={() => setPage(p => Math.max(1, p - 1))}
               disabled={page === 1}
-              className="px-2 py-0.5 text-xs font-bold text-white disabled:opacity-30 hover:bg-white/10 rounded-lg cursor-pointer transition-all"
+              className="px-2 py-0.5 text-xs font-bold text-text-main disabled:opacity-30 hover:bg-white/10 rounded-lg cursor-pointer transition-all"
             >
               &lt;
             </button>
-            <span className="text-[10px] font-bold px-1 text-white/70 min-w-[36px] text-center">
+            <span className="text-[10px] font-bold px-1 text-text-muted min-w-[36px] text-center">
               {page} / {totalPages || 1}
             </span>
             <button 
               onClick={() => setPage(p => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages}
-              className="px-2 py-0.5 text-xs font-bold text-white disabled:opacity-30 hover:bg-white/10 rounded-lg cursor-pointer transition-all"
+              className="px-2 py-0.5 text-xs font-bold text-text-main disabled:opacity-30 hover:bg-white/10 rounded-lg cursor-pointer transition-all"
             >
               &gt;
             </button>

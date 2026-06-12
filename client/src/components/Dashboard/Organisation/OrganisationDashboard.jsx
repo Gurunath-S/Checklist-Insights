@@ -331,16 +331,16 @@ const OrganisationDashboard = ({ organisation, adminStartDate, adminEndDate, onB
                 type="button"
                 disabled={page === 1}
                 onClick={() => setPage(p => Math.max(1, p - 1))}
-                className="px-3 py-1.5 bg-white/5 border border-glass-border rounded-xl text-white font-bold hover:bg-white/10 transition-all disabled:opacity-40 disabled:hover:bg-white/5 cursor-pointer disabled:cursor-not-allowed"
+                className="px-3 py-1.5 bg-white/5 border border-glass-border rounded-xl text-text-main font-bold hover:bg-white/10 transition-all disabled:opacity-40 disabled:hover:bg-white/5 cursor-pointer disabled:cursor-not-allowed"
               >
                 Previous
               </button>
-              <span className="text-text-muted">Page <strong className="text-white font-black">{page}</strong> of <strong className="text-white font-black">{totalPages}</strong></span>
+              <span className="text-text-muted">Page <strong className="text-text-main font-black">{page}</strong> of <strong className="text-text-main font-black">{totalPages}</strong></span>
               <button
                 type="button"
                 disabled={page === totalPages}
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                className="px-3 py-1.5 bg-white/5 border border-glass-border rounded-xl text-white font-bold hover:bg-white/10 transition-all disabled:opacity-40 disabled:hover:bg-white/5 cursor-pointer disabled:cursor-not-allowed"
+                className="px-3 py-1.5 bg-white/5 border border-glass-border rounded-xl text-text-main font-bold hover:bg-white/10 transition-all disabled:opacity-40 disabled:hover:bg-white/5 cursor-pointer disabled:cursor-not-allowed"
               >
                 Next
               </button>

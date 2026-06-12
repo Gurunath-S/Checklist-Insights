@@ -37,6 +37,7 @@ model checklist_item_response {
   @@index([checklist_template_linked_items_id], map: "checklist_item_response_checklist_template_linked_items_id_fkey")
   @@index([organisation_user_id], map: "checklist_item_response_organisation_user_id_fkey")
   @@index([template_version], map: "checklist_item_response_template_version_fkey")
+  @@index([created_at], map: "idx_checklist_item_response_created_at")
 }
 
 model checklist_template_linked_items {
@@ -160,6 +161,7 @@ model Organisation_Users {
 
   @@index([organisation_id], map: "Organisation_Users_organisation_id_fkey")
   @@index([user_id], map: "Organisation_Users_user_id_fkey")
+  @@index([exclude_from_reports], map: "idx_organisation_users_exclude_from_reports")
 }
 
 model TemplateRecipients {

@@ -341,9 +341,9 @@ export default function SubmissionsReport() {
                 <button
                   onClick={() => handlePageChange(page - 1)}
                   disabled={page === 1}
-                  className={`p-1.5 rounded-lg border border-glass-border text-white transition-all ${
+                  className={`p-1.5 rounded-lg border border-glass-border text-text-main transition-all ${
                     page === 1 
-                      ? 'bg-white/2 text-white/20 cursor-not-allowed' 
+                      ? 'bg-white/2 text-text-muted/20 cursor-not-allowed' 
                       : 'bg-white/5 hover:bg-white/10 cursor-pointer'
                   }`}
                 >
@@ -368,7 +368,7 @@ export default function SubmissionsReport() {
                       className={`w-8 h-8 rounded-lg text-xs font-bold transition-all border ${
                         page === item 
                           ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20' 
-                          : 'bg-white/5 border-glass-border text-text-muted hover:text-white hover:bg-white/10 cursor-pointer'
+                          : 'bg-white/5 border-glass-border text-text-muted hover:text-primary hover:bg-white/10 cursor-pointer'
                       }`}
                     >
                       {item}
@@ -379,9 +379,9 @@ export default function SubmissionsReport() {
                 <button
                   onClick={() => handlePageChange(page + 1)}
                   disabled={page === totalPages}
-                  className={`p-1.5 rounded-lg border border-glass-border text-white transition-all ${
+                  className={`p-1.5 rounded-lg border border-glass-border text-text-main transition-all ${
                     page === totalPages 
-                      ? 'bg-white/2 text-white/20 cursor-not-allowed' 
+                      ? 'bg-white/2 text-text-muted/20 cursor-not-allowed' 
                       : 'bg-white/5 hover:bg-white/10 cursor-pointer'
                   }`}
                 >
