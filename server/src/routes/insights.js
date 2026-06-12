@@ -514,7 +514,11 @@ router.get('/admin/summary', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Admin summary error:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    res.status(500).json({ 
+      error: 'Internal Server Error',
+      message: error.message,
+      stack: error.stack
+    });
   }
 });
 
@@ -2344,7 +2348,11 @@ router.get('/admin/users', authenticateToken, async (req, res) => {
     res.json(formatted);
   } catch (error) {
     console.error('Admin users endpoint error:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    res.status(500).json({ 
+      error: 'Internal Server Error',
+      message: error.message,
+      stack: error.stack
+    });
   }
 });
 
