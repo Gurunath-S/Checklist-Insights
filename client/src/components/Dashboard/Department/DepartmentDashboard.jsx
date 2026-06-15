@@ -144,6 +144,7 @@ const DepartmentDashboard = ({ department, adminStartDate, adminEndDate, onDoubl
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [loadedDepartment, setLoadedDepartment] = useState(null);
 
   const [isLimitDropdownOpen, setIsLimitDropdownOpen] = useState(false);
   const [page, setPage] = useState(1);
@@ -317,10 +318,12 @@ const DepartmentDashboard = ({ department, adminStartDate, adminEndDate, onDoubl
           params
         });
         setData(res.data);
+        setLoadedDepartment(department);
         setError(null);
       } catch (err) {
         console.error("Failed to fetch department data", err);
         setError("Failed to load department insights.");
+        setLoadedDepartment(null);
       } finally {
         setLoading(false);
       }
@@ -362,7 +365,8 @@ const DepartmentDashboard = ({ department, adminStartDate, adminEndDate, onDoubl
     fetchChartData();
   }, [department, page, limit, adminStartDate, adminEndDate, refreshTrigger]);
 
-  if (loading) return <LoadingState />;
+  const isDataLoadedForCurrentDept = data && loadedDepartment === department;
+  if (loading && !isDataLoadedForCurrentDept) return <LoadingState />;
   if (error) return <div className="text-danger text-center p-8">{error}</div>;
   if (!data) return null;
 
@@ -434,7 +438,7 @@ const DepartmentDashboard = ({ department, adminStartDate, adminEndDate, onDoubl
       </div>
 
       <div className="flex-1 w-full min-h-0">
-        {loadingChart ? (
+        {loadingChart && chartData.length === 0 ? (
           <div className="w-full h-full flex flex-col items-center justify-center text-text-muted">
             <Activity size={32} className="opacity-30 animate-pulse text-primary mb-2" />
             <span className="text-xs font-bold">Loading Data...</span>
@@ -444,54 +448,56 @@ const DepartmentDashboard = ({ department, adminStartDate, adminEndDate, onDoubl
             No data available for this range.
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
-            <BarChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 40 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-              <XAxis 
-                dataKey="name" 
-                stroke="var(--color-text-muted)" 
-                fontSize={10} 
-                tickLine={false} 
-                axisLine={false} 
-                angle={-45}
-                textAnchor="end"
-                interval={0}
-                tickFormatter={(val) => val.length > 15 ? val.substring(0, 15) + '...' : val}
-              />
-              <YAxis stroke="#fff" fontSize={11} tickLine={false} axisLine={false} />
-              <RechartsTooltip 
-                contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)' }}
-                itemStyle={{ color: '#fff' }}
-                cursor={{fill: 'rgba(255,255,255,0.05)'}}
-              />
-              <Bar 
-                dataKey="value" 
-                radius={[4, 4, 0, 0]} 
-                barSize={40}
-                onDoubleClick={(data) => {
-                  if (data && data.name) {
-                    onDoubleClickItem?.(data.name);
-                  }
-                }}
-                style={{ cursor: 'pointer' }}
-              >
-                {chartData.map((entry, index) => (
-                  <Cell 
-                    key={`cell-${index}`} 
-                    fill={COLORS[index % COLORS.length]} 
-                    style={{ cursor: 'pointer' }}
-                  />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          <div className={`w-full h-full transition-opacity duration-300 ${loadingChart ? 'opacity-50 pointer-events-none' : ''}`}>
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
+              <BarChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 40 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                <XAxis 
+                  dataKey="name" 
+                  stroke="var(--color-text-muted)" 
+                  fontSize={10} 
+                  tickLine={false} 
+                  axisLine={false} 
+                  angle={-45}
+                  textAnchor="end"
+                  interval={0}
+                  tickFormatter={(val) => val.length > 15 ? val.substring(0, 15) + '...' : val}
+                />
+                <YAxis stroke="#fff" fontSize={11} tickLine={false} axisLine={false} />
+                <RechartsTooltip 
+                  contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)' }}
+                  itemStyle={{ color: '#fff' }}
+                  cursor={{fill: 'rgba(255,255,255,0.05)'}}
+                />
+                <Bar 
+                  dataKey="value" 
+                  radius={[4, 4, 0, 0]} 
+                  barSize={40}
+                  onDoubleClick={(data) => {
+                    if (data && data.name) {
+                      onDoubleClickItem?.(data.name);
+                    }
+                  }}
+                  style={{ cursor: 'pointer' }}
+                >
+                  {chartData.map((entry, index) => (
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={COLORS[index % COLORS.length]} 
+                      style={{ cursor: 'pointer' }}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         )}
       </div>
     </div>
   );
 
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className={`space-y-8 animate-fade-in transition-all duration-300 ${loading ? 'opacity-60 pointer-events-none' : ''}`}>
       <div className="flex items-center justify-between mb-2">
         <h2 className="text-xl font-bold text-white capitalize">{isDataAnalytics ? 'Data Analytics' : department.replace(/_/g, ' ')}</h2>
       </div>

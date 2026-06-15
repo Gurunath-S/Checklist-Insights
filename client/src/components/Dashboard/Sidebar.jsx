@@ -1,7 +1,12 @@
 import React, { useState } from 'react';
 import { LayoutDashboard, Users, LogOut, Settings, BarChart, ChevronDown, HelpCircle } from 'lucide-react';
+import { useAuthStore } from '../../store/useAuthStore';
+import { useDataStore } from '../../store/useDataStore';
 
-const Sidebar = ({ isAdmin, currentView, user, onLogout, onNavigate, onStartTour }) => {
+const Sidebar = ({ isAdmin, currentView, onNavigate, onLogout }) => {
+  const { user, logout } = useAuthStore();
+  const setIsTourOpen = useDataStore((state) => state.setIsTourOpen);
+
   const isDashboardActive = currentView === 'dashboard' && !isAdmin;
   const isAdminActive = currentView === 'dashboard' && isAdmin;
   const isSettingsActive = currentView === 'settings';
@@ -12,6 +17,15 @@ const Sidebar = ({ isAdmin, currentView, user, onLogout, onNavigate, onStartTour
 
   const handleDashboardClick = () => {
     onNavigate('dashboard', false);
+  };
+
+  const handleLogoutClick = () => {
+    if (onLogout) {
+      onLogout();
+    } else {
+      logout();
+      useDataStore.getState().resetData();
+    }
   };
 
   return (
@@ -126,7 +140,7 @@ const Sidebar = ({ isAdmin, currentView, user, onLogout, onNavigate, onStartTour
 
           <button 
             className="w-full flex items-center gap-4 p-2.5 rounded-xl text-sm font-medium text-text-muted hover:bg-white/5 hover:text-white hover:translate-x-1 transition-all duration-300 mb-2 text-left group cursor-pointer"
-            onClick={onStartTour}
+            onClick={() => setIsTourOpen(true)}
           >
             <HelpCircle size={20} className="group-hover:scale-110 transition-transform" />
             <span>Help Tour</span>
@@ -148,7 +162,7 @@ const Sidebar = ({ isAdmin, currentView, user, onLogout, onNavigate, onStartTour
         </div>
         <button 
           className="w-full flex items-center justify-center gap-3 p-2.5 bg-danger/10 border border-danger/20 rounded-xl text-danger font-bold text-sm hover:bg-danger hover:text-white hover:-translate-y-0.5 transition-all duration-300 shadow-lg shadow-danger/10 hover:shadow-danger/30 cursor-pointer" 
-          onClick={onLogout}
+          onClick={handleLogoutClick}
         >
           <LogOut size={18} />
           <span>Sign Out</span>

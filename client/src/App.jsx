@@ -16,6 +16,10 @@ import ReportsPage from './components/Dashboard/Reports/ReportsPage';
 import TagReportsView from './components/Dashboard/TagReports/TagReportsView';
 import OrganisationDashboard from './components/Dashboard/Organisation/OrganisationDashboard';
 import ChecklistExplorer from './components/Dashboard/Charts/ChecklistExplorer';
+import { useAuthStore } from './store/useAuthStore';
+import { useThemeStore } from './store/useThemeStore';
+import { useFilterStore } from './store/useFilterStore';
+import { useDataStore } from './store/useDataStore';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
 
@@ -53,43 +57,91 @@ axios.interceptors.response.use(
 );
 
 function App() {
-  const [user, setUser] = useState(() => {
-    const saved = localStorage.getItem('user');
-    return saved ? JSON.parse(saved) : null;
-  });
-  const [data, setData] = useState(null);
+  const {
+    user,
+    setUser,
+    loading,
+    setLoading,
+    isValidatingSession,
+    setIsValidatingSession,
+    loginError,
+    setLoginError,
+    isGoogleLoading,
+    setGoogleLoading,
+    isMicrosoftLoading,
+    setMicrosoftLoading,
+    googleLogin,
+    microsoftLogin,
+    logout
+  } = useAuthStore();
+
+  const {
+    theme,
+    setTheme,
+    themeChangedOnLogin,
+    setThemeChangedOnLogin,
+    syncUserTheme
+  } = useThemeStore();
+
+  const {
+    datePreset,
+    setDatePreset,
+    startDate,
+    setStartDate,
+    endDate,
+    setEndDate,
+    selectedDepartment,
+    setSelectedDepartment,
+    deptDatePreset,
+    setDeptDatePreset,
+    deptStartDate,
+    setDeptStartDate,
+    deptEndDate,
+    setDeptEndDate
+  } = useFilterStore();
+
+  const {
+    data,
+    setData,
+    selectedMetrics,
+    setSelectedMetrics,
+    selectedChecklistItemName,
+    setSelectedChecklistItemName,
+    adminUsers,
+    setAdminUsers,
+    inspectedUser,
+    setInspectedUser,
+    inspectedData,
+    setInspectedData,
+    inspectedMetrics,
+    setInspectedMetrics,
+    inspectedSearch,
+    setInspectedSearch,
+    isInspectDropdownOpen,
+    setIsInspectDropdownOpen,
+    loadingInspect,
+    setLoadingInspect,
+    selectedOrganisation,
+    setSelectedOrganisation,
+    overviewTab,
+    setOverviewTab,
+    isTourOpen,
+    setIsTourOpen,
+    resetData
+  } = useDataStore();
+
   const [isAdmin, setIsAdmin] = useState(false);
-  const [loading, setLoading] = useState(!!localStorage.getItem('token')); // Start loading if we have a token to verify
-  const [isValidatingSession, setIsValidatingSession] = useState(!!localStorage.getItem('token'));
   const [error, setError] = useState(null);
   
-  // Global Date Filters
-  const [datePreset, setDatePreset] = useState('all-time');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [selectedDepartment, setSelectedDepartment] = useState('Overview');
-
-  // Department-Specific Date Filters
-  const [deptDatePreset, setDeptDatePreset] = useState('all-time');
-  const [deptStartDate, setDeptStartDate] = useState('');
-  const [deptEndDate, setDeptEndDate] = useState('');
-
-  // Multi-view navigation and Color Themes
+  // Multi-view navigation
   const [currentView, setCurrentView] = useState('dashboard');
-  const [theme, setTheme] = useState(() => {
-    const savedUserStr = localStorage.getItem('user');
-    if (savedUserStr) {
-      try {
-        const savedUser = JSON.parse(savedUserStr);
-        if (savedUser && savedUser.id) {
-          return localStorage.getItem(`theme_${savedUser.id}`) || 'classic';
-        }
-      } catch (e) {
-        console.error(e);
-      }
+  const [visitedViews, setVisitedViews] = useState(['dashboard']);
+
+  useEffect(() => {
+    if (!visitedViews.includes(currentView)) {
+      setVisitedViews(prev => [...prev, currentView]);
     }
-    return localStorage.getItem('theme') || 'classic';
-  });
+  }, [currentView, visitedViews]);
 
   const currentViewRef = React.useRef(currentView);
   const isAdminRef = React.useRef(isAdmin);
@@ -106,24 +158,6 @@ function App() {
   };
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [loginError, setLoginError] = useState(null);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const [isMicrosoftLoading, setIsMicrosoftLoading] = useState(false);
-  const [selectedMetrics, setSelectedMetrics] = useState([]);
-
-  // Admin User Selector & Inspection local states
-  const [adminUsers, setAdminUsers] = useState([]);
-  const [inspectedUser, setInspectedUser] = useState(null);
-  const [inspectedData, setInspectedData] = useState(null);
-  const [inspectedMetrics, setInspectedMetrics] = useState([]);
-  const [inspectedSearch, setInspectedSearch] = useState('');
-  const [isInspectDropdownOpen, setIsInspectDropdownOpen] = useState(false);
-  const [loadingInspect, setLoadingInspect] = useState(false);
-  const [selectedOrganisation, setSelectedOrganisation] = useState(null);
-  const [overviewTab, setOverviewTab] = useState('dashboard');
-  const [isTourOpen, setIsTourOpen] = useState(false);
-  const [themeChangedOnLogin, setThemeChangedOnLogin] = useState(false);
-  const [selectedChecklistItemName, setSelectedChecklistItemName] = useState(null);
 
   // Automatically trigger tour for first-time logged in users
   useEffect(() => {
@@ -205,12 +239,12 @@ function App() {
   }, [theme, user]);
 
   const handleLogout = useCallback(() => {
-    setUser(null);
-    setData(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    logout();
+    resetData();
     setThemeChangedOnLogin(false);
-  }, []);
+    setCurrentView('dashboard');
+    setVisitedViews(['dashboard']);
+  }, [logout, resetData, setThemeChangedOnLogin]);
 
   // Update the global logout pointer whenever handleLogout is created/updated
   useEffect(() => {
@@ -231,7 +265,7 @@ function App() {
       const googleState = hashParams.get('state');
 
       if (googleAccessToken) {
-        setIsGoogleLoading(true);
+        setGoogleLoading(true);
         // Clean the hash so it doesn't linger in the URL bar
         window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
         
@@ -242,7 +276,7 @@ function App() {
         if (!googleState || googleState !== storedState) {
           console.error('CSRF verification failed: OAuth state mismatch.');
           setLoginError('Authentication failed: Secure session validation mismatch (CSRF alert).');
-          setIsGoogleLoading(false);
+          setGoogleLoading(false);
           setIsValidatingSession(false);
           return;
         }
@@ -263,7 +297,7 @@ function App() {
           const errMsg = err.response?.data?.error || err.message;
           setLoginError(`Google Login failed: ${errMsg}`);
         } finally {
-          setIsGoogleLoading(false);
+          setGoogleLoading(false);
           setLoading(false);
           setIsValidatingSession(false);
         }
@@ -273,7 +307,7 @@ function App() {
       // First, check if we just came back from a Microsoft redirect
       const pendingMsalToken = sessionStorage.getItem('msal_pending_token');
       if (pendingMsalToken) {
-        setIsMicrosoftLoading(true);
+        setMicrosoftLoading(true);
         sessionStorage.removeItem('msal_pending_token');
         setLoading(true);
         try {
@@ -290,7 +324,7 @@ function App() {
           const errMsg = err.response?.data?.error || err.message;
           setLoginError(`Microsoft Login failed: ${errMsg}`);
         } finally {
-          setIsMicrosoftLoading(false);
+          setMicrosoftLoading(false);
           setLoading(false);
           setIsValidatingSession(false);
         }
@@ -427,7 +461,7 @@ function App() {
   }, [selectedDepartment]);
 
   const fetchData = useCallback(async () => {
-    if (!user || !user.id || isValidatingSession) return;
+    if (!user || !user.id) return;
     setLoading(true);
     setError(null);
     try {
@@ -452,13 +486,13 @@ function App() {
     } finally {
       setLoading(false);
     }
-  }, [user, startDate, endDate, isAdmin, isValidatingSession]);
+  }, [user, startDate, endDate, isAdmin]);
 
   useEffect(() => {
-    if (user && user.id && !isValidatingSession) {
+    if (user && user.id) {
       Promise.resolve().then(() => fetchData());
     }
-  }, [fetchData, user, isValidatingSession]);
+  }, [fetchData, user]);
 
   // Handle browser back button to navigate between subviews first, and prompt for sign-out only when exiting the project
   useEffect(() => {
@@ -559,39 +593,17 @@ function App() {
 
   const handleLoginSuccess = async (credentialResponse) => {
     try {
-      const { credential, access_token } = credentialResponse;
-      const tokenToSend = credential || access_token;
-      const isAccessToken = !!access_token;
-      
-      const res = await axios.post(`${API_BASE}/auth/google`, { 
-        token: tokenToSend,
-        isAccessToken
-      });
-      const { token, user: loggedUser } = res.data;
-      
-      setUser(loggedUser);
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(loggedUser));
+      await googleLogin(credentialResponse);
     } catch (err) {
       console.error('Login Failed:', err);
-      setLoginError('Login failed. Please check backend connection.');
     }
   };
 
   const handleMicrosoftLoginSuccess = async (accessToken) => {
     try {
-      const res = await axios.post(`${API_BASE}/auth/microsoft`, { 
-        accessToken 
-      });
-      const { token, user: loggedUser } = res.data;
-      
-      setUser(loggedUser);
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(loggedUser));
+      await microsoftLogin(accessToken);
     } catch (err) {
       console.error('Microsoft Login Failed:', err);
-      const errMsg = err.response?.data?.error || err.message;
-      setLoginError(`Microsoft Login failed: ${errMsg}`);
     }
   };
 
@@ -605,19 +617,7 @@ function App() {
   // Login view is isolated to fix alignment issues
   if (!user || !user.id) {
     return (
-      <LoginPage 
-        onLoginSuccess={handleLoginSuccess} 
-        onMicrosoftLoginSuccess={handleMicrosoftLoginSuccess}
-        loginError={loginError}
-        setLoginError={setLoginError}
-        currentTheme={theme}
-        onChangeTheme={(t) => {
-          setTheme(t);
-          setThemeChangedOnLogin(true);
-        }}
-        isGoogleLoading={isGoogleLoading}
-        isMicrosoftLoading={isMicrosoftLoading}
-      />
+      <LoginPage />
     );
   }
 
@@ -629,29 +629,36 @@ function App() {
       <div className="blob-2"></div>
 
       <Sidebar 
-        user={user}
         onLogout={() => setShowLogoutConfirm(true)} 
         isAdmin={isAdmin} 
         currentView={currentView}
         onNavigate={navigateToView}
-        onStartTour={handleStartTour}
       />
 
       <main className="flex-1 p-6 lg:p-8 z-10 overflow-y-auto">
-        {currentView === 'settings' ? (
-          <SettingsPage 
-            user={user} 
-            currentTheme={theme} 
-            onChangeTheme={setTheme} 
-            onStartTour={handleStartTour}
-          />
-        ) : currentView === 'user-management' ? (
-          <UserManagement currentUser={user} />
-        ) : currentView === 'reports' ? (
-          <ReportsPage currentUser={user} />
-        ) : (
-          <>
-            {!isAdmin && <UserProfileHeader user={user} />}
+        {visitedViews.includes('settings') && (
+          <div className={currentView === 'settings' ? 'animate-fade-in' : 'hidden'}>
+            <SettingsPage 
+              user={user} 
+              currentTheme={theme} 
+              onChangeTheme={setTheme} 
+              onStartTour={handleStartTour}
+            />
+          </div>
+        )}
+        {visitedViews.includes('user-management') && (
+          <div className={currentView === 'user-management' ? 'animate-fade-in' : 'hidden'}>
+            <UserManagement currentUser={user} />
+          </div>
+        )}
+        {visitedViews.includes('reports') && (
+          <div className={currentView === 'reports' ? 'animate-fade-in' : 'hidden'}>
+            <ReportsPage currentUser={user} />
+          </div>
+        )}
+
+        <div className={['settings', 'user-management', 'reports'].includes(currentView) ? 'hidden' : 'animate-fade-in'}>
+          {!isAdmin && <UserProfileHeader user={user} />}
             
             <header className="mb-8" id="app-header">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 w-full">
@@ -691,7 +698,7 @@ function App() {
               </div>
             </header>
 
-            {loading ? (
+            {loading && !data ? (
               <LoadingState />
             ) : error ? (
               <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-[2.5rem] p-16 text-center">
@@ -703,7 +710,9 @@ function App() {
                   Retry
                 </button>
               </div>
-            ) : isAdmin ? (
+            ) : (
+              <div className={`transition-all duration-300 ${loading ? 'opacity-60 pointer-events-none' : ''}`}>
+                {isAdmin ? (
               <div className="space-y-8">
                 {/* Admin Header with Filters & User Search */}
                 <div className="relative z-50 bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-5 shadow-xl flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4">
@@ -1043,9 +1052,10 @@ function App() {
                 <ActivityExplorer user={user} />
               </div>
             )}
-          </>
+          </div>
         )}
-      </main>
+      </div>
+    </main>
 
       {/* Premium Sign Out Warning Modal (Perfect Screen Centering) */}
       {showLogoutConfirm && (

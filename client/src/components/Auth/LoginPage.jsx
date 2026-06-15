@@ -2,17 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useMsal } from '@azure/msal-react';
 import { loginRequest } from '../../authConfig';
 import { Sparkles, ShieldCheck, BarChart3, Zap, CheckCircle2, ShieldAlert, X, Moon, Sun, Palette, Loader2 } from 'lucide-react';
+import { useAuthStore } from '../../store/useAuthStore';
+import { useThemeStore } from '../../store/useThemeStore';
 
-const LoginPage = ({ 
-  onLoginSuccess, 
-  onMicrosoftLoginSuccess, 
-  loginError, 
-  setLoginError,
-  currentTheme = 'classic',
-  onChangeTheme = () => {},
-  isGoogleLoading = false,
-  isMicrosoftLoading = false
-}) => {
+const LoginPage = () => {
+  const { loginError, setLoginError, isGoogleLoading, isMicrosoftLoading } = useAuthStore();
+  const { theme: currentTheme, setTheme, setThemeChangedOnLogin } = useThemeStore();
+
   const [coords, setCoords] = useState({ x: 0, y: 0 });
   const [isHoveredGoogle, setIsHoveredGoogle] = useState(false);
   const [isHoveredMS, setIsHoveredMS] = useState(false);
@@ -80,6 +76,10 @@ const LoginPage = ({
       {/* Animated Background Layers */}
       <div className="app-bg"></div>
       <div className="mesh-gradient"></div>
+      <div className="blob"></div>
+      <div className="blob-2"></div>
+      <div className="blob-3"></div>
+      <div className="blob-4"></div>
       <div className="stars-overlay"></div>
 
       {/* Floating Theme Selector Widget */}
@@ -94,7 +94,10 @@ const LoginPage = ({
           return (
             <button
               key={t.id}
-              onClick={() => onChangeTheme(t.id)}
+              onClick={() => {
+                setTheme(t.id);
+                setThemeChangedOnLogin(true);
+              }}
               title={t.label}
               className={`p-2.5 rounded-xl transition-all duration-300 flex items-center justify-center hover:scale-105 active:scale-95 cursor-pointer relative group ${
                 isActive 
@@ -166,8 +169,8 @@ const LoginPage = ({
           </div>
         </div>
 
-        {/* Right Side: Login Card with rich neon shadow & borders */}
-        <div className="relative group/card bg-bg-card backdrop-blur-[40px] border border-glass-border hover:border-primary/30 rounded-[32px] p-8 lg:p-10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] hover:shadow-[0_20px_50px_rgba(99,102,241,0.15)] transition-all duration-500 text-center animate-[slideInRight_0.8s_cubic-bezier(0.23,1,0.32,1)]">
+        {/* Right Side: Login Card with theme-aware shadow & borders */}
+        <div className="relative group/card bg-bg-card backdrop-blur-[40px] border border-glass-border hover:border-primary/30 rounded-[32px] p-8 lg:p-10 login-card transition-all duration-500 text-center animate-[slideInRight_0.8s_cubic-bezier(0.23,1,0.32,1)]">
           {/* Card subtle background gradient glow */}
           <div className="absolute -inset-[1px] bg-gradient-to-br from-primary/10 to-accent/10 rounded-[32px] -z-10 opacity-50 group-hover/card:opacity-100 transition-opacity duration-500"></div>
 
@@ -240,16 +243,16 @@ const LoginPage = ({
       {/* Login Error Modal */}
       {loginError && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
-          <div className="bg-slate-900/90 backdrop-blur-2xl border border-danger/30 rounded-3xl p-6 max-w-sm w-full shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
+          <div className="bg-bg-card backdrop-blur-2xl border border-danger/30 rounded-3xl p-6 max-w-sm w-full shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
             <div className="flex flex-col items-center text-center">
               <div className="w-12 h-12 rounded-2xl bg-danger/20 border border-danger/30 flex items-center justify-center text-danger mb-4 shrink-0 animate-bounce">
                 <ShieldAlert size={24} />
               </div>
-              <h3 className="text-base font-extrabold text-white">Access Restricted</h3>
+              <h3 className="text-base font-extrabold text-text-main">Access Restricted</h3>
               <p className="text-xs text-text-muted mt-2 leading-relaxed">
                 Your account is currently disabled or unauthorized.
               </p>
-              <div className="w-full bg-danger/5 border border-danger/10 rounded-xl p-3 text-[11px] text-danger-light font-medium text-center mt-4 leading-normal">
+              <div className="w-full bg-danger/5 border border-danger/10 rounded-xl p-3 text-[11px] text-danger font-medium text-center mt-4 leading-normal">
                 {loginError}
               </div>
             </div>
