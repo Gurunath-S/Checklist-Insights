@@ -171,6 +171,7 @@ router.get('/personal/:userId', authenticateToken, async (req, res) => {
 
     const todayStr = new Date().toLocaleDateString();
     let todaySubmitted = false;
+    let todaySubmittedCount = 0;
 
     // Grouping for weekly trend
     submissions.forEach(s => {
@@ -180,6 +181,7 @@ router.get('/personal/:userId', authenticateToken, async (req, res) => {
       
       if (new Date(s._min.created_at).toLocaleDateString() === todayStr) {
         todaySubmitted = true;
+        todaySubmittedCount++;
       }
     });
 
@@ -247,6 +249,7 @@ router.get('/personal/:userId', authenticateToken, async (req, res) => {
         totalAiTimeSaved,
         totalBugsFixed,
         todaySubmitted,
+        todaySubmittedCount,
         recentActivityCount: recentResponses.length,
         yesNoAvg,
         timeRelatedAvg

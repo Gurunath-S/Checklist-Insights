@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Users, FileText, Layout, Send, CheckCircle, Rocket, Tag, Grid2x2, SlidersHorizontal, ChevronDown, Activity, CheckSquare, Bug, Clock, Search } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Users, FileText, Layout, Send, CheckCircle, Rocket, Tag, Grid2x2, SlidersHorizontal, ChevronDown, Activity, CheckSquare, Bug, Clock, Search, X } from 'lucide-react';
 
 const getMetricIcon = (name) => {
   const lowercase = name.toLowerCase();
@@ -45,8 +45,68 @@ const DashboardSummary = ({
   const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // ─── Drag state: use metric NAME not index ──────────────────────────────────────
+  // Index-based drag breaks when metricsToRender is a filtered subset of
+  // safeMetrics (zero-value cards are skipped), making splice() cut wrong items.
+  const [draggingName, setDraggingName] = useState(null);
+  const [dropTargetName, setDropTargetName] = useState(null);
+  const dragNameRef = useRef(null);
+
   const [tempStartText, setTempStartText] = useState('');
   const [tempEndText, setTempEndText] = useState('');
+
+  // ─── Drag-and-Drop Handlers ───────────────────────────────────────────────
+  const handleDragStart = useCallback((e, name) => {
+    dragNameRef.current = name;
+    e.dataTransfer.effectAllowed = 'move';
+    // RAF ensures browser captures ghost image before opacity dims
+    requestAnimationFrame(() => setDraggingName(name));
+  }, []);
+
+  const handleDragOver = useCallback((e, name) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragNameRef.current !== name) {
+      setDropTargetName(name);
+    }
+  }, []);
+
+  const handleDrop = useCallback((e, targetName) => {
+    e.preventDefault();
+    const dragName = dragNameRef.current;
+
+    // Reset all visual state immediately
+    setDraggingName(null);
+    setDropTargetName(null);
+    dragNameRef.current = null;
+
+    if (!dragName || dragName === targetName) return;
+
+    // IMPORTANT: setSelectedMetrics is a plain Zustand setter — NOT React setState.
+    // Passing a (prev => ...) function would store the function itself as state.
+    // Use safeMetrics directly, which is already validated as an array in this render.
+    const fromIdx = safeMetrics.indexOf(dragName);
+    const toIdx   = safeMetrics.indexOf(targetName);
+    if (fromIdx === -1 || toIdx === -1) return;
+
+    const reordered = [...safeMetrics];
+    const [moved] = reordered.splice(fromIdx, 1);
+    reordered.splice(toIdx, 0, moved);
+    setSelectedMetrics(reordered);
+  }, [setSelectedMetrics, safeMetrics]);
+
+  const handleDragEnd = useCallback(() => {
+    setDraggingName(null);
+    setDropTargetName(null);
+    dragNameRef.current = null;
+  }, []);
+
+  const handleDragLeave = useCallback((e) => {
+    // Ignore leaves triggered by entering a child element
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+      setDropTargetName(null);
+    }
+  }, []);
 
   useEffect(() => {
     setTempStartText(formatDateDMY(startDate));
@@ -277,17 +337,23 @@ const DashboardSummary = ({
   const summary = data?.summary || {};
   const itemStats = data?.itemStats || [];
 
+  // ─── Guard: ensure selectedMetrics is always a plain array ───────────────
+  const safeMetrics = Array.isArray(selectedMetrics) ? selectedMetrics : [];
+
   const handleToggleMetric = (metricName) => {
-    if (selectedMetrics.includes(metricName)) {
-      if (selectedMetrics.length > 1) {
-        setSelectedMetrics(selectedMetrics.filter(name => name !== metricName));
+    if (safeMetrics.includes(metricName)) {
+      if (safeMetrics.length > 1) {
+        setSelectedMetrics(safeMetrics.filter((name) => name !== metricName));
       }
     } else {
-      setSelectedMetrics([...selectedMetrics, metricName]);
+      setSelectedMetrics([...safeMetrics, metricName]);
     }
   };
 
-  const displayedMetrics = itemStats.filter(item => selectedMetrics.includes(item.name));
+  // ─── Derive displayedMetrics in safeMetrics order (fixes drag reorder rendering) ─
+  const displayedMetrics = safeMetrics
+    .map((name) => itemStats.find((item) => item.name === name))
+    .filter(Boolean);
 
   return (
     <div className="flex flex-col gap-4 mb-8">
@@ -313,7 +379,7 @@ const DashboardSummary = ({
                 <div className="absolute right-0 mt-2 w-64 bg-bg-card backdrop-blur-2xl border border-glass-border rounded-2xl p-4 shadow-2xl z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                   <div className="text-xs font-bold text-white mb-2 uppercase tracking-wide border-b border-glass-border pb-2 flex justify-between items-center">
                     <span>Select metrics to display</span>
-                    <span className="text-[10px] text-accent bg-accent/15 px-1.5 py-0.5 rounded-full">{selectedMetrics.length} Selected</span>
+                    <span className="text-[10px] text-accent bg-accent/15 px-1.5 py-0.5 rounded-full">{safeMetrics.length} Selected</span>
                   </div>
                   {/* Search Bar */}
                   <div className="relative my-2">
@@ -337,7 +403,7 @@ const DashboardSummary = ({
                         return <div className="text-xs text-text-muted text-center py-4">No matching metrics found.</div>;
                       }
                       return filtered.map((item) => {
-                        const isChecked = selectedMetrics.includes(item.name);
+                        const isChecked = safeMetrics.includes(item.name);
                         return (
                           <label 
                             key={item.name}
@@ -398,7 +464,7 @@ const DashboardSummary = ({
                 )}
 
                 {metricsToRender.map((metric, idx) => {
-                  const cardColors = [
+                  const CARD_COLORS = [
                     'from-purple-500 to-purple-700',
                     'from-amber-500 to-amber-700',
                     'from-rose-500 to-rose-700',
@@ -406,26 +472,69 @@ const DashboardSummary = ({
                     'from-orange-500 to-orange-700',
                     'from-pink-500 to-pink-700',
                     'from-emerald-500 to-emerald-700',
-                    'from-teal-500 to-teal-700'
+                    'from-teal-500 to-teal-700',
                   ];
+
+                  // Name-based comparison — immune to filtered index gaps
+                  const isBeingDragged = draggingName === metric.name;
+                  const isDragTarget   = dropTargetName === metric.name;
 
                   let displayValue = metric.value;
                   if (metric.isPercentage || metric.type === 'Boolean') {
                     displayValue = `${metric.value}%`;
-                  } else if (metric.isTimeAverage || ['time', 'hour', 'duration', 'clock', 'minutes'].some(k => metric.name.toLowerCase().includes(k))) {
+                  } else if (
+                    metric.isTimeAverage ||
+                    ['time', 'hour', 'duration', 'clock', 'minutes'].some((k) =>
+                      metric.name.toLowerCase().includes(k)
+                    )
+                  ) {
                     displayValue = `${metric.value} hrs`;
-                  } else if (metric.isTaskAverage || ['tasks worked', 'task worked'].some(k => metric.name.toLowerCase().includes(k))) {
+                  } else if (
+                    metric.isTaskAverage ||
+                    ['tasks worked', 'task worked'].some((k) =>
+                      metric.name.toLowerCase().includes(k)
+                    )
+                  ) {
                     displayValue = `${metric.value} tasks/day`;
                   }
 
                   return (
-                    <ColorfulCard 
+                    <div
                       key={metric.name}
-                      color={cardColors[idx % cardColors.length]} 
-                      icon={getMetricIcon(metric.name)} 
-                      label={metric.name} 
-                      value={displayValue} 
-                    />
+                      className="relative group"
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, metric.name)}
+                      onDragOver={(e)  => handleDragOver(e, metric.name)}
+                      onDrop={(e)      => handleDrop(e, metric.name)}
+                      onDragEnd={handleDragEnd}
+                      onDragLeave={handleDragLeave}
+                      title="Drag to reorder"
+                      style={{
+                        cursor: 'grab',
+                        opacity: isBeingDragged ? 0.4 : 1,
+                        outline: isDragTarget ? '2px solid var(--color-accent, #6366f1)' : 'none',
+                        outlineOffset: '3px',
+                        borderRadius: '1rem',
+                        transition: 'opacity 150ms ease, outline 150ms ease, transform 150ms ease',
+                        transform: isDragTarget ? 'scale(1.03)' : 'scale(1)',
+                      }}
+                    >
+                      {/* ── X dismiss button: visible on card hover ── */}
+                      <button
+                        onClick={() => handleToggleMetric(metric.name)}
+                        title={`Remove "${metric.name}"`}
+                        className="absolute top-1.5 right-1.5 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-150 bg-black/50 hover:bg-red-500 rounded-full p-0.5 text-white cursor-pointer"
+                      >
+                        <X size={10} strokeWidth={2.5} />
+                      </button>
+
+                      <ColorfulCard
+                        color={CARD_COLORS[idx % CARD_COLORS.length]}
+                        icon={getMetricIcon(metric.name)}
+                        label={metric.name}
+                        value={displayValue}
+                      />
+                    </div>
                   );
                 })}
               </>
@@ -450,6 +559,11 @@ const DashboardSummary = ({
           <span className="text-lg font-black italic uppercase">
             {summary.todaySubmitted ? 'Entered' : 'Pending'}
           </span>
+          {summary.todaySubmitted && (
+            <span className="text-[10px] font-bold uppercase tracking-wider mt-1 opacity-80">
+              {summary.todaySubmittedCount || 0} {summary.todaySubmittedCount === 1 ? 'checklist' : 'checklists'}
+            </span>
+          )}
           <div className={`w-2 h-2 rounded-full mx-auto mt-2 ${summary.todaySubmitted ? 'bg-emerald-500' : 'bg-amber-500'}`}></div>
         </div>
       </div>
