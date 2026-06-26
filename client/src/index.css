@@ -452,3 +452,45 @@
 .login-card:hover {
   box-shadow: var(--card-shadow-hover);
 }
+
+/* ── Hierarchy Tree Graph Theme Overrides ──────────────────────────────────── */
+
+/* Tree container background follows the card token */
+.template-tree-container {
+  background: transparent;
+}
+
+/* Connector / link paths — default dark themes */
+.template-tree-svg .tree-link-path {
+  stroke: rgba(255, 255, 255, 0.12);
+  stroke-width: 1.5px;
+  fill: none;
+}
+
+/* Genie theme — warm lavender connectors */
+[data-theme="genie"] .template-tree-svg .tree-link-path {
+  stroke: rgba(167, 139, 250, 0.25);
+}
+
+/* Sapphire theme — cool cyan-blue connectors */
+[data-theme="sapphire"] .template-tree-svg .tree-link-path {
+  stroke: rgba(59, 130, 246, 0.22);
+}
+
+/* Light theme — subtle dark connectors */
+[data-theme="light"] .template-tree-svg .tree-link-path {
+  stroke: rgba(15, 23, 42, 0.15);
+  stroke-width: 1.5px;
+}
+
+/* Prevent the tree SVG overriding text fills in light mode
+   (node text fill is set inline via palette, so we only reset generic svg text) */
+[data-theme="light"] .template-tree-svg text {
+  fill: unset !important;
+}
+
+/* Keep recharts chart text override intact (already handled above),
+   but don't let it bleed into the tree SVG */
+[data-theme="light"] .template-tree-svg .recharts-cartesian-axis-tick text {
+  fill: var(--color-text-muted) !important;
+}

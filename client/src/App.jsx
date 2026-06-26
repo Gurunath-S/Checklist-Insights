@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { Sparkles, LogOut, Users, ChevronDown, List, Search, Moon, Sun, Palette } from 'lucide-react';
 import Sidebar from './components/Dashboard/Sidebar';
@@ -16,6 +16,7 @@ import ReportsPage from './components/Dashboard/Reports/ReportsPage';
 import TagReportsView from './components/Dashboard/TagReports/TagReportsView';
 import OrganisationDashboard from './components/Dashboard/Organisation/OrganisationDashboard';
 import ChecklistExplorer from './components/Dashboard/Charts/ChecklistExplorer';
+import TemplateDashboard from './components/Dashboard/Admin/TemplateDashboard';
 import { useAuthStore } from './store/useAuthStore';
 import { useThemeStore } from './store/useThemeStore';
 import { useFilterStore } from './store/useFilterStore';
@@ -132,6 +133,11 @@ function App() {
 
   const [isAdmin, setIsAdmin] = useState(false);
   const [error, setError] = useState(null);
+
+  // Refs for scrolling to the ChecklistExplorer from InsightsChart bar clicks
+  const personalExplorerRef = useRef(null);
+  const inspectExplorerRef = useRef(null);
+  const overviewExplorerRef = useRef(null);
   
   // Multi-view navigation
   const [currentView, setCurrentView] = useState('dashboard');
@@ -656,8 +662,13 @@ function App() {
             <ReportsPage currentUser={user} />
           </div>
         )}
+        {visitedViews.includes('template-dashboard') && (
+          <div className={currentView === 'template-dashboard' ? 'animate-fade-in' : 'hidden'}>
+            <TemplateDashboard currentUser={user} />
+          </div>
+        )}
 
-        <div className={['settings', 'user-management', 'reports'].includes(currentView) ? 'hidden' : 'animate-fade-in'}>
+        <div className={['settings', 'user-management', 'reports', 'template-dashboard'].includes(currentView) ? 'hidden' : 'animate-fade-in'}>
           {!isAdmin && <UserProfileHeader user={user} />}
             
             <header className="mb-8" id="app-header">
@@ -922,12 +933,18 @@ function App() {
                           user={inspectedUser}
                           startDate={startDate}
                           endDate={endDate}
+                          onSelectItemName={setSelectedChecklistItemName}
+                          explorerRef={inspectExplorerRef}
                         />
+                        <div ref={inspectExplorerRef}>
                         <ChecklistExplorer 
                           userId={inspectedUser?.id} 
                           globalStartDate={startDate} 
-                          globalEndDate={endDate} 
+                          globalEndDate={endDate}
+                          selectedItemName={selectedChecklistItemName}
+                          onSelectItemName={setSelectedChecklistItemName}
                         />
+                        </div>
                         <ActivityExplorer user={inspectedUser} />
                       </div>
                     ) : (
@@ -979,11 +996,15 @@ function App() {
                             setEndDate={setEndDate}
                             onSelectOrganisation={(org) => setSelectedOrganisation(org)}
                           />
-                          <InsightsChart data={data} isAdmin={isAdmin} user={user} startDate={startDate} endDate={endDate} />
+                          <InsightsChart data={data} isAdmin={isAdmin} user={user} startDate={startDate} endDate={endDate} onSelectItemName={setSelectedChecklistItemName} explorerRef={overviewExplorerRef} />
+                          <div ref={overviewExplorerRef}>
                           <ChecklistExplorer 
                             globalStartDate={startDate} 
-                            globalEndDate={endDate} 
+                            globalEndDate={endDate}
+                            selectedItemName={selectedChecklistItemName}
+                            onSelectItemName={setSelectedChecklistItemName}
                           />
+                          </div>
                         </div>
                       ) : (
                         <div className="animate-fade-in">
@@ -1043,12 +1064,18 @@ function App() {
                   user={user}
                   startDate={startDate}
                   endDate={endDate}
+                  onSelectItemName={setSelectedChecklistItemName}
+                  explorerRef={personalExplorerRef}
                 />
+                <div ref={personalExplorerRef}>
                 <ChecklistExplorer 
                   userId={user?.id} 
                   globalStartDate={startDate} 
-                  globalEndDate={endDate} 
+                  globalEndDate={endDate}
+                  selectedItemName={selectedChecklistItemName}
+                  onSelectItemName={setSelectedChecklistItemName}
                 />
+                </div>
                 <ActivityExplorer user={user} />
               </div>
             )}

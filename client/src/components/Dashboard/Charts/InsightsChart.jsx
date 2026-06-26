@@ -28,7 +28,7 @@ const DEPT_ORDER = {
   'ERODE INTERNS': 9
 };
 
-const InsightsChart = ({ data, isAdmin, selectedMetrics = [], user, startDate, endDate }) => {
+const InsightsChart = ({ data, isAdmin, selectedMetrics = [], user, startDate, endDate, onSelectItemName, explorerRef }) => {
   const [activeChart, setActiveChart] = useState('checklist');
   const [isChartDropdownOpen, setIsChartDropdownOpen] = useState(false);
   const [isLimitDropdownOpen, setIsLimitDropdownOpen] = useState(false);
@@ -452,11 +452,35 @@ const InsightsChart = ({ data, isAdmin, selectedMetrics = [], user, startDate, e
                   <RechartsTooltip 
                     contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)' }}
                     itemStyle={{ color: '#fff' }}
-                    cursor={{fill: 'rgba(255,255,255,0.05)'}}
+                    cursor={{ fill: 'rgba(255,255,255,0.07)' }}
+                    formatter={(value) => [value, 'Submissions']}
+                    labelFormatter={(label) => onSelectItemName ? `${label}  —  click bar to explore ↓` : label}
                   />
-                  <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={40}>
+                  <Bar 
+                    dataKey="value" 
+                    radius={[4, 4, 0, 0]} 
+                    barSize={40}
+                    style={{ cursor: onSelectItemName ? 'pointer' : 'default' }}
+                    onClick={(data) => {
+                      if (!onSelectItemName || !data?.name) return;
+                      onSelectItemName(data.name);
+                      if (explorerRef?.current) {
+                        explorerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }
+                    }}
+                    label={onSelectItemName && page === 1 ? {
+                      position: 'top',
+                      fill: '#f59e0b',
+                      fontSize: 9,
+                      fontWeight: 'bold',
+                      formatter: (_, __, index) => index === 0 ? '↓ click' : ''
+                    } : null}
+                  >
                     {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={index === 0 && page === 1 ? '#f59e0b' : '#3b82f6'} />
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill={index === 0 && page === 1 ? '#f59e0b' : '#3b82f6'}
+                      />
                     ))}
                   </Bar>
                 </BarChart>

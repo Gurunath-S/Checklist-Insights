@@ -3744,4 +3744,299 @@ router.get('/checklist-items/history', authenticateToken, async (req, res) => {
   }
 });
 
+// ── Admin Template Tree ──────────────────────────────────────────────────────
+// GET /admin/template-tree
+// Returns departments → tags → templates hierarchy + orphaned templates
+// Access: ADMIN only
+router.get('/admin/template-tree', authenticateToken, async (req, res) => {
+  try {
+    const authUserId = parseInt(req.user.userId);
+    const requester = await prisma.organisation_Users.findUnique({
+      where: { id: authUserId },
+      select: {
+        user_type: true,
+        User: { select: { email: true } }
+      }
+    });
+    const isAdmin =
+      requester?.user_type?.trim() === 'ADMIN' ||
+      requester?.User?.email === 'gururider35@gmail.com';
+
+    if (!isAdmin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    // 1. Fetch all templates with their tags, linked items count, and recipients count
+    const templatesRaw = await prisma.checklist_template.findMany({
+      include: {
+        tag: true,
+        TemplateRecipients: { select: { id: true } },
+        checklist_template_version_checklist_template_version_checklist_template_idTochecklist_template: {
+          include: {
+            linked_items: { select: { id: true } }
+          },
+          orderBy: { version_id: 'desc' },
+          take: 1
+        },
+        checklist_template_owners: {
+          include: {
+            Organisation_Users: {
+              include: { User: { select: { name: true, email: true } } }
+            }
+          }
+        }
+      }
+    });
+
+    // 2. Build a map of department → tags → templates
+    const DEPT_LABEL_MAP = {
+      FULL_STACK_DEVELOPER: 'Development',
+      POWER_BI_DEVELOPER: 'Data Analytics',
+      TESTING: 'QA Testing',
+      HUMAN_RESOURCE: 'Human Resources',
+      DIGITAL_TRANSFORMATION: 'Digital Transformation',
+      SALES: 'Sales',
+      MARKETING: 'Marketing',
+      SALESFORCE: 'Salesforce',
+      ERODE_INTERN: 'Erode Interns',
+      PUBLIC: 'Public'
+    };
+
+    const deptMap = {};
+    const orphanedTemplates = [];
+
+    for (const tmpl of templatesRaw) {
+      const recipientCount = tmpl.TemplateRecipients.length;
+      const latestVersion = tmpl.checklist_template_version_checklist_template_version_checklist_template_idTochecklist_template[0];
+      const itemCount = latestVersion ? latestVersion.linked_items.length : 0;
+      const ownerName = tmpl.checklist_template_owners?.Organisation_Users?.User?.name || null;
+
+      const templateEntry = {
+        id: tmpl.id,
+        template_name: tmpl.template_name,
+        priority: tmpl.priority,
+        repeating: tmpl.repeating,
+        created_at: tmpl.created_at,
+        itemCount,
+        recipientCount,
+        ownerName,
+        tag_id: tmpl.tag_id
+      };
+
+      // Orphan = no recipients assigned
+      if (recipientCount === 0) {
+        orphanedTemplates.push({
+          ...templateEntry,
+          tag_name: tmpl.tag?.tag_name || null,
+          department: tmpl.tag?.user_position || null,
+          departmentLabel: tmpl.tag ? (DEPT_LABEL_MAP[tmpl.tag.user_position] || tmpl.tag.user_position) : 'Uncategorized'
+        });
+      }
+
+      if (!tmpl.tag) continue;
+
+      const dept = tmpl.tag.user_position;
+      if (!deptMap[dept]) {
+        deptMap[dept] = {
+          name: dept,
+          label: DEPT_LABEL_MAP[dept] || dept.replace(/_/g, ' '),
+          tags: {}
+        };
+      }
+
+      const tagKey = tmpl.tag.id;
+      if (!deptMap[dept].tags[tagKey]) {
+        deptMap[dept].tags[tagKey] = {
+          id: tmpl.tag.id,
+          tag_name: tmpl.tag.tag_name,
+          description: tmpl.tag.description,
+          recurrent: tmpl.tag.recurrent,
+          templates: []
+        };
+      }
+
+      deptMap[dept].tags[tagKey].templates.push(templateEntry);
+    }
+
+    // 3. Convert maps to arrays and sort
+    const DEPT_ORDER = {
+      HUMAN_RESOURCE: 1,
+      DIGITAL_TRANSFORMATION: 2,
+      SALES: 3,
+      MARKETING: 4,
+      FULL_STACK_DEVELOPER: 5,
+      POWER_BI_DEVELOPER: 6,
+      TESTING: 7,
+      SALESFORCE: 8,
+      ERODE_INTERN: 9,
+      PUBLIC: 10
+    };
+
+    const departments = Object.values(deptMap)
+      .map(dept => ({
+        ...dept,
+        tags: Object.values(dept.tags).sort((a, b) => a.tag_name.localeCompare(b.tag_name))
+      }))
+      .sort((a, b) => (DEPT_ORDER[a.name] || 99) - (DEPT_ORDER[b.name] || 99));
+
+    // 4. Summary stats
+    const totalTemplates = templatesRaw.length;
+    const connectedTemplates = templatesRaw.filter(t => t.TemplateRecipients.length > 0).length;
+    const totalTags = await prisma.tags.count();
+    const activeDepts = departments.length;
+
+    res.json({
+      departments,
+      orphanedTemplates,
+      stats: {
+        totalTemplates,
+        connectedTemplates,
+        orphanedCount: orphanedTemplates.length,
+        totalTags,
+        activeDepts
+      }
+    });
+  } catch (error) {
+    console.error('Admin template-tree error:', error);
+    res.status(500).json({ error: 'Internal Server Error', message: error.message });
+  }
+});
+
+// PUT /admin/template/:id
+// Update template connection (tag_id), priority, or owner
+router.put('/admin/template/:id', authenticateToken, async (req, res) => {
+  try {
+    const authUserId = parseInt(req.user.userId);
+    const requester = await prisma.organisation_Users.findUnique({
+      where: { id: authUserId },
+      select: { user_type: true, User: { select: { email: true } } }
+    });
+    const isAdmin = requester?.user_type?.trim() === 'ADMIN' || requester?.User?.email === 'gururider35@gmail.com';
+    if (!isAdmin) return res.status(403).json({ error: 'Admin access required' });
+
+    const templateId = parseInt(req.params.id);
+    const { tag_id, priority, owner_id } = req.body;
+
+    const updateData = {};
+    if (tag_id !== undefined) updateData.tag_id = tag_id;
+    if (priority !== undefined) updateData.priority = priority;
+
+    await prisma.$transaction(async (tx) => {
+      // 1. Update template properties (tag and priority)
+      if (Object.keys(updateData).length > 0) {
+        await tx.checklist_template.update({
+          where: { id: templateId },
+          data: updateData
+        });
+      }
+
+      // 2. Update owner in checklist_template_owners
+      if (owner_id !== undefined) {
+        if (owner_id === null) {
+          // Delete owner if set to null
+          await tx.checklist_template_owners.deleteMany({
+            where: { checklist_template_id: templateId }
+          });
+        } else {
+          // Upsert owner
+          const existingOwner = await tx.checklist_template_owners.findUnique({
+            where: { checklist_template_id: templateId }
+          });
+          if (existingOwner) {
+            await tx.checklist_template_owners.update({
+              where: { checklist_template_id: templateId },
+              data: { organisation_user_id: parseInt(owner_id) }
+            });
+          } else {
+            await tx.checklist_template_owners.create({
+              data: {
+                checklist_template_id: templateId,
+                organisation_user_id: parseInt(owner_id),
+                created_at: new Date()
+              }
+            });
+          }
+        }
+      }
+    });
+
+    res.json({ success: true, message: 'Template updated successfully' });
+  } catch (error) {
+    console.error('Error updating template:', error);
+    res.status(500).json({ error: 'Internal Server Error', message: error.message });
+  }
+});
+
+// PUT /admin/tag/:id
+// Update tag recurrence or department
+router.put('/admin/tag/:id', authenticateToken, async (req, res) => {
+  try {
+    const authUserId = parseInt(req.user.userId);
+    const requester = await prisma.organisation_Users.findUnique({
+      where: { id: authUserId },
+      select: { user_type: true, User: { select: { email: true } } }
+    });
+    const isAdmin = requester?.user_type?.trim() === 'ADMIN' || requester?.User?.email === 'gururider35@gmail.com';
+    if (!isAdmin) return res.status(403).json({ error: 'Admin access required' });
+
+    const tagId = parseInt(req.params.id);
+    const { recurrent, tag_name } = req.body;
+
+    const updateData = {};
+    if (recurrent !== undefined) updateData.recurrent = recurrent;
+    if (tag_name !== undefined) updateData.tag_name = tag_name;
+
+    await prisma.tags.update({
+      where: { id: tagId },
+      data: updateData
+    });
+
+    res.json({ success: true, message: 'Tag updated successfully' });
+  } catch (error) {
+    console.error('Error updating tag:', error);
+    res.status(500).json({ error: 'Internal Server Error', message: error.message });
+  }
+});
+
+// POST /admin/tag
+// Create a new tag for a department
+router.post('/admin/tag', authenticateToken, async (req, res) => {
+  try {
+    const authUserId = parseInt(req.user.userId);
+    const requester = await prisma.organisation_Users.findUnique({
+      where: { id: authUserId },
+      select: { user_type: true, User: { select: { email: true } } }
+    });
+    const isAdmin = requester?.user_type?.trim() === 'ADMIN' || requester?.User?.email === 'gururider35@gmail.com';
+    if (!isAdmin) return res.status(403).json({ error: 'Admin access required' });
+
+    const { tag_name, description, user_position, recurrent } = req.body;
+
+    // Check if tag name already exists
+    const existing = await prisma.tags.findUnique({
+      where: { tag_name }
+    });
+    if (existing) {
+      return res.status(400).json({ error: 'Tag name already exists' });
+    }
+
+    const newTag = await prisma.tags.create({
+      data: {
+        tag_name,
+        description: description || '',
+        user_position,
+        recurrent: recurrent || 'None',
+        organisation_user_id: authUserId,
+        created_at: new Date()
+      }
+    });
+
+    res.json({ success: true, tag: newTag });
+  } catch (error) {
+    console.error('Error creating tag:', error);
+    res.status(500).json({ error: 'Internal Server Error', message: error.message });
+  }
+});
+
 module.exports = router;
+

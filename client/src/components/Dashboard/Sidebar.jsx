@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LayoutDashboard, Users, LogOut, Settings, BarChart, ChevronDown, HelpCircle } from 'lucide-react';
+import { LayoutDashboard, Users, LogOut, Settings, BarChart, ChevronDown, HelpCircle, GitBranch } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useDataStore } from '../../store/useDataStore';
 
@@ -12,7 +12,7 @@ const Sidebar = ({ isAdmin, currentView, onNavigate, onLogout }) => {
   const isSettingsActive = currentView === 'settings';
 
   const [isAdminDropdownOpen, setIsAdminDropdownOpen] = useState(
-    (currentView === 'dashboard' && isAdmin) || currentView === 'user-management' || currentView === 'reports'
+    (currentView === 'dashboard' && isAdmin) || currentView === 'user-management' || currentView === 'reports' || currentView === 'template-dashboard'
   );
 
   const handleDashboardClick = () => {
@@ -114,6 +114,18 @@ const Sidebar = ({ isAdmin, currentView, onNavigate, onLogout }) => {
                   >
                     <span className={`w-1.5 h-1.5 rounded-full ${currentView === 'reports' ? 'bg-primary' : 'bg-transparent border border-text-muted'}`} />
                     <span>Reports</span>
+                  </button>
+                  <button
+                    id="sidebar-template-dashboard"
+                    onClick={() => onNavigate('template-dashboard', true)}
+                    className={`w-full flex items-center gap-3 py-2 px-3 rounded-lg text-xs font-bold transition-all duration-200 text-left cursor-pointer ${
+                      currentView === 'template-dashboard'
+                        ? 'bg-primary/20 text-white font-black'
+                        : 'text-text-muted hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <GitBranch size={12} className={currentView === 'template-dashboard' ? 'text-primary' : 'text-text-muted'} />
+                    <span>Template Dashboard</span>
                   </button>
                 </div>
               )}

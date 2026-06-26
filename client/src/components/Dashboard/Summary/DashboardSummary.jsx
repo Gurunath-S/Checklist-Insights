@@ -45,6 +45,10 @@ const DashboardSummary = ({
   const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // ─── Guard: ensure selectedMetrics is always a plain array ───────────────
+  // Declared here (before any hooks) so useCallback closures can safely reference it.
+  const safeMetrics = Array.isArray(selectedMetrics) ? selectedMetrics : [];
+
   // ─── Drag state: use metric NAME not index ──────────────────────────────────────
   // Index-based drag breaks when metricsToRender is a filtered subset of
   // safeMetrics (zero-value cards are skipped), making splice() cut wrong items.
@@ -336,9 +340,6 @@ const DashboardSummary = ({
 
   const summary = data?.summary || {};
   const itemStats = data?.itemStats || [];
-
-  // ─── Guard: ensure selectedMetrics is always a plain array ───────────────
-  const safeMetrics = Array.isArray(selectedMetrics) ? selectedMetrics : [];
 
   const handleToggleMetric = (metricName) => {
     if (safeMetrics.includes(metricName)) {

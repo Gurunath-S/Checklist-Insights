@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
-  BarChart, Bar, Cell
+  BarChart, Bar, Cell, PieChart, Pie, Legend
 } from 'recharts';
 import { Search, Calendar, ChevronDown, Rocket, CheckCircle2, AlertCircle, TrendingUp, BarChart3, HelpCircle, X, ShieldAlert } from 'lucide-react';
 import LoadingState from '../../UI/LoadingState';
@@ -34,6 +34,14 @@ const ChecklistExplorer = ({
 
   // For numeric inputs, toggle between viewing Average and Sum
   const [plotMetric, setPlotMetric] = useState('avg'); // 'avg' | 'sum'
+
+  // ─── Separate Table State (always daily, year-filtered, paginated) ────────
+  const TABLE_PAGE_SIZE = 10;
+  const currentYear = new Date().getFullYear();
+  const [tableYear, setTableYear] = useState(String(currentYear));
+  const [tablePage, setTablePage] = useState(1);
+  const [tableRows, setTableRows] = useState([]);
+  const [tableLoading, setTableLoading] = useState(false);
 
   const dropdownRef = useRef(null);
 
@@ -154,6 +162,38 @@ const ChecklistExplorer = ({
 
     fetchHistory();
   }, [selectedItem, groupBy, startDate, endDate, userId, organisationId, department]);
+
+  // ─── Separate fetch for the table (always daily, year-scoped) ────────────
+  useEffect(() => {
+    if (!selectedItem) { setTableRows([]); return; }
+    const fetchTableData = async () => {
+      setTableLoading(true);
+      setTablePage(1);
+      try {
+        const token = localStorage.getItem('token');
+        const params = {
+          itemName: selectedItem.checklist_name,
+          groupBy: 'day',
+          startDate: `${tableYear}-01-01`,
+          endDate: `${tableYear}-12-31`,
+        };
+        if (userId) params.targetUserId = userId;
+        if (organisationId) params.targetOrgId = organisationId;
+        if (department) params.targetDepartment = department;
+        const res = await axios.get(`${API_BASE}/insights/checklist-items/history`, {
+          headers: { Authorization: `Bearer ${token}` },
+          params
+        });
+        // newest first
+        setTableRows([...(res.data.chartData || [])].reverse());
+      } catch (err) {
+        console.error('Failed to fetch table data:', err);
+      } finally {
+        setTableLoading(false);
+      }
+    };
+    fetchTableData();
+  }, [selectedItem, tableYear, userId, organisationId, department]);
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -567,6 +607,234 @@ const ChecklistExplorer = ({
               </div>
             </div>
           )}
+
+          {/* Data Breakdown: Table (left) + Pie Chart (right) */}
+          {chartData.length > 0 && (() => {
+            // ── Pie data ──────────────────────────────────────────────────────
+            const PIE_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#06b6d4', '#f43f5e', '#d946ef', '#8b5cf6', '#ec4899'];
+            const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+            let pieData = [];
+            let pieLabel = '';
+
+            if (selectedItem?.input_type === 'Boolean') {
+              const totalYes = chartData.reduce((s, r) => s + (r.yesCount || 0), 0);
+              const totalNo  = chartData.reduce((s, r) => s + (r.noCount  || 0), 0);
+              pieData = [
+                { name: 'Yes ✓', value: totalYes, color: '#10b981' },
+                { name: 'No ✗',  value: totalNo,  color: '#f43f5e' },
+              ].filter(d => d.value > 0);
+              pieLabel = 'Overall Yes vs No';
+            } else {
+              const monthMap = {};
+              chartData.forEach(row => {
+                let monthKey;
+                if (groupBy === 'month') {
+                  monthKey = row.date;
+                } else if (groupBy === 'day') {
+                  const parts = row.date.trim().split(/\s+/);
+                  monthKey = parts[parts.length - 1];
+                } else {
+                  monthKey = row.date;
+                }
+                monthMap[monthKey] = (monthMap[monthKey] || 0) + row.count;
+              });
+              const sorted = Object.entries(monthMap).sort(([a], [b]) => {
+                const ai = MONTHS_SHORT.indexOf(a.split(' ')[0]);
+                const bi = MONTHS_SHORT.indexOf(b.split(' ')[0]);
+                if (ai !== -1 && bi !== -1) return ai - bi;
+                return a.localeCompare(b);
+              });
+              pieData = sorted.slice(0, 8).map(([name, value], i) => ({ name, value, color: PIE_COLORS[i % PIE_COLORS.length] }));
+              pieLabel = 'Monthly Submissions';
+            }
+
+            // ── Table pagination ──────────────────────────────────────────────
+            const totalTablePages = Math.max(1, Math.ceil(tableRows.length / TABLE_PAGE_SIZE));
+            const paginatedRows = tableRows.slice((tablePage - 1) * TABLE_PAGE_SIZE, tablePage * TABLE_PAGE_SIZE);
+
+            // ── Available years for filter ────────────────────────────────────
+            const yearOptions = Array.from({ length: 5 }, (_, i) => String(currentYear - i));
+
+            return (
+              <div className="bg-white/2 border border-glass-border/30 rounded-3xl p-5 space-y-4">
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div>
+                    <h4 className="text-sm font-bold text-white uppercase tracking-wider">Data Breakdown</h4>
+                    <p className="text-[10px] text-text-muted">Per-day submissions &amp; distribution for "{selectedItem?.checklist_name}"</p>
+                  </div>
+                  {/* Year filter */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-text-muted">Year</span>
+                    <div className="flex items-center gap-1 bg-white/5 border border-glass-border rounded-xl p-0.5">
+                      {yearOptions.map(yr => (
+                        <button
+                          key={yr}
+                          onClick={() => setTableYear(yr)}
+                          className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all cursor-pointer ${
+                            tableYear === yr ? 'bg-primary text-white shadow' : 'text-text-muted hover:text-white'
+                          }`}
+                        >
+                          {yr}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col lg:flex-row gap-6">
+                  {/* Left: Paginated Daily Table */}
+                  <div className="flex-1 min-w-0 space-y-3">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="border-b border-glass-border/40">
+                            <th className="px-3 py-2 text-[9px] font-black uppercase tracking-widest text-text-muted">Date</th>
+                            <th className="px-3 py-2 text-[9px] font-black uppercase tracking-widest text-text-muted text-center">Submissions</th>
+                            {selectedItem?.input_type === 'Boolean' ? (
+                              <>
+                                <th className="px-3 py-2 text-[9px] font-black uppercase tracking-widest text-text-muted text-center">Yes</th>
+                                <th className="px-3 py-2 text-[9px] font-black uppercase tracking-widest text-text-muted text-center">No</th>
+                                <th className="px-3 py-2 text-[9px] font-black uppercase tracking-widest text-text-muted text-center">Compliance</th>
+                              </>
+                            ) : (
+                              <>
+                                <th className="px-3 py-2 text-[9px] font-black uppercase tracking-widest text-text-muted text-center">Value (Avg)</th>
+                                <th className="px-3 py-2 text-[9px] font-black uppercase tracking-widest text-text-muted text-center">Total</th>
+                              </>
+                            )}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-glass-border/20">
+                          {tableLoading ? (
+                            <tr><td colSpan={selectedItem?.input_type === 'Boolean' ? 5 : 4} className="px-3 py-6 text-center text-text-muted text-xs">Loading…</td></tr>
+                          ) : paginatedRows.length === 0 ? (
+                            <tr><td colSpan={selectedItem?.input_type === 'Boolean' ? 5 : 4} className="px-3 py-6 text-center text-text-muted text-xs">No data for {tableYear}</td></tr>
+                          ) : (
+                            paginatedRows.map((row, idx) => (
+                              <tr key={idx} className="hover:bg-white/[0.04] transition-colors">
+                                <td className="px-3 py-2 font-semibold text-white whitespace-nowrap">{row.date}, {tableYear}</td>
+                                <td className="px-3 py-2 text-center text-white/80">{row.count}</td>
+                                {selectedItem?.input_type === 'Boolean' ? (
+                                  <>
+                                    <td className="px-3 py-2 text-center text-emerald-400 font-bold">{row.yesCount ?? '-'}</td>
+                                    <td className="px-3 py-2 text-center text-rose-400 font-bold">{row.noCount ?? '-'}</td>
+                                    <td className="px-3 py-2 text-center">
+                                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                                        (row.yesPercentage ?? 0) >= 80 ? 'bg-emerald-500/15 text-emerald-400' :
+                                        (row.yesPercentage ?? 0) >= 50 ? 'bg-amber-500/15 text-amber-400' :
+                                        'bg-rose-500/15 text-rose-400'
+                                      }`}>
+                                        {row.yesPercentage ?? '-'}%
+                                      </span>
+                                    </td>
+                                  </>
+                                ) : (
+                                  <>
+                                    <td className="px-3 py-2 text-center text-primary font-bold">{row.avg ?? '-'}</td>
+                                    <td className="px-3 py-2 text-center text-amber-400 font-bold">{row.sum ?? '-'}</td>
+                                  </>
+                                )}
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Pagination */}
+                    {totalTablePages > 1 && (
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="text-[10px] text-text-muted">
+                          {tableRows.length} entries &bull; Page {tablePage} of {totalTablePages}
+                        </span>
+                        <div className="flex items-center gap-1 bg-white/5 border border-glass-border rounded-xl px-1 py-0.5">
+                          <button
+                            onClick={() => setTablePage(p => Math.max(1, p - 1))}
+                            disabled={tablePage === 1}
+                            className="px-2.5 py-1 text-xs font-bold text-white disabled:opacity-30 hover:bg-white/10 rounded-lg cursor-pointer transition-all"
+                          >
+                            ‹
+                          </button>
+                          {Array.from({ length: Math.min(5, totalTablePages) }, (_, i) => {
+                            const start = Math.max(1, Math.min(tablePage - 2, totalTablePages - 4));
+                            const pg = start + i;
+                            return (
+                              <button
+                                key={pg}
+                                onClick={() => setTablePage(pg)}
+                                className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                                  pg === tablePage ? 'bg-primary text-white' : 'text-text-muted hover:text-white hover:bg-white/10'
+                                }`}
+                              >
+                                {pg}
+                              </button>
+                            );
+                          })}
+                          <button
+                            onClick={() => setTablePage(p => Math.min(totalTablePages, p + 1))}
+                            disabled={tablePage >= totalTablePages}
+                            className="px-2.5 py-1 text-xs font-bold text-white disabled:opacity-30 hover:bg-white/10 rounded-lg cursor-pointer transition-all"
+                          >
+                            ›
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Right: Pie Chart */}
+                  {pieData.length > 0 && (
+                    <div className="lg:w-[280px] shrink-0 flex flex-col items-center gap-4">
+                      <span className="text-[9px] font-black uppercase tracking-wider text-text-muted self-start">
+                        {pieLabel}
+                      </span>
+                      <div className="w-full h-[200px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={pieData}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={55}
+                              outerRadius={85}
+                              paddingAngle={2}
+                              dataKey="value"
+                              stroke="none"
+                            >
+                              {pieData.map((entry, i) => (
+                                <Cell key={`pie-cell-${i}`} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            <RechartsTooltip
+                              contentStyle={{ background: '#0a0f1d', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }}
+                              itemStyle={{ color: '#fff', fontSize: 11 }}
+                              formatter={(value, name) => [value, name]}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="w-full space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                        {pieData.map((d, i) => {
+                          const total = pieData.reduce((s, x) => s + x.value, 0);
+                          const pct = total > 0 ? Math.round((d.value / total) * 100) : 0;
+                          return (
+                            <div key={i} className="flex items-center justify-between gap-2 text-[10px]">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <div className="w-2 h-2 rounded-sm shrink-0" style={{ background: d.color }} />
+                                <span className="text-text-muted truncate" title={d.name}>{d.name}</span>
+                              </div>
+                              <span className="font-bold text-white shrink-0">{d.value} ({pct}%)</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>
