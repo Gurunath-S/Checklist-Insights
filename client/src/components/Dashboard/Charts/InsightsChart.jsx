@@ -394,6 +394,7 @@ const InsightsChart = ({ data, isAdmin, selectedMetrics = [], user, startDate, e
         
         <div className="w-full h-[280px] min-h-[280px]">
           <ErrorBoundary>
+            {activeChart === 'work' || (!loadingChart && chartData.length > 0) ? (
             <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
               {activeChart === 'work' ? (
                 <AreaChart data={slicedPerformanceTrend}>
@@ -422,15 +423,6 @@ const InsightsChart = ({ data, isAdmin, selectedMetrics = [], user, startDate, e
                     label={{ position: 'top', fill: '#fff', fontSize: 12, fontWeight: 'bold', offset: 10 }}
                   />
                 </AreaChart>
-              ) : loadingChart ? (
-                <div className="w-full h-full flex flex-col items-center justify-center text-text-muted">
-                  <Activity size={32} className="opacity-30 animate-pulse text-primary mb-2" />
-                  <span className="text-xs font-bold">Loading Data...</span>
-                </div>
-              ) : chartData.length === 0 ? (
-                <div className="w-full h-full flex items-center justify-center text-text-muted text-xs">
-                  No data available for this range.
-                </div>
               ) : (
                 <BarChart 
                   data={chartData} 
@@ -486,6 +478,16 @@ const InsightsChart = ({ data, isAdmin, selectedMetrics = [], user, startDate, e
                 </BarChart>
               )}
             </ResponsiveContainer>
+            ) : loadingChart ? (
+              <div className="w-full h-full flex flex-col items-center justify-center text-text-muted">
+                <Activity size={32} className="opacity-30 animate-pulse text-primary mb-2" />
+                <span className="text-xs font-bold">Loading Data...</span>
+              </div>
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-text-muted text-xs">
+                No data available for this range.
+              </div>
+            )}
           </ErrorBoundary>
         </div>
       </div>

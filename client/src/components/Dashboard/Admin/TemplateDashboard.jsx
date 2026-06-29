@@ -378,7 +378,7 @@ const TemplateRow = ({ tmpl, tagId, users, allTags, onTemplateUpdate }) => {
 };
 
 // ── Department Tree Component ───────────────────────────────────────────────
-const DepartmentTreeCard = ({ dept, nodePalette, onNodeClick }) => {
+const DepartmentTreeCard = ({ dept, nodePalette, onNodeClick, onRemove, animDir }) => {
   const treeData = React.useMemo(() => ({
     name: dept.label,
     attributes: { type: 'department', dept: dept.name },
@@ -398,13 +398,28 @@ const DepartmentTreeCard = ({ dept, nodePalette, onNodeClick }) => {
     }))
   }), [dept]);
 
-  const totalTemplates = React.useMemo(() => 
+  const totalTemplates = React.useMemo(() =>
     dept.tags.reduce((sum, t) => sum + t.templates.length, 0),
     [dept]
   );
 
+  const slideAnim = animDir === 'right'
+    ? 'translateX(0) opacity: 1'
+    : 'translateX(0) opacity: 1';
+
+  const animClass = animDir === 'right'
+    ? 'animate-slide-in-right'
+    : 'animate-slide-in-left';
+
   return (
-    <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-6 shadow-xl space-y-4">
+    <div
+      className={`bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-6 shadow-xl space-y-4 ${animClass}`}
+      style={{
+        animation: animDir === 'right'
+          ? 'slideInFromRight 0.28s cubic-bezier(0.22,1,0.36,1) both'
+          : 'slideInFromLeft 0.28s cubic-bezier(0.22,1,0.36,1) both'
+      }}
+    >
       <div className="flex items-center justify-between">
         <div>
           <h4 className="text-sm font-black text-white flex items-center gap-2">
@@ -415,21 +430,30 @@ const DepartmentTreeCard = ({ dept, nodePalette, onNodeClick }) => {
             {dept.tags.length} Tag Classifications · {totalTemplates} Connected Templates
           </p>
         </div>
+        {onRemove && (
+          <button
+            onClick={onRemove}
+            title="Hide this department from graph view"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-red-500/15 border border-white/10 hover:border-red-500/30 text-text-muted hover:text-red-400 rounded-xl text-[11px] font-bold transition-all cursor-pointer"
+          >
+            <X size={12} /> Remove
+          </button>
+        )}
       </div>
-      
-      <div className="h-[360px] w-full bg-white/1 border border-white/5 rounded-2xl overflow-hidden relative">
+
+      <div className="h-[480px] w-full bg-white/1 border border-white/5 rounded-2xl overflow-hidden relative">
         <Tree
           data={treeData}
-          translate={{ x: 120, y: 180 }}
+          translate={{ x: 160, y: 240 }}
           orientation="horizontal"
           pathFunc="elbow"
-          nodeSize={{ x: 280, y: 115 }}
+          nodeSize={{ x: 300, y: 120 }}
           separation={{ siblings: 1.15, nonSiblings: 1.4 }}
           collapsible
           initialDepth={2}
           zoomable
           draggable
-          zoom={0.65}
+          zoom={0.7}
           renderCustomNodeElement={rd3tProps => (
             <CustomNode
               nodeDatum={rd3tProps.nodeDatum}
@@ -446,7 +470,7 @@ const DepartmentTreeCard = ({ dept, nodePalette, onNodeClick }) => {
 };
 
 // ── Orphaned Templates Tree Component ────────────────────────────────────────
-const OrphanedTreeCard = ({ templates, nodePalette, onNodeClick }) => {
+const OrphanedTreeCard = ({ templates, nodePalette, onNodeClick, onRemove, animDir }) => {
   const treeData = React.useMemo(() => ({
     name: 'Unconnected Templates',
     attributes: { type: 'orphan-root' },
@@ -464,7 +488,14 @@ const OrphanedTreeCard = ({ templates, nodePalette, onNodeClick }) => {
   }), [templates]);
 
   return (
-    <div className="bg-bg-card backdrop-blur-xl border border-red-500/20 rounded-3xl p-6 shadow-xl space-y-4">
+    <div
+      className="bg-bg-card backdrop-blur-xl border border-red-500/20 rounded-3xl p-6 shadow-xl space-y-4"
+      style={{
+        animation: animDir === 'right'
+          ? 'slideInFromRight 0.28s cubic-bezier(0.22,1,0.36,1) both'
+          : 'slideInFromLeft 0.28s cubic-bezier(0.22,1,0.36,1) both'
+      }}
+    >
       <div className="flex items-center justify-between">
         <div>
           <h4 className="text-sm font-black text-white flex items-center gap-2">
@@ -475,21 +506,30 @@ const OrphanedTreeCard = ({ templates, nodePalette, onNodeClick }) => {
             {templates.length} Templates without any Tag classification
           </p>
         </div>
+        {onRemove && (
+          <button
+            onClick={onRemove}
+            title="Hide orphans from graph view"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-red-500/15 border border-white/10 hover:border-red-500/30 text-text-muted hover:text-red-400 rounded-xl text-[11px] font-bold transition-all cursor-pointer"
+          >
+            <X size={12} /> Remove
+          </button>
+        )}
       </div>
-      
-      <div className="h-[360px] w-full bg-red-500/2 border border-red-500/10 rounded-2xl overflow-hidden relative">
+
+      <div className="h-[480px] w-full bg-red-500/2 border border-red-500/10 rounded-2xl overflow-hidden relative">
         <Tree
           data={treeData}
-          translate={{ x: 120, y: 180 }}
+          translate={{ x: 160, y: 240 }}
           orientation="horizontal"
           pathFunc="elbow"
-          nodeSize={{ x: 280, y: 115 }}
+          nodeSize={{ x: 300, y: 120 }}
           separation={{ siblings: 1.15, nonSiblings: 1.4 }}
           collapsible
           initialDepth={2}
           zoomable
           draggable
-          zoom={0.65}
+          zoom={0.7}
           renderCustomNodeElement={rd3tProps => (
             <CustomNode
               nodeDatum={rd3tProps.nodeDatum}
@@ -686,30 +726,77 @@ const NodeDetailPanel = ({ node, onClose }) => {
   );
 };
 
+// ── CSS keyframes injected once for slide animations ─────────────────────────
+if (typeof document !== 'undefined' && !document.getElementById('tree-slide-styles')) {
+  const s = document.createElement('style');
+  s.id = 'tree-slide-styles';
+  s.textContent = `
+    @keyframes slideInFromRight {
+      from { opacity: 0; transform: translateX(48px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes slideInFromLeft {
+      from { opacity: 0; transform: translateX(-48px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+  `;
+  document.head.appendChild(s);
+}
+
 // ── Main Dashboard Component ──────────────────────────────────────────────────
 export default function TemplateDashboard() {
   const { theme } = useThemeStore();
-  const [rawData, setRawData]             = useState(null);
-  const [users, setUsers]                 = useState([]);
-  const [loading, setLoading]             = useState(true);
-  const [error, setError]                 = useState(null);
-  const [activeTab, setActiveTab]         = useState('table');   // 'table' | 'graph'
-  const [selectedGraphDept, setSelectedGraphDept] = useState('ALL');
-  const [selectedNode, setSelectedNode]   = useState(null);
-  const [notification, setNotification]   = useState(null);
+  const [rawData, setRawData]           = useState(null);
+  const [users, setUsers]               = useState([]);
+  const [loading, setLoading]           = useState(true);
+  const [error, setError]               = useState(null);
+  const [activeTab, setActiveTab]       = useState('table'); // 'table' | 'graph'
+  const [activeDeptKey, setActiveDeptKey] = useState(null);  // null = use first available
+  const [hiddenDepts, setHiddenDepts]   = useState(new Set());
+  const [animDir, setAnimDir]           = useState('right');
+  const [selectedNode, setSelectedNode] = useState(null);
+  const [notification, setNotification] = useState(null);
 
   // Compute theme palette whenever theme changes
   const nodePalette = React.useMemo(() => getNodePalette(theme), [theme]);
 
-  // Dynamically compute filtered departments list for graph display
-  const filteredDepartments = React.useMemo(() => {
+  // Build the ordered tab list: visible depts + orphan tab if applicable
+  const deptTabs = React.useMemo(() => {
     if (!rawData) return [];
-    if (selectedGraphDept === 'ALL') return rawData.departments;
-    if (selectedGraphDept === 'ORPHAN') return [];
-    return rawData.departments.filter(d => d.name === selectedGraphDept);
-  }, [rawData, selectedGraphDept]);
+    const tabs = rawData.departments
+      .filter(d => !hiddenDepts.has(d.name))
+      .map(d => ({ key: d.name, label: d.label, isOrphan: false }));
+    if (rawData.orphanedTemplates.length > 0 && !hiddenDepts.has('__ORPHAN__')) {
+      tabs.push({ key: '__ORPHAN__', label: 'Unconnected', isOrphan: true });
+    }
+    return tabs;
+  }, [rawData, hiddenDepts]);
 
-  const showOrphans = selectedGraphDept === 'ALL' || selectedGraphDept === 'ORPHAN';
+  // Keep activeDeptKey valid when tabs change
+  const resolvedKey = React.useMemo(() => {
+    if (!deptTabs.length) return null;
+    if (deptTabs.some(t => t.key === activeDeptKey)) return activeDeptKey;
+    return deptTabs[0].key;
+  }, [deptTabs, activeDeptKey]);
+
+  const switchTo = (key) => {
+    const currentIdx = deptTabs.findIndex(t => t.key === resolvedKey);
+    const nextIdx    = deptTabs.findIndex(t => t.key === key);
+    setAnimDir(nextIdx >= currentIdx ? 'right' : 'left');
+    setActiveDeptKey(key);
+    setSelectedNode(null);
+  };
+
+  const hideTab = (key) => {
+    setHiddenDepts(prev => new Set([...prev, key]));
+    // Auto-advance to next available tab
+    const idx = deptTabs.findIndex(t => t.key === key);
+    const next = deptTabs[idx + 1] || deptTabs[idx - 1];
+    if (next) { setActiveDeptKey(next.key); }
+    setSelectedNode(null);
+  };
+
+  const resetHidden = () => setHiddenDepts(new Set());
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -1063,15 +1150,16 @@ export default function TemplateDashboard() {
 
       {/* TREE GRAPH VIEW */}
       {!loading && !error && activeTab === 'graph' && (
-        <div className="space-y-6 animate-fade-in">
-          {/* Legend & Filter Controls */}
+        <div className="space-y-4 animate-fade-in">
+
+          {/* Legend row + Reset Hidden */}
           <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl shadow-xl px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-4">
               {[
-                { label: 'Department',   color: '#c084fc' },
-                { label: 'Tag',          color: '#22d3ee' },
-                { label: 'Template',     color: '#10b981' },
-                { label: 'Unconnected',  color: '#f43f5e' },
+                { label: 'Department', color: '#c084fc' },
+                { label: 'Tag',        color: '#22d3ee' },
+                { label: 'Template',   color: '#10b981' },
+                { label: 'Unconnected',color: '#f43f5e' },
               ].map(({ label, color }) => (
                 <div key={label} className="flex items-center gap-1.5 text-[11px] text-text-muted font-semibold">
                   <span className="w-3 h-3 rounded-sm" style={{ background: color, opacity: 0.85 }} />
@@ -1079,51 +1167,75 @@ export default function TemplateDashboard() {
                 </div>
               ))}
             </div>
-
-            <div className="flex flex-wrap items-center gap-4">
-              {/* Department scope selector */}
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-black uppercase tracking-wider text-text-muted">Scope:</span>
-                <select
-                  value={selectedGraphDept}
-                  onChange={(e) => setSelectedGraphDept(e.target.value)}
-                  className="bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-xs font-bold text-white focus:outline-none focus:border-primary/50 cursor-pointer"
-                >
-                  <option value="ALL" className="bg-[#0f172a]">All Departments</option>
-                  {rawData.departments.map(d => (
-                    <option key={d.name} value={d.name} className="bg-[#0f172a]">{d.label}</option>
-                  ))}
-                  {rawData.orphanedTemplates.length > 0 && (
-                    <option value="ORPHAN" className="bg-[#0f172a]">Unconnected Templates Only</option>
-                  )}
-                </select>
-              </div>
-
+            <div className="flex items-center gap-3">
               <div className="hidden lg:flex items-center gap-1 text-[10px] text-text-muted bg-white/2 px-2 py-1 rounded-lg">
-                <Info size={10} /> Click a card to see attributes
+                <Info size={10} /> Click a node to inspect · Drag to pan · Scroll to zoom
               </div>
+              {hiddenDepts.size > 0 && (
+                <button
+                  onClick={resetHidden}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 border border-primary/30 text-primary rounded-xl text-[11px] font-bold transition-all cursor-pointer"
+                >
+                  <RefreshCw size={11} /> Reset Hidden ({hiddenDepts.size})
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Department Trees List */}
-          <div className="grid grid-cols-1 gap-6">
-            {filteredDepartments.map(dept => (
+          {/* Pill tab-bar for department selection */}
+          {deptTabs.length > 0 && (
+            <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl shadow-xl px-5 py-3">
+              <div className="text-[10px] font-black uppercase tracking-widest text-text-muted mb-2.5 px-1">Department</div>
+              <div className="flex flex-wrap gap-2">
+                {deptTabs.map(tab => (
+                  <button
+                    key={tab.key}
+                    onClick={() => switchTo(tab.key)}
+                    className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all border cursor-pointer ${
+                      resolvedKey === tab.key
+                        ? tab.isOrphan
+                          ? 'bg-red-500 text-white border-red-500 shadow-lg shadow-red-500/30'
+                          : 'bg-primary text-white border-primary shadow-lg shadow-primary/30'
+                        : tab.isOrphan
+                          ? 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20'
+                          : 'bg-white/5 border-glass-border text-text-muted hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Single active department tree */}
+          {deptTabs.length === 0 ? (
+            <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-16 text-center text-text-muted text-sm font-semibold">
+              All departments are hidden. Click "Reset Hidden" to restore them.
+            </div>
+          ) : resolvedKey === '__ORPHAN__' ? (
+            <OrphanedTreeCard
+              key="__ORPHAN__"
+              templates={rawData.orphanedTemplates}
+              nodePalette={nodePalette}
+              animDir={animDir}
+              onNodeClick={node => setSelectedNode(prev => prev?.name === node.name ? null : node)}
+              onRemove={() => hideTab('__ORPHAN__')}
+            />
+          ) : (() => {
+            const dept = rawData.departments.find(d => d.name === resolvedKey);
+            if (!dept) return null;
+            return (
               <DepartmentTreeCard
                 key={dept.name}
                 dept={dept}
                 nodePalette={nodePalette}
+                animDir={animDir}
                 onNodeClick={node => setSelectedNode(prev => prev?.name === node.name ? null : node)}
+                onRemove={() => hideTab(dept.name)}
               />
-            ))}
-
-            {showOrphans && rawData.orphanedTemplates.length > 0 && (
-              <OrphanedTreeCard
-                templates={rawData.orphanedTemplates}
-                nodePalette={nodePalette}
-                onNodeClick={node => setSelectedNode(prev => prev?.name === node.name ? null : node)}
-              />
-            )}
-          </div>
+            );
+          })()}
         </div>
       )}
 
