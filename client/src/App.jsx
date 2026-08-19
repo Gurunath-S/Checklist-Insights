@@ -81,7 +81,6 @@ function App() {
     setTheme,
     themeChangedOnLogin,
     setThemeChangedOnLogin,
-    syncUserTheme
   } = useThemeStore();
 
   const {
@@ -165,11 +164,16 @@ function App() {
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  // Automatically trigger tour for first-time logged in users
+  // Automatically trigger tour for first-time logged in users only
   useEffect(() => {
     if (user && user.id) {
+      // Check both keys: "tour_completed" (set on close) and "tour_seen" (set on auto-open)
+      // This ensures existing users who never formally closed the tour don't see it again
       const tourCompleted = localStorage.getItem(`tour_completed_${user.id}`);
-      if (!tourCompleted) {
+      const tourSeen = localStorage.getItem(`tour_seen_${user.id}`);
+      if (!tourCompleted && !tourSeen) {
+        // Mark as seen immediately so refreshing or re-logging won't re-show it
+        localStorage.setItem(`tour_seen_${user.id}`, 'true');
         setIsTourOpen(true);
       }
     } else {
@@ -653,17 +657,17 @@ function App() {
           </div>
         )}
         {visitedViews.includes('user-management') && (
-          <div className={currentView === 'user-management' ? 'animate-fade-in' : 'hidden'}>
+        <div className={currentView === 'user-management' ? 'animate-fade-in' : 'hidden'} id="user-management-container">
             <UserManagement currentUser={user} />
           </div>
         )}
         {visitedViews.includes('reports') && (
-          <div className={currentView === 'reports' ? 'animate-fade-in' : 'hidden'}>
+        <div className={currentView === 'reports' ? 'animate-fade-in' : 'hidden'} id="reports-container">
             <ReportsPage currentUser={user} />
           </div>
         )}
         {visitedViews.includes('template-dashboard') && (
-          <div className={currentView === 'template-dashboard' ? 'animate-fade-in' : 'hidden'}>
+        <div className={currentView === 'template-dashboard' ? 'animate-fade-in' : 'hidden'} id="template-table-view">
             <TemplateDashboard currentUser={user} />
           </div>
         )}
@@ -1045,6 +1049,7 @@ function App() {
               </div>
             ) : (
               <div className="space-y-12">
+                <div id="dashboard-summary-cards">
                 <DashboardSummary 
                   data={data} 
                   isAdmin={isAdmin} 
@@ -1057,6 +1062,8 @@ function App() {
                   setStartDate={setStartDate}
                   setEndDate={setEndDate}
                 />
+              </div>
+              <div id="insights-chart-container">
                 <InsightsChart 
                   data={data} 
                   isAdmin={isAdmin} 
@@ -1067,16 +1074,19 @@ function App() {
                   onSelectItemName={setSelectedChecklistItemName}
                   explorerRef={personalExplorerRef}
                 />
-                <div ref={personalExplorerRef}>
-                <ChecklistExplorer 
+              </div>
+              <div ref={personalExplorerRef} id="checklist-explorer-container">
+              <ChecklistExplorer 
                   userId={user?.id} 
                   globalStartDate={startDate} 
                   globalEndDate={endDate}
                   selectedItemName={selectedChecklistItemName}
                   onSelectItemName={setSelectedChecklistItemName}
                 />
-                </div>
+              </div>
+              <div id="activity-explorer-container">
                 <ActivityExplorer user={user} />
+              </div>
               </div>
             )}
           </div>
@@ -1118,7 +1128,13 @@ function App() {
       )}
 
       {/* Interactive Tour Guide Overlay */}
-      <TourGuide isOpen={isTourOpen} onClose={handleCloseTour} isAdmin={isAdmin} />
+      <TourGuide
+        isOpen={isTourOpen}
+        onClose={handleCloseTour}
+        isAdmin={user?.user_type?.trim() === 'ADMIN'}
+        navigateTo={navigateToView}
+        currentView={currentView}
+      />
     </div>
   );
 }
