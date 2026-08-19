@@ -483,10 +483,10 @@
   stroke-width: 1.5px;
 }
 
-/* Prevent the tree SVG overriding text fills in light mode
-   (node text fill is set inline via palette, so we only reset generic svg text) */
+/* In light mode, let inline palette fills take precedence on tree SVG text.
+   Using 'initial' without !important so inline style={fill:...} wins. */
 [data-theme="light"] .template-tree-svg text {
-  fill: unset !important;
+  fill: initial;
 }
 
 /* Keep recharts chart text override intact (already handled above),
