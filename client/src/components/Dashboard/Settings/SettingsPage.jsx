@@ -101,6 +101,7 @@ const SettingsPage = ({ user, currentTheme, onChangeTheme, onStartTour }) => {
             </p>
 
             <button
+              id="settings-help-tour-btn"
               onClick={onStartTour}
               className="w-full flex items-center justify-center gap-2 py-3 bg-primary hover:bg-primary/95 text-white rounded-xl text-xs font-bold transition-all duration-300 shadow-lg shadow-primary/10 hover:shadow-primary/30 cursor-pointer"
             >

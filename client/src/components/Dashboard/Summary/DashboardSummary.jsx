@@ -259,7 +259,7 @@ const DashboardSummary = ({
         </div>
 
         {!hideKPIs && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4" id="dashboard-summary-cards">
             <AdminKPICard icon={<Users />} label="Users" value={data?.totalUsers} />
             <AdminKPICard icon={<Tag />} label="Tags" value={data?.totalTags} />
             <AdminKPICard icon={<Layout />} label="Templates" value={data?.totalTemplates} />
