@@ -3773,7 +3773,11 @@ router.get('/admin/template-tree', authenticateToken, async (req, res) => {
         TemplateRecipients: { select: { id: true } },
         checklist_template_version_checklist_template_version_checklist_template_idTochecklist_template: {
           include: {
-            linked_items: { select: { id: true } }
+            linked_items: {
+              include: {
+                item: { select: { id: true, checklist_name: true, input_type: true } }
+              }
+            }
           },
           orderBy: { version_id: 'desc' },
           take: 1
@@ -3810,6 +3814,13 @@ router.get('/admin/template-tree', authenticateToken, async (req, res) => {
       const latestVersion = tmpl.checklist_template_version_checklist_template_version_checklist_template_idTochecklist_template[0];
       const itemCount = latestVersion ? latestVersion.linked_items.length : 0;
       const ownerName = tmpl.checklist_template_owners?.Organisation_Users?.User?.name || null;
+      const itemsList = latestVersion
+        ? latestVersion.linked_items.map(li => ({
+            id: li.item.id,
+            checklist_name: li.item.checklist_name,
+            input_type: li.item.input_type
+          }))
+        : [];
 
       const templateEntry = {
         id: tmpl.id,
@@ -3820,7 +3831,8 @@ router.get('/admin/template-tree', authenticateToken, async (req, res) => {
         itemCount,
         recipientCount,
         ownerName,
-        tag_id: tmpl.tag_id
+        tag_id: tmpl.tag_id,
+        itemsList
       };
 
       // Orphan = no recipients assigned
@@ -3967,6 +3979,77 @@ router.put('/admin/template/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// DELETE /admin/template/:id
+// Delete template and all its associated versions, recipients, owners, linked items and responses
+router.delete('/admin/template/:id', authenticateToken, async (req, res) => {
+  try {
+    const authUserId = parseInt(req.user.userId);
+    const requester = await prisma.organisation_Users.findUnique({
+      where: { id: authUserId },
+      select: { user_type: true, User: { select: { email: true } } }
+    });
+    const isAdmin = requester?.user_type?.trim() === 'ADMIN' || requester?.User?.email === 'gururider35@gmail.com';
+    if (!isAdmin) return res.status(403).json({ error: 'Admin access required' });
+
+    const templateId = parseInt(req.params.id);
+
+    // 1. Get all versions of this template
+    const versions = await prisma.checklist_template_version.findMany({
+      where: { checklist_template_id: templateId },
+      select: { version_id: true }
+    });
+    const versionIds = versions.map(v => v.version_id);
+
+    await prisma.$transaction(async (tx) => {
+      // 2. Delete responses for these versions
+      if (versionIds.length > 0) {
+        await tx.checklist_item_response.deleteMany({
+          where: { template_version: { in: versionIds } }
+        });
+
+        // 3. Delete linked items for these versions
+        await tx.checklist_template_linked_items.deleteMany({
+          where: { template_version_id: { in: versionIds } }
+        });
+      }
+
+      // 4. Delete recipients
+      await tx.templateRecipients.deleteMany({
+        where: { checklist_template_id: templateId }
+      });
+
+      // 5. Delete owner
+      await tx.checklist_template_owners.deleteMany({
+        where: { checklist_template_id: templateId }
+      });
+
+      // 6. Nullify current_version_id on template to prevent foreign key issues during deletion
+      await tx.checklist_template.update({
+        where: { id: templateId },
+        data: { current_version_id: null }
+      });
+
+      // 7. Delete versions
+      if (versionIds.length > 0) {
+        await tx.checklist_template_version.deleteMany({
+          where: { checklist_template_id: templateId }
+        });
+      }
+
+      // 8. Delete the template itself
+      await tx.checklist_template.delete({
+        where: { id: templateId }
+      });
+    });
+
+    res.json({ success: true, message: 'Template deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting template:', error);
+    res.status(500).json({ error: 'Internal Server Error', message: error.message });
+  }
+});
+
+
 // PUT /admin/tag/:id
 // Update tag recurrence or department
 router.put('/admin/tag/:id', authenticateToken, async (req, res) => {
@@ -3994,6 +4077,41 @@ router.put('/admin/tag/:id', authenticateToken, async (req, res) => {
     res.json({ success: true, message: 'Tag updated successfully' });
   } catch (error) {
     console.error('Error updating tag:', error);
+    res.status(500).json({ error: 'Internal Server Error', message: error.message });
+  }
+});
+
+// DELETE /admin/tag/:id
+// Disconnects all templates from the tag (tag_id → null), then deletes the tag
+// Templates are NOT deleted — they appear in the Unconnected area
+router.delete('/admin/tag/:id', authenticateToken, async (req, res) => {
+  try {
+    const authUserId = parseInt(req.user.userId);
+    const requester = await prisma.organisation_Users.findUnique({
+      where: { id: authUserId },
+      select: { user_type: true, User: { select: { email: true } } }
+    });
+    const isAdmin = requester?.user_type?.trim() === 'ADMIN' || requester?.User?.email === 'gururider35@gmail.com';
+    if (!isAdmin) return res.status(403).json({ error: 'Admin access required' });
+
+    const tagId = parseInt(req.params.id);
+
+    await prisma.$transaction(async (tx) => {
+      // 1. Disconnect all templates from this tag (make them unconnected/orphaned)
+      await tx.checklist_template.updateMany({
+        where: { tag_id: tagId },
+        data: { tag_id: null }
+      });
+
+      // 2. Delete the tag itself
+      await tx.tags.delete({
+        where: { id: tagId }
+      });
+    });
+
+    res.json({ success: true, message: 'Tag deleted — all connected templates are now unconnected' });
+  } catch (error) {
+    console.error('Error deleting tag:', error);
     res.status(500).json({ error: 'Internal Server Error', message: error.message });
   }
 });
