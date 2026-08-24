@@ -571,7 +571,7 @@ const getUserReports = async ({ startDate, endDate, search, page = 1, limit = 15
   };
 };
 
-const getChecklistItemsList = async (authUserId, requesterOrgId, isAdmin, department) => {
+const getChecklistItemsList = async (authUserId, requesterOrgId, isAdmin, department, targetUserId) => {
   let query = `
     SELECT ci.checklist_name, ci.input_type, COUNT(r.id) as usage_count
     FROM checklist_items ci
@@ -593,7 +593,10 @@ const getChecklistItemsList = async (authUserId, requesterOrgId, isAdmin, depart
   query += ` WHERE ou.organisation_id = ? `;
   const queryParams = [requesterOrgId];
 
-  if (!isAdmin) {
+  if (targetUserId) {
+    query += ` AND r.organisation_user_id = ? `;
+    queryParams.push(targetUserId);
+  } else if (!isAdmin) {
     query += ` AND r.organisation_user_id = ? `;
     queryParams.push(authUserId);
   }

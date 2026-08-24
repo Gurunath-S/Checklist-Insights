@@ -132,9 +132,10 @@ const getChecklistItemsList = async (req, res) => {
     }
 
     const isAdmin = requester.user_type?.trim() === 'ADMIN';
-    const { department } = req.query;
+    const { department, userId } = req.query;
+    const targetUserId = userId ? parseInt(userId) : null;
 
-    const list = await reportsInsightsService.getChecklistItemsList(authUserId, requester.organisation_id, isAdmin, department);
+    const list = await reportsInsightsService.getChecklistItemsList(authUserId, requester.organisation_id, isAdmin, department, targetUserId);
     res.json(list);
   } catch (error) {
     console.error('getChecklistItemsList error:', error);
