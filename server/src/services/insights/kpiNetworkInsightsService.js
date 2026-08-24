@@ -255,17 +255,15 @@ const updateAdminTag = async (tagId, { recurrent, tag_name }) => {
 };
 
 const deleteAdminTag = async (tagId) => {
-  await prisma.$transaction(async (tx) => {
-    // 1. Disconnect all templates from this tag (make them unconnected/orphaned)
-    await tx.checklist_template.updateMany({
-      where: { tag_id: tagId },
-      data: { tag_id: null }
-    });
+  const templateCount = await prisma.checklist_template.count({
+    where: { tag_id: tagId }
+  });
+  if (templateCount > 0) {
+    throw new Error(`Cannot delete tag. ${templateCount} template(s) are currently assigned to this tag.`);
+  }
 
-    // 2. Delete the tag itself
-    await tx.tags.delete({
-      where: { id: tagId }
-    });
+  await prisma.tags.delete({
+    where: { id: tagId }
   });
 };
 
