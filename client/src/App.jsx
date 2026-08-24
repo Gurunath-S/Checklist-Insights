@@ -1,61 +1,28 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { Sparkles, LogOut, Users, ChevronDown, List, Search, Moon, Sun, Palette } from 'lucide-react';
-import Sidebar from './components/Dashboard/Sidebar';
-import LoginPage from './components/Auth/LoginPage';
-import TourGuide from './components/Dashboard/TourGuide';
-import UserProfileHeader from './components/Dashboard/Summary/UserProfileHeader';
-import DashboardSummary from './components/Dashboard/Summary/DashboardSummary';
-import InsightsChart from './components/Dashboard/Charts/InsightsChart';
-import ActivityExplorer from './components/Dashboard/Activity/ActivityExplorer';
-import DepartmentDashboard from './components/Dashboard/Department/DepartmentDashboard';
-import LoadingState from './components/UI/LoadingState';
-import SettingsPage from './components/Dashboard/Settings/SettingsPage';
-import UserManagement from './components/Dashboard/UserManagement/UserManagement';
-import ReportsPage from './components/Dashboard/Reports/ReportsPage';
-import TagReportsView from './components/Dashboard/TagReports/TagReportsView';
-import OrganisationDashboard from './components/Dashboard/Organisation/OrganisationDashboard';
-import ChecklistExplorer from './components/Dashboard/Charts/ChecklistExplorer';
-import TemplateDashboard from './components/Dashboard/Admin/TemplateDashboard';
-import { useAuthStore } from './store/useAuthStore';
+import Sidebar from './features/dashboard/components/Sidebar';
+import LoginPage from './features/auth/components/LoginPage';
+import TourGuide from './features/dashboard/components/TourGuide';
+import UserProfileHeader from './features/dashboard/components/UserProfileHeader';
+import DashboardSummary from './features/dashboard/components/DashboardSummary';
+import InsightsChart from './features/analytics/components/InsightsChart';
+import ActivityExplorer from './features/dashboard/components/ActivityExplorer';
+import DepartmentDashboard from './features/dashboard/components/DepartmentDashboard';
+import LoadingState from './components/common/LoadingState';
+
+const SettingsPage = lazy(() => import('./features/dashboard/components/SettingsPage'));
+const UserManagement = lazy(() => import('./features/admin/components/UserManagement'));
+const ReportsPage = lazy(() => import('./features/reports/components/ReportsPage'));
+const TagReportsView = lazy(() => import('./features/analytics/components/TagReportsView'));
+const OrganisationDashboard = lazy(() => import('./features/dashboard/components/OrganisationDashboard'));
+const ChecklistExplorer = lazy(() => import('./features/analytics/components/ChecklistExplorer'));
+const TemplateDashboard = lazy(() => import('./features/admin/components/TemplateDashboard'));
+
+import { useAuthStore } from './features/auth/store/useAuthStore';
 import { useThemeStore } from './store/useThemeStore';
 import { useFilterStore } from './store/useFilterStore';
 import { useDataStore } from './store/useDataStore';
-
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
-
-// Global logout handler reference for response interceptor
-let globalLogout = null;
-
-// Register global Axios interceptors (avoids duplicate registration and ejection race conditions in Strict Mode)
-axios.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-axios.interceptors.response.use(
-  (response) => {
-    // If the server sends a new token (Sliding Session), save it
-    if (response.data && response.data.token) {
-      localStorage.setItem('token', response.data.token);
-    }
-    return response;
-  },
-  (error) => {
-    if (error.response && error.response.status === 401) {
-      if (globalLogout) {
-        globalLogout();
-      } else {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-      }
-    }
-    return Promise.reject(error);
-  }
-);
+import apiClient, { setGlobalLogout } from './services/apiClient';
 
 function App() {
   const {
@@ -258,9 +225,9 @@ function App() {
 
   // Update the global logout pointer whenever handleLogout is created/updated
   useEffect(() => {
-    globalLogout = handleLogout;
+    setGlobalLogout(handleLogout);
     return () => {
-      globalLogout = null;
+      setGlobalLogout(null);
     };
   }, [handleLogout]);
 
@@ -291,9 +258,8 @@ function App() {
           return;
         }
 
-        setLoading(true);
         try {
-          const res = await axios.post(`${API_BASE}/auth/google`, { 
+          const res = await apiClient.post('/auth/google', { 
             token: googleAccessToken,
             isAccessToken: true
           });
@@ -319,9 +285,8 @@ function App() {
       if (pendingMsalToken) {
         setMicrosoftLoading(true);
         sessionStorage.removeItem('msal_pending_token');
-        setLoading(true);
         try {
-          const res = await axios.post(`${API_BASE}/auth/microsoft`, { 
+          const res = await apiClient.post('/auth/microsoft', { 
             accessToken: pendingMsalToken 
           });
           const { token, user: loggedUser } = res.data;
@@ -350,10 +315,9 @@ function App() {
         return;
       }
 
-      setLoading(true);
       try {
         // Call the new verify endpoint
-        const res = await axios.get(`${API_BASE}/auth/verify`);
+        const res = await apiClient.get('/auth/verify');
         const { user: verifiedUser, token: newToken } = res.data;
         
         setUser(verifiedUser);
@@ -480,12 +444,12 @@ function App() {
       if (endDate) params.endDate = endDate;
 
       if (isAdmin) {
-        const response = await axios.get(`${API_BASE}/insights/admin/summary`, {
+        const response = await apiClient.get('/insights/admin/summary', {
           params
         });
         setData(response.data);
       } else {
-        const response = await axios.get(`${API_BASE}/insights/personal/${user.id}`, {
+        const response = await apiClient.get(`/insights/personal/${user.id}`, {
           params
         });
         setData(response.data);
@@ -536,10 +500,7 @@ function App() {
     if (isAdmin && user && !isValidatingSession) {
       const fetchAdminUsers = async () => {
         try {
-          const token = localStorage.getItem('token');
-          const res = await axios.get(`${API_BASE}/insights/admin/users`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
+          const res = await apiClient.get('/insights/admin/users');
           setAdminUsers(res.data || []);
         } catch (err) {
           console.error("Failed to load admin user selector directory", err);
@@ -557,9 +518,7 @@ function App() {
       if (startDate) params.startDate = startDate;
       if (endDate) params.endDate = endDate;
 
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_BASE}/insights/personal/${inspectedUserId}`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const response = await apiClient.get(`/insights/personal/${inspectedUserId}`, {
         params
       });
       setInspectedData(response.data);
@@ -646,7 +605,8 @@ function App() {
       />
 
       <main className="flex-1 p-6 lg:p-8 z-10 overflow-y-auto">
-        {visitedViews.includes('settings') && (
+        <Suspense fallback={<LoadingState />}>
+          {visitedViews.includes('settings') && (
           <div className={currentView === 'settings' ? 'animate-fade-in' : 'hidden'}>
             <SettingsPage 
               user={user} 
@@ -1092,6 +1052,7 @@ function App() {
           </div>
         )}
       </div>
+        </Suspense>
     </main>
 
       {/* Premium Sign Out Warning Modal (Perfect Screen Centering) */}
