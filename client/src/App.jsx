@@ -166,8 +166,14 @@ function App() {
         .filter(item => {
           const lowercaseName = item.name.toLowerCase();
           
-          // Exclude AI usage question from default selection
-          if (lowercaseName.includes('did you use any ai') || lowercaseName.includes('use any ai for work')) {
+          // Exclude AI usage and Attendance/Clock In/Out questions from default selection
+          if (
+            lowercaseName.includes('did you use any ai') || 
+            lowercaseName.includes('use any ai for work') ||
+            lowercaseName.includes('clock in') ||
+            lowercaseName.includes('clock out') ||
+            lowercaseName.includes('attendance')
+          ) {
             return false;
           }
           
@@ -528,7 +534,13 @@ function App() {
         const defaultMetrics = response.data.itemStats
           .filter(item => {
             const lowercaseName = item.name.toLowerCase();
-            if (lowercaseName.includes('did you use any ai') || lowercaseName.includes('use any ai for work')) {
+            if (
+              lowercaseName.includes('did you use any ai') || 
+              lowercaseName.includes('use any ai for work') ||
+              lowercaseName.includes('clock in') ||
+              lowercaseName.includes('clock out') ||
+              lowercaseName.includes('attendance')
+            ) {
               return false;
             }
             return (
