@@ -64,6 +64,9 @@ model checklist_items {
   created_at           DateTime                          @default(now())
   linked_items         checklist_template_linked_items[]
   checklist_template   checklist_template[]
+  parent_relationships checklist_item_relationship[]     @relation("parent")
+  child_relationships  checklist_item_relationship[]     @relation("child")
+  kpi_config           checklist_item_kpi_config?
 }
 
 model checklist_template {
@@ -234,4 +237,29 @@ enum tags_recurrent {
   Monthly
   Yearly
   Other
+}
+
+// ── KPI Network ────────────────────────────────────────────────────────────────
+
+model checklist_item_relationship {
+  id             Int             @id @default(autoincrement())
+  parent_item_id Int
+  child_item_id  Int
+  created_at     DateTime        @default(now())
+  parent_item    checklist_items @relation("parent", fields: [parent_item_id], references: [id], onDelete: Cascade)
+  child_item     checklist_items @relation("child", fields: [child_item_id], references: [id], onDelete: Cascade)
+
+  @@unique([parent_item_id, child_item_id])
+  @@index([parent_item_id])
+  @@index([child_item_id])
+}
+
+model checklist_item_kpi_config {
+  id          Int             @id @default(autoincrement())
+  item_id     Int             @unique
+  aggregation String          @default("Monthly")
+  updated_at  DateTime        @updatedAt
+  item        checklist_items @relation(fields: [item_id], references: [id], onDelete: Cascade)
+
+  @@index([item_id])
 }
