@@ -20,7 +20,7 @@ const ChecklistExplorer = ({
   const [selectedItem, setSelectedItem] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [groupBy, setGroupBy] = useState('day');
+  const [groupBy, setGroupBy] = useState('year');
   const [chartData, setChartData] = useState([]);
   const [userBreakdown, setUserBreakdown] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -57,20 +57,26 @@ const ChecklistExplorer = ({
     const fetchItems = async () => {
       setLoadingItems(true);
       try {
-        const data = await getChecklistItemsListApi({ department });
-        setItemsList(data || []);
+        const params = {};
+        if (department) params.department = department;
+        if (userId) params.userId = userId;
+        if (organisationId) params.organisationId = organisationId;
+
+        const data = await getChecklistItemsListApi(params);
+        const list = Array.isArray(data) ? data : [];
+        setItemsList(list);
         
         // Auto-select first item if exists and nothing is selected
-        const matchedItem = selectedItemName ? res.data.find(item => item.checklist_name === selectedItemName) : null;
+        const matchedItem = selectedItemName ? list.find(item => item.checklist_name === selectedItemName) : null;
         if (matchedItem) {
           setSelectedItem(matchedItem);
           setSearchTerm(matchedItem.checklist_name);
           if (matchedItem.input_type === 'Numeric') {
             setPlotMetric('sum');
           }
-        } else if (res.data && res.data.length > 0) {
+        } else if (list && list.length > 0) {
           // Find first item that is NOT a login/logout or clock-in/clock-out item
-          const nonLogItem = res.data.find(item => {
+          const nonLogItem = list.find(item => {
             const name = item.checklist_name.toLowerCase();
             return !name.includes('login') && 
                    !name.includes('logout') && 
@@ -103,7 +109,7 @@ const ChecklistExplorer = ({
       }
     };
     fetchItems();
-  }, [department]);
+  }, [department, userId, organisationId]);
 
   // Sync selected item with external prop selectedItemName
   useEffect(() => {
@@ -294,7 +300,8 @@ const ChecklistExplorer = ({
           {[
             { label: 'Daily', val: 'day' },
             { label: 'Weekly', val: 'week' },
-            { label: 'Monthly', val: 'month' }
+            { label: 'Monthly', val: 'month' },
+            { label: 'Yearly', val: 'year' }
           ].map(opt => (
             <button
               key={opt.val}
