@@ -572,16 +572,76 @@ const DashboardSummary = ({
   );
 };
 
-const ColorfulCard = ({ color, icon, label, value }) => (
-  <div className={`bg-linear-to-br ${color} rounded-2xl p-4 flex flex-col items-center justify-center gap-2 text-white shadow-xl shadow-black/20 hover:-translate-y-2 hover:scale-105 transition-all duration-300 cursor-default aspect-square lg:aspect-auto`}>
-    {React.cloneElement(icon, { size: 24, className: "opacity-90" })}
-    <span className="text-[0.7rem] font-bold uppercase tracking-wide opacity-80 text-center truncate w-full" title={label}>{label}</span>
-    <span className="text-xl font-extrabold">{value}</span>
+const MetricCard = ({ icon, label, value, onClose, isSubmissions = false }) => (
+  <div className={`relative group/card backdrop-blur-2xl border rounded-2xl p-4 flex flex-col justify-between h-full min-h-[110px] text-white shadow-lg shadow-black/20 hover:-translate-y-1 hover:shadow-2xl hover:shadow-primary/10 transition-all duration-300 cursor-default overflow-hidden ${
+    isSubmissions 
+      ? 'border-indigo-500/40 bg-linear-to-b from-indigo-500/10 to-transparent' 
+      : 'border-glass-border hover:border-accent/40 bg-linear-to-b from-white/[0.04] to-transparent'
+  }`}>
+    {/* Ambient top light stroke */}
+    <div className="absolute top-0 left-0 right-0 h-[1px] bg-linear-to-r from-transparent via-white/20 to-transparent opacity-50 group-hover/card:opacity-100 transition-opacity"></div>
+
+    {/* Close button */}
+    {onClose && (
+      <button
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onClose();
+        }}
+        onMouseDown={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+        title={`Remove "${label}"`}
+        className="absolute top-2.5 right-2.5 z-20 w-6 h-6 opacity-0 group-hover/card:opacity-100 transition-all duration-200 bg-white/10 hover:bg-rose-500 backdrop-blur-md border border-white/15 hover:border-rose-400 text-white/80 hover:text-white shadow-md hover:shadow-rose-500/40 rounded-full flex items-center justify-center hover:scale-110 active:scale-90 cursor-pointer"
+      >
+        <X size={12} strokeWidth={2.5} />
+      </button>
+    )}
+
+    {/* Top Row: Icon & Label */}
+    <div className="flex items-center gap-2.5 w-full pr-6">
+      <div className={`p-2 rounded-xl border shrink-0 transition-colors ${
+        isSubmissions 
+          ? 'bg-indigo-500/20 border-indigo-500/30 text-indigo-400' 
+          : 'bg-white/5 border-white/10 text-accent group-hover/card:bg-accent/15 group-hover/card:border-accent/30'
+      }`}>
+        {React.cloneElement(icon, { size: 16, strokeWidth: 2 })}
+      </div>
+      <span className="text-[11px] font-bold uppercase tracking-wider text-text-muted truncate w-full" title={label}>
+        {label}
+      </span>
+    </div>
+
+    {/* Bottom Row: Large Value */}
+    <div className="mt-3 flex items-baseline justify-between gap-2">
+      <span className="text-2xl font-black tracking-tight text-white group-hover/card:text-accent transition-colors">
+        {value}
+      </span>
+    </div>
   </div>
 );
 
-const DoubleMetricCard = ({ color, icon, label, val1Label, val1, val2Label, val2 }) => (
-  <div className={`bg-linear-to-br ${color} rounded-2xl p-4 flex flex-col justify-between text-white shadow-xl shadow-black/20 hover:-translate-y-2 hover:scale-105 transition-all duration-300 cursor-default aspect-square lg:aspect-auto`}>
+const DoubleMetricCard = ({ color, icon, label, val1Label, val1, val2Label, val2, onClose }) => (
+  <div className={`relative group/card bg-linear-to-br ${color} rounded-2xl p-4 flex flex-col justify-between text-white shadow-xl shadow-black/20 hover:-translate-y-2 hover:scale-105 transition-all duration-300 cursor-default aspect-square lg:aspect-auto`}>
+    {onClose && (
+      <button
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onClose();
+        }}
+        onMouseDown={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+        title={`Remove "${label}"`}
+        className="absolute top-2 right-2 z-20 w-6 h-6 opacity-0 group-hover/card:opacity-100 transition-all duration-200 bg-black/40 hover:bg-rose-500 backdrop-blur-md border border-white/20 hover:border-rose-400 text-white/90 hover:text-white shadow-md hover:shadow-rose-500/50 rounded-full flex items-center justify-center hover:scale-110 active:scale-90 cursor-pointer"
+      >
+        <X size={12} strokeWidth={2.5} />
+      </button>
+    )}
     <div className="flex items-center justify-between gap-2 w-full mb-1">
       <span className="text-[0.7rem] font-bold uppercase tracking-wide opacity-80 truncate" title={label}>{label}</span>
       {React.cloneElement(icon, { size: 16, className: "opacity-90 shrink-0" })}
