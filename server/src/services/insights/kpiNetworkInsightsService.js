@@ -147,7 +147,9 @@ const getAdminTemplateTree = async () => {
 
 const updateAdminTemplate = async (templateId, { tag_id, priority, owner_id }) => {
   const updateData = {};
-  if (tag_id !== undefined) updateData.tag_id = tag_id;
+  if (tag_id !== undefined && tag_id !== null) {
+    updateData.tag = { connect: { id: parseInt(tag_id) } };
+  }
   if (priority !== undefined) updateData.priority = priority;
 
   await prisma.$transaction(async (tx) => {
