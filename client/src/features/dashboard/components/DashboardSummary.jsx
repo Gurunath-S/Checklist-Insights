@@ -54,7 +54,9 @@ const DashboardSummary = ({
   // safeMetrics (zero-value cards are skipped), making splice() cut wrong items.
   const [draggingName, setDraggingName] = useState(null);
   const [dropTargetName, setDropTargetName] = useState(null);
+  const [dropSide, setDropSide] = useState('left');
   const dragNameRef = useRef(null);
+  const dropSideRef = useRef('left');
 
   const [tempStartText, setTempStartText] = useState('');
   const [tempEndText, setTempEndText] = useState('');
@@ -63,39 +65,61 @@ const DashboardSummary = ({
   const handleDragStart = useCallback((e, name) => {
     dragNameRef.current = name;
     e.dataTransfer.effectAllowed = 'move';
-    // RAF ensures browser captures ghost image before opacity dims
     requestAnimationFrame(() => setDraggingName(name));
   }, []);
 
   const handleDragOver = useCallback((e, name) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    if (dragNameRef.current !== name) {
+    if (dragNameRef.current && dragNameRef.current !== name) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const midX = rect.left + rect.width / 2;
+      const side = e.clientX < midX ? 'left' : 'right';
+      dropSideRef.current = side;
       setDropTargetName(name);
+      setDropSide(side);
     }
   }, []);
 
   const handleDrop = useCallback((e, targetName) => {
     e.preventDefault();
     const dragName = dragNameRef.current;
+    const side = dropSideRef.current;
 
-    // Reset all visual state immediately
     setDraggingName(null);
     setDropTargetName(null);
     dragNameRef.current = null;
 
-    if (!dragName || dragName === targetName) return;
+    if (!dragName) return;
 
-    // IMPORTANT: setSelectedMetrics is a plain Zustand setter — NOT React setState.
-    // Passing a (prev => ...) function would store the function itself as state.
-    // Use safeMetrics directly, which is already validated as an array in this render.
+    // Allow dropping at the end of the list (e.g. on Add Metric card)
+    if (targetName === '__END__') {
+      const fromIdx = safeMetrics.indexOf(dragName);
+      if (fromIdx === -1) return;
+      const reordered = [...safeMetrics];
+      const [moved] = reordered.splice(fromIdx, 1);
+      reordered.push(moved);
+      setSelectedMetrics(reordered);
+      return;
+    }
+
+    if (dragName === targetName) return;
+
     const fromIdx = safeMetrics.indexOf(dragName);
-    const toIdx   = safeMetrics.indexOf(targetName);
-    if (fromIdx === -1 || toIdx === -1) return;
+    const targetIdx = safeMetrics.indexOf(targetName);
+    if (fromIdx === -1 || targetIdx === -1) return;
 
     const reordered = [...safeMetrics];
     const [moved] = reordered.splice(fromIdx, 1);
-    reordered.splice(toIdx, 0, moved);
+    
+    // Calculate precise insertion index based on left/right drop position
+    let insertIdx = side === 'left' ? targetIdx : targetIdx + 1;
+    if (fromIdx < targetIdx) {
+      insertIdx = side === 'left' ? targetIdx - 1 : targetIdx;
+    }
+    
+    insertIdx = Math.max(0, Math.min(reordered.length, insertIdx));
+    reordered.splice(insertIdx, 0, moved);
     setSelectedMetrics(reordered);
   }, [setSelectedMetrics, safeMetrics]);
 
@@ -106,7 +130,6 @@ const DashboardSummary = ({
   }, []);
 
   const handleDragLeave = useCallback((e) => {
-    // Ignore leaves triggered by entering a child element
     if (!e.currentTarget.contains(e.relatedTarget)) {
       setDropTargetName(null);
     }
@@ -343,9 +366,7 @@ const DashboardSummary = ({
 
   const handleToggleMetric = (metricName) => {
     if (safeMetrics.includes(metricName)) {
-      if (safeMetrics.length > 1) {
-        setSelectedMetrics(safeMetrics.filter((name) => name !== metricName));
-      }
+      setSelectedMetrics(safeMetrics.filter((name) => name !== metricName));
     } else {
       setSelectedMetrics([...safeMetrics, metricName]);
     }
@@ -431,51 +452,14 @@ const DashboardSummary = ({
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_200px] gap-4">
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
-          <ColorfulCard color="from-indigo-600 to-indigo-800" icon={<Send />} label="Submissions" value={summary.totalSubmissions || 0} />
+          <MetricCard icon={<Send />} label="Submissions" value={summary.totalSubmissions || 0} isSubmissions={true} />
           
           {(() => {
-            // Find Daily Clock In and Daily Clock Out metrics
-            const clockInMetric = displayedMetrics.find(m => m.name.toLowerCase() === 'daily clock in' || m.name.toLowerCase() === 'clock in');
-            const clockOutMetric = displayedMetrics.find(m => m.name.toLowerCase() === 'daily clock out' || m.name.toLowerCase() === 'clock out');
-
-            // Render combined attendance card if both are present and at least one is non-zero
-            const showCombinedAttendance = clockInMetric && clockOutMetric && (Number(clockInMetric.value) > 0 || Number(clockOutMetric.value) > 0);
-
-            // Filter out combined items from displayed list
-            const metricsToRender = displayedMetrics.filter(m => {
-              if (Number(m.value) === 0) return false;
-              if (showCombinedAttendance) {
-                return m.name !== clockInMetric.name && m.name !== clockOutMetric.name;
-              }
-              return true;
-            });
+            const metricsToRender = displayedMetrics.filter(m => Number(m.value) !== 0);
 
             return (
               <>
-                {showCombinedAttendance && (
-                  <DoubleMetricCard
-                    color="from-cyan-400 to-blue-600"
-                    icon={<Clock />}
-                    label="Attendance Rate"
-                    val1Label="Clock In"
-                    val1={`${clockInMetric.value}%`}
-                    val2Label="Clock Out"
-                    val2={`${clockOutMetric.value}%`}
-                  />
-                )}
-
-                {metricsToRender.map((metric, idx) => {
-                  const CARD_COLORS = [
-                    'from-purple-500 to-purple-700',
-                    'from-amber-500 to-amber-700',
-                    'from-rose-500 to-rose-700',
-                    'from-fuchsia-500 to-fuchsia-700',
-                    'from-orange-500 to-orange-700',
-                    'from-pink-500 to-pink-700',
-                    'from-emerald-500 to-emerald-700',
-                    'from-teal-500 to-teal-700',
-                  ];
-
+                {metricsToRender.map((metric) => {
                   // Name-based comparison — immune to filtered index gaps
                   const isBeingDragged = draggingName === metric.name;
                   const isDragTarget   = dropTargetName === metric.name;
@@ -502,7 +486,6 @@ const DashboardSummary = ({
                   return (
                     <div
                       key={metric.name}
-                      className="relative group"
                       draggable
                       onDragStart={(e) => handleDragStart(e, metric.name)}
                       onDragOver={(e)  => handleDragOver(e, metric.name)}
@@ -510,30 +493,28 @@ const DashboardSummary = ({
                       onDragEnd={handleDragEnd}
                       onDragLeave={handleDragLeave}
                       title="Drag to reorder"
-                      style={{
-                        cursor: 'grab',
-                        opacity: isBeingDragged ? 0.4 : 1,
-                        outline: isDragTarget ? '2px solid var(--color-accent, #6366f1)' : 'none',
-                        outlineOffset: '3px',
-                        borderRadius: '1rem',
-                        transition: 'opacity 150ms ease, outline 150ms ease, transform 150ms ease',
-                        transform: isDragTarget ? 'scale(1.03)' : 'scale(1)',
-                      }}
+                      className={`relative rounded-2xl transition-all duration-300 ${
+                        isBeingDragged 
+                          ? 'opacity-70 scale-105 ring-2 ring-accent border-accent shadow-[0_0_30px_rgba(99,102,241,0.7)] z-40' 
+                          : isDragTarget 
+                            ? 'scale-105 ring-2 ring-accent border-accent shadow-[0_0_25px_rgba(99,102,241,0.5)] bg-accent/10 z-30'
+                            : ''
+                      }`}
+                      style={{ cursor: 'grab' }}
                     >
-                      {/* ── X dismiss button: visible on card hover ── */}
-                      <button
-                        onClick={() => handleToggleMetric(metric.name)}
-                        title={`Remove "${metric.name}"`}
-                        className="absolute top-1.5 right-1.5 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-150 bg-black/50 hover:bg-red-500 rounded-full p-0.5 text-white cursor-pointer"
-                      >
-                        <X size={10} strokeWidth={2.5} />
-                      </button>
-
-                      <ColorfulCard
-                        color={CARD_COLORS[idx % CARD_COLORS.length]}
+                      {/* Position Indicator Badge on Target Card */}
+                      {isDragTarget && (
+                        <div className={`absolute -top-3 z-50 flex items-center gap-1 bg-accent text-white text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full shadow-[0_0_12px_rgba(99,102,241,0.8)] ${
+                          dropSide === 'left' ? 'left-1' : 'right-1'
+                        }`}>
+                          <span>Insert {dropSide === 'left' ? '← Before' : 'After →'}</span>
+                        </div>
+                      )}
+                      <MetricCard
                         icon={getMetricIcon(metric.name)}
                         label={metric.name}
                         value={displayValue}
+                        onClose={() => handleToggleMetric(metric.name)}
                       />
                     </div>
                   );
@@ -543,11 +524,20 @@ const DashboardSummary = ({
           })()}
 
           <div 
-            className="bg-white/5 border border-glass-border border-dashed rounded-2xl p-4 flex flex-col items-center justify-center gap-1 text-text-muted hover:bg-white/10 hover:border-accent/40 hover:text-white transition-all cursor-pointer aspect-square lg:aspect-auto min-h-[90px]"
+            className={`relative bg-white/5 border border-glass-border border-dashed rounded-2xl p-4 flex flex-col items-center justify-center gap-1 text-text-muted hover:bg-white/10 hover:border-accent/40 hover:text-white transition-all cursor-pointer aspect-square lg:aspect-auto min-h-[90px] ${
+              dropTargetName === '__END__' 
+                ? 'border-accent bg-accent/20 ring-2 ring-accent shadow-[0_0_25px_rgba(99,102,241,0.6)] scale-105' 
+                : ''
+            }`}
             onClick={() => setIsDropdownOpen(true)}
+            onDragOver={(e) => handleDragOver(e, '__END__')}
+            onDrop={(e) => handleDrop(e, '__END__')}
+            onDragLeave={handleDragLeave}
           >
-            <Activity size={24} className="opacity-40 animate-pulse" />
-            <span className="text-[10px] font-bold uppercase tracking-wider text-center">Add Metric</span>
+            <Activity size={24} className="opacity-40 animate-pulse text-accent" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-center text-white">
+              {dropTargetName === '__END__' ? 'Drop Here' : 'Add Metric'}
+            </span>
           </div>
         </div>
         
