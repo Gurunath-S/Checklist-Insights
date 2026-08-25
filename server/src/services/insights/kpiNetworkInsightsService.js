@@ -303,6 +303,87 @@ const getKpiNetwork = async () => {
     select: { id: true, parent_item_id: true, child_item_id: true }
   });
 
+  const templates = await prisma.checklist_template.findMany({
+    select: {
+      id: true,
+      template_name: true,
+      tag: { select: { id: true, tag_name: true } },
+      checklist_template_version_checklist_template_version_checklist_template_idTochecklist_template: {
+        select: {
+          linked_items: {
+            select: { checklist_item_id: true }
+          }
+        },
+        orderBy: { version_id: 'desc' },
+        take: 1
+      }
+    },
+    orderBy: { template_name: 'asc' }
+  });
+
+  const tags = await prisma.tags.findMany({
+    select: {
+      id: true,
+      tag_name: true,
+      user_position: true,
+      templates: {
+        select: {
+          id: true,
+          template_name: true,
+          checklist_template_version_checklist_template_version_checklist_template_idTochecklist_template: {
+            select: {
+              linked_items: {
+                select: { checklist_item_id: true }
+              }
+            },
+            orderBy: { version_id: 'desc' },
+            take: 1
+          }
+        }
+      }
+    },
+    orderBy: { tag_name: 'asc' }
+  });
+
+  const formattedTemplates = templates.map(t => {
+    const latestVer = t.checklist_template_version_checklist_template_version_checklist_template_idTochecklist_template[0];
+    const itemIds = latestVer ? latestVer.linked_items.map(li => li.checklist_item_id) : [];
+    return {
+      id: t.id,
+      template_name: t.template_name,
+      tag_name: t.tag?.tag_name || 'Uncategorized',
+      itemIds
+    };
+  });
+
+  const formattedTags = tags.map(tg => {
+    const itemIdsSet = new Set();
+    tg.templates.forEach(t => {
+      const latestVer = t.checklist_template_version_checklist_template_version_checklist_template_idTochecklist_template[0];
+      if (latestVer) {
+        latestVer.linked_items.forEach(li => itemIdsSet.add(li.checklist_item_id));
+      }
+    });
+    return {
+      id: tg.id,
+      tag_name: tg.tag_name,
+      user_position: tg.user_position,
+      templatesCount: tg.templates.length,
+      itemIds: Array.from(itemIdsSet)
+    };
+  });
+
+  const itemTemplatesMap = {};
+  const itemTagsMap = {};
+  formattedTemplates.forEach(t => {
+    t.itemIds.forEach(itemId => {
+      if (!itemTemplatesMap[itemId]) itemTemplatesMap[itemId] = [];
+      if (!itemTagsMap[itemId]) itemTagsMap[itemId] = new Set();
+      itemTemplatesMap[itemId].push(t.template_name);
+      if (t.tag_name) itemTagsMap[itemId].add(t.tag_name);
+    });
+  });
+
   const avgQuery = `
     SELECT
       ci.id AS item_id,
@@ -344,10 +425,12 @@ const getKpiNetwork = async () => {
     total_count: avgMap[item.id]?.total_count ?? 0,
     aggregation: item.kpi_config?.aggregation || 'Monthly',
     parent_ids: parentMap[item.id] || [],
-    child_ids: childMap[item.id] || []
+    child_ids: childMap[item.id] || [],
+    template_names: itemTemplatesMap[item.id] || [],
+    tag_names: itemTagsMap[item.id] ? Array.from(itemTagsMap[item.id]) : []
   }));
 
-  return { items: enrichedItems, relationships };
+  return { items: enrichedItems, relationships, templates: formattedTemplates, tags: formattedTags };
 };
 
 const createKpiLink = async (parentItemId, childItemId) => {
