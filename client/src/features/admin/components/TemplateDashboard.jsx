@@ -73,6 +73,175 @@ const Notification = ({ notification, onClose }) => {
   );
 };
 
+// ── Node Detail Slide-Over Panel ──────────────────────────────────────────────
+const NodeDetailPanel = ({ node, onClose, onDisconnectTemplate }) => {
+  if (!node) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end pointer-events-none">
+      <div className="w-full max-w-md bg-[#0f172a]/95 backdrop-blur-xl border-l border-white/10 p-6 flex flex-col h-full shadow-2xl overflow-y-auto pointer-events-auto animate-slide-in-right">
+        {/* Panel Header */}
+        <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-6">
+          <div className="flex items-center gap-2.5">
+            <div className={`p-2 rounded-xl border ${
+              node.isTag ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
+              node.isOrphan ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' :
+              'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+            }`}>
+              {node.isTag ? (
+                <Tag size={18} />
+              ) : node.isOrphan ? (
+                <AlertTriangle size={18} />
+              ) : (
+                <LayoutTemplate size={18} />
+              )}
+            </div>
+            <div>
+              <span className="text-[9px] font-black uppercase tracking-widest text-text-muted block">
+                {node.isTag ? 'Tag Classification' : node.isOrphan ? 'Unconnected Template' : 'Template Node'}
+              </span>
+              <h3 className="text-sm font-extrabold text-white leading-tight mt-0.5">{node.name}</h3>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 text-text-muted hover:text-white bg-white/5 hover:bg-white/10 rounded-xl transition-all cursor-pointer"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Content Details */}
+        <div className="space-y-5 flex-1">
+          {/* Attributes Grid */}
+          <div className="bg-white/2 border border-white/5 rounded-2xl p-4 space-y-3">
+            <h4 className="text-[10px] font-black text-white uppercase tracking-widest">Node Properties</h4>
+            <div className="grid grid-cols-2 gap-2.5 text-xs">
+              {node.isTag ? (
+                <>
+                  <div className="bg-white/3 p-2.5 rounded-xl border border-white/5">
+                    <span className="text-[9px] text-text-muted font-bold uppercase tracking-wider block mb-1">Recurrence</span>
+                    <span className="text-xs font-black text-amber-400">{node.recurrent || 'None'}</span>
+                  </div>
+                  <div className="bg-white/3 p-2.5 rounded-xl border border-white/5">
+                    <span className="text-[9px] text-text-muted font-bold uppercase tracking-wider block mb-1">Templates Count</span>
+                    <span className="text-xs font-black text-white">{node.templatesCount || 0}</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="bg-white/3 p-2.5 rounded-xl border border-white/5">
+                    <span className="text-[9px] text-text-muted font-bold uppercase tracking-wider block mb-1">Priority</span>
+                    <span className={`text-xs font-black ${
+                      node.priority === 'HIGH' ? 'text-rose-400' :
+                      node.priority === 'MEDIUM' ? 'text-amber-400' :
+                      'text-emerald-400'
+                    }`}>
+                      {node.priority || 'LOW'}
+                    </span>
+                  </div>
+                  <div className="bg-white/3 p-2.5 rounded-xl border border-white/5">
+                    <span className="text-[9px] text-text-muted font-bold uppercase tracking-wider block mb-1">Owner</span>
+                    <span className={`text-xs font-bold ${node.owner ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {node.owner || 'Unassigned'}
+                    </span>
+                  </div>
+                  <div className="bg-white/3 p-2.5 rounded-xl border border-white/5">
+                    <span className="text-[9px] text-text-muted font-bold uppercase tracking-wider block mb-1">Tag Classification</span>
+                    <span className="text-xs font-bold text-amber-400">{node.tag || 'Unconnected'}</span>
+                  </div>
+                  <div className="bg-white/3 p-2.5 rounded-xl border border-white/5">
+                    <span className="text-[9px] text-text-muted font-bold uppercase tracking-wider block mb-1">Recurrence</span>
+                    <span className="text-xs font-bold text-white">{node.recurrent || 'None'}</span>
+                  </div>
+                  <div className="bg-white/3 p-2.5 rounded-xl border border-white/5">
+                    <span className="text-[9px] text-text-muted font-bold uppercase tracking-wider block mb-1">Checklist Questions</span>
+                    <span className="text-xs font-black text-white">{node.items || 0}</span>
+                  </div>
+                  <div className="bg-white/3 p-2.5 rounded-xl border border-white/5">
+                    <span className="text-[9px] text-text-muted font-bold uppercase tracking-wider block mb-1">Recipients Count</span>
+                    <span className="text-xs font-black text-white">{node.recipients || 0}</span>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* List of Templates under Tag */}
+          {node.isTag && node.rawTag?.templates && (
+            <div className="bg-white/2 border border-white/5 rounded-2xl p-4 space-y-3">
+              <h4 className="text-[10px] font-black text-white uppercase tracking-widest">
+                Connected Templates ({node.rawTag.templates.length})
+              </h4>
+              <div className="space-y-2 max-h-56 overflow-y-auto pr-1 custom-scrollbar">
+                {node.rawTag.templates.length === 0 ? (
+                  <p className="text-xs text-text-muted italic">No templates connected to this tag.</p>
+                ) : (
+                  node.rawTag.templates.map(tmpl => (
+                    <div key={tmpl.id} className="p-3 bg-white/3 border border-white/5 rounded-xl flex items-center justify-between text-xs">
+                      <span className="font-bold text-white truncate max-w-[220px]">{tmpl.template_name}</span>
+                      <span className="text-[9px] text-text-muted font-black uppercase bg-white/5 border border-white/10 px-2 py-0.5 rounded">
+                        {tmpl.itemCount || 0} items
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* List of Items under Template */}
+          {!node.isTag && node.itemsList && node.itemsList.length > 0 && (
+            <div className="bg-white/2 border border-white/5 rounded-2xl p-4 space-y-3">
+              <h4 className="text-[10px] font-black text-white uppercase tracking-widest">
+                Checklist Questions ({node.itemsList.length})
+              </h4>
+              <div className="space-y-2 max-h-56 overflow-y-auto pr-1 custom-scrollbar">
+                {node.itemsList.map((item, idx) => (
+                  <div key={idx} className="p-3 bg-white/3 border border-white/5 rounded-xl text-xs space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold text-white line-clamp-1">{item.title || item.name || item.checklist_name || `Item ${idx + 1}`}</span>
+                      {item.type && (
+                        <span className="text-[8px] font-black uppercase tracking-wider bg-white/5 border border-white/10 px-1.5 py-0.5 rounded text-text-muted shrink-0">
+                          {item.type}
+                        </span>
+                      )}
+                    </div>
+                    {item.description && (
+                      <p className="text-[10px] text-text-muted leading-relaxed line-clamp-2">{item.description}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Panel Footer Actions */}
+        <div className="pt-4 border-t border-white/10 mt-5 flex items-center justify-between gap-3">
+          {!node.isTag && !node.isOrphan && node.id && onDisconnectTemplate && (
+            <button
+              onClick={() => {
+                onDisconnectTemplate(node.id);
+                onClose();
+              }}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-400 rounded-xl text-xs font-bold transition-all cursor-pointer"
+            >
+              <Unlink size={13} /> Disconnect from Tag
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="ml-auto px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ── Stat card ─────────────────────────────────────────────────────────────────
 const StatCard = ({ icon, label, value, color }) => (
   <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-2xl p-4 flex items-center gap-4 shadow-lg">
