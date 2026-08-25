@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Search, Link2, Unlink, Activity, Calendar, HelpCircle,
-  Plus, Minus, Maximize2, Trash2, ArrowUp, ArrowDown, Save, RefreshCw
+  Plus, Minus, Maximize2, Trash2, ArrowUp, ArrowDown, Save, RefreshCw,
+  LayoutTemplate, Tag, Layers
 } from 'lucide-react';
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip
@@ -42,6 +43,12 @@ export default function KPINetworkView() {
   const [savingLink, setSavingLink] = useState(false);
   const [notification, setNotification] = useState(null);
 
+  // Groups and Tab view state
+  const [templates, setTemplates] = useState([]);
+  const [tags, setTags] = useState([]);
+  const [leftTab, setLeftTab] = useState('items'); // 'items' | 'templates' | 'tags'
+  const [selectedGroupFilter, setSelectedGroupFilter] = useState(null); // { type: 'template'|'tag', name: string }
+
   // SVG Pan/Zoom State
   const svgRef = useRef(null);
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
@@ -55,6 +62,8 @@ export default function KPINetworkView() {
       const data = await getKPINetworkApi();
       setItems(data.items || []);
       setRelationships(data.relationships || []);
+      setTemplates(data.templates || []);
+      setTags(data.tags || []);
       setError(null);
     } catch (err) {
       console.error('Error fetching KPI network data:', err);
@@ -142,13 +151,45 @@ export default function KPINetworkView() {
 
   // Filtered items list for the left panel search
   const filteredItems = useMemo(() => {
-    if (!searchTerm.trim()) return items;
+    let result = items;
+    if (selectedGroupFilter) {
+      if (selectedGroupFilter.type === 'template') {
+        result = result.filter(item => item.template_names?.includes(selectedGroupFilter.name));
+      } else if (selectedGroupFilter.type === 'tag') {
+        result = result.filter(item => item.tag_names?.includes(selectedGroupFilter.name));
+      }
+    }
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase();
+      result = result.filter(item =>
+        item.checklist_name.toLowerCase().includes(term) ||
+        item.input_type.toLowerCase().includes(term) ||
+        (item.template_names && item.template_names.some(t => t.toLowerCase().includes(term))) ||
+        (item.tag_names && item.tag_names.some(t => t.toLowerCase().includes(term)))
+      );
+    }
+    return result;
+  }, [items, selectedGroupFilter, searchTerm]);
+
+  // Filtered templates list
+  const filteredTemplates = useMemo(() => {
+    if (!searchTerm.trim()) return templates;
     const term = searchTerm.toLowerCase();
-    return items.filter(item =>
-      item.checklist_name.toLowerCase().includes(term) ||
-      item.input_type.toLowerCase().includes(term)
+    return templates.filter(t =>
+      t.template_name.toLowerCase().includes(term) ||
+      t.tag_name.toLowerCase().includes(term)
     );
-  }, [items, searchTerm]);
+  }, [templates, searchTerm]);
+
+  // Filtered tags list
+  const filteredTags = useMemo(() => {
+    if (!searchTerm.trim()) return tags;
+    const term = searchTerm.toLowerCase();
+    return tags.filter(tg =>
+      tg.tag_name.toLowerCase().includes(term) ||
+      (tg.user_position && tg.user_position.toLowerCase().includes(term))
+    );
+  }, [tags, searchTerm]);
 
   // Compute Layout for SVG
   const graphNodes = useMemo(() => {
@@ -404,23 +445,68 @@ export default function KPINetworkView() {
         </div>
       )}
 
-      {/* Left Panel: Search & List */}
+      {/* Left Panel: Search & Explorer */}
       <div className="w-full lg:w-80 bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-5 flex flex-col shadow-xl shrink-0">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-black text-white flex items-center gap-2">
             <Activity size={15} className="text-primary" />
-            Checklist KPI Items
+            Checklist Explorer
           </h3>
           <span className="text-[10px] bg-white/5 border border-white/10 px-2 py-0.5 rounded-full text-text-muted font-bold">
-            {items.length} total
+            {leftTab === 'items' ? `${filteredItems.length} items` : leftTab === 'templates' ? `${filteredTemplates.length} templates` : `${filteredTags.length} tags`}
           </span>
         </div>
 
+        {/* View Switcher Tabs: Items | Templates | Tags */}
+        <div className="grid grid-cols-3 gap-1 bg-white/3 border border-white/5 p-1 rounded-2xl mb-3 text-[11px] font-bold">
+          <button
+            type="button"
+            onClick={() => { setLeftTab('items'); setSelectedGroupFilter(null); }}
+            className={`flex items-center justify-center gap-1 py-1.5 rounded-xl transition-all cursor-pointer ${
+              leftTab === 'items'
+                ? 'bg-primary/20 text-white border border-primary/30 shadow'
+                : 'text-text-muted hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Activity size={12} /> Items
+          </button>
+          <button
+            type="button"
+            onClick={() => { setLeftTab('templates'); setSelectedGroupFilter(null); }}
+            className={`flex items-center justify-center gap-1 py-1.5 rounded-xl transition-all cursor-pointer ${
+              leftTab === 'templates'
+                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow'
+                : 'text-text-muted hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <LayoutTemplate size={12} /> Templates
+          </button>
+          <button
+            type="button"
+            onClick={() => { setLeftTab('tags'); setSelectedGroupFilter(null); }}
+            className={`flex items-center justify-center gap-1 py-1.5 rounded-xl transition-all cursor-pointer ${
+              leftTab === 'tags'
+                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 shadow'
+                : 'text-text-muted hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Tag size={12} /> Tags
+          </button>
+        </div>
+
+        {/* Active Filter Badge */}
+        {selectedGroupFilter && (
+          <div className="mb-3 p-2 bg-primary/10 border border-primary/20 rounded-xl flex items-center justify-between text-xs font-bold text-primary animate-fade-in">
+            <span className="truncate">Filter: {selectedGroupFilter.name}</span>
+            <button onClick={() => setSelectedGroupFilter(null)} className="hover:opacity-80 ml-2 font-black cursor-pointer">✕</button>
+          </div>
+        )}
+
         {/* Search */}
-        <div className="relative mb-4">
+        <div className="relative mb-3">
           <input
             type="text"
-            placeholder="Search checklist items..."
+            placeholder={leftTab === 'items' ? "Search checklist items..." : leftTab === 'templates' ? "Search templates..." : "Search tags..."}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-8 py-2 text-xs font-bold text-white bg-white/5 hover:bg-white/8 focus:bg-white/10 border border-glass-border focus:border-primary/50 rounded-2xl outline-none transition-all placeholder:text-text-muted/65"
@@ -431,49 +517,140 @@ export default function KPINetworkView() {
           )}
         </div>
 
-        {/* List */}
+        {/* List Content */}
         <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
           {loading ? (
             <div className="flex items-center justify-center py-10 gap-2 text-text-muted">
               <RefreshCw size={14} className="animate-spin text-primary" />
-              <span className="text-xs font-semibold">Loading items...</span>
+              <span className="text-xs font-semibold">Loading...</span>
             </div>
-          ) : filteredItems.length === 0 ? (
-            <p className="text-xs text-text-muted text-center py-8">No items match your search.</p>
-          ) : (
-            filteredItems.map(item => {
-              const isSelected = item.id === selectedNodeId;
-              const hasRelations = (item.parent_ids?.length || 0) + (item.child_ids?.length || 0) > 0;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => handleSelectNode(isSelected ? null : item.id)}
-                  className={`w-full text-left p-3 rounded-xl border transition-all flex flex-col gap-1.5 cursor-pointer ${
-                    isSelected
-                      ? 'bg-primary/10 border-primary text-white'
-                      : 'bg-white/2 hover:bg-white/5 border-white/5 hover:border-white/10 text-text-muted hover:text-white'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <span className="text-xs font-bold line-clamp-2">{item.checklist_name}</span>
-                    {hasRelations && (
-                      <span className="shrink-0 text-[8px] font-black uppercase tracking-wider bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 px-1.5 py-0.5 rounded">
-                        Linked
-                      </span>
+          ) : leftTab === 'items' ? (
+            filteredItems.length === 0 ? (
+              <p className="text-xs text-text-muted text-center py-8">No items match your search.</p>
+            ) : (
+              filteredItems.map(item => {
+                const isSelected = item.id === selectedNodeId;
+                const hasRelations = (item.parent_ids?.length || 0) + (item.child_ids?.length || 0) > 0;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => handleSelectNode(isSelected ? null : item.id)}
+                    className={`w-full text-left p-3 rounded-xl border transition-all flex flex-col gap-1.5 cursor-pointer ${
+                      isSelected
+                        ? 'bg-primary/10 border-primary text-white'
+                        : 'bg-white/2 hover:bg-white/5 border-white/5 hover:border-white/10 text-text-muted hover:text-white'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-xs font-bold line-clamp-2">{item.checklist_name}</span>
+                      {hasRelations && (
+                        <span className="shrink-0 text-[8px] font-black uppercase tracking-wider bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 px-1.5 py-0.5 rounded">
+                          Linked
+                        </span>
+                      )}
+                    </div>
+                    {/* Tag / Template Badges */}
+                    {(item.template_names?.length > 0 || item.tag_names?.length > 0) && (
+                      <div className="flex flex-wrap gap-1">
+                        {item.tag_names?.map((tg, idx) => (
+                          <span key={idx} className="text-[8px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.2 rounded">
+                            #{tg}
+                          </span>
+                        ))}
+                        {item.template_names?.map((tmpl, idx) => (
+                          <span key={idx} className="text-[8px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.2 rounded line-clamp-1 max-w-[140px]">
+                            {tmpl}
+                          </span>
+                        ))}
+                      </div>
                     )}
-                  </div>
-                  <div className="flex items-center justify-between text-[9px] font-semibold text-text-sub">
-                    <span>Type: {item.input_type}</span>
-                    <span className="bg-white/5 px-1.5 py-0.5 rounded">
-                      {item.avg_value !== null 
-                        ? `${item.avg_value}${item.input_type === 'Boolean' ? '%' : ''} avg`
-                        : 'No responses'
+                    <div className="flex items-center justify-between text-[9px] font-semibold text-text-sub">
+                      <span>Type: {item.input_type}</span>
+                      <span className="bg-white/5 px-1.5 py-0.5 rounded">
+                        {item.avg_value !== null 
+                          ? `${item.avg_value}${item.input_type === 'Boolean' ? '%' : ''} avg`
+                          : 'No responses'
+                        }
+                      </span>
+                    </div>
+                  </button>
+                );
+              })
+            )
+          ) : leftTab === 'templates' ? (
+            filteredTemplates.length === 0 ? (
+              <p className="text-xs text-text-muted text-center py-8">No templates match your search.</p>
+            ) : (
+              filteredTemplates.map(tmpl => {
+                const isFilterActive = selectedGroupFilter?.type === 'template' && selectedGroupFilter?.name === tmpl.template_name;
+                return (
+                  <button
+                    key={tmpl.id}
+                    onClick={() => {
+                      if (isFilterActive) {
+                        setSelectedGroupFilter(null);
+                      } else {
+                        setSelectedGroupFilter({ type: 'template', name: tmpl.template_name });
+                        setLeftTab('items');
                       }
-                    </span>
-                  </div>
-                </button>
-              );
-            })
+                    }}
+                    className={`w-full text-left p-3 rounded-xl border transition-all flex flex-col gap-1.5 cursor-pointer ${
+                      isFilterActive
+                        ? 'bg-emerald-500/15 border-emerald-500/40 text-white'
+                        : 'bg-white/2 hover:bg-white/5 border-white/5 hover:border-white/10 text-text-muted hover:text-white'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-extrabold text-white line-clamp-1">{tmpl.template_name}</span>
+                      <span className="shrink-0 text-[8px] font-black uppercase tracking-wider bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded">
+                        {tmpl.itemIds.length} items
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[9px] font-semibold text-text-sub">
+                      <span className="text-amber-400">#{tmpl.tag_name}</span>
+                      <span className="text-primary font-bold">Filter items →</span>
+                    </div>
+                  </button>
+                );
+              })
+            )
+          ) : (
+            filteredTags.length === 0 ? (
+              <p className="text-xs text-text-muted text-center py-8">No tags match your search.</p>
+            ) : (
+              filteredTags.map(tg => {
+                const isFilterActive = selectedGroupFilter?.type === 'tag' && selectedGroupFilter?.name === tg.tag_name;
+                return (
+                  <button
+                    key={tg.id}
+                    onClick={() => {
+                      if (isFilterActive) {
+                        setSelectedGroupFilter(null);
+                      } else {
+                        setSelectedGroupFilter({ type: 'tag', name: tg.tag_name });
+                        setLeftTab('items');
+                      }
+                    }}
+                    className={`w-full text-left p-3 rounded-xl border transition-all flex flex-col gap-1.5 cursor-pointer ${
+                      isFilterActive
+                        ? 'bg-amber-500/15 border-amber-500/40 text-white'
+                        : 'bg-white/2 hover:bg-white/5 border-white/5 hover:border-white/10 text-text-muted hover:text-white'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-extrabold text-white line-clamp-1">#{tg.tag_name}</span>
+                      <span className="shrink-0 text-[8px] font-black uppercase tracking-wider bg-amber-500/10 border border-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded">
+                        {tg.itemIds.length} items
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[9px] font-semibold text-text-sub">
+                      <span>Department: {tg.user_position || 'General'}</span>
+                      <span className="text-primary font-bold">Filter items →</span>
+                    </div>
+                  </button>
+                );
+              })
+            )
           )}
         </div>
 
@@ -804,7 +981,7 @@ export default function KPINetworkView() {
                   </div>
                 ) : (
                   <div className="h-32 w-full -ml-4 pr-2 mt-1">
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
                       <AreaChart data={selectedItemTrend}>
                         <defs>
                           <linearGradient id="colorTrend" x1="0" y1="0" x2="0" y2="1">
