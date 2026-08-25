@@ -110,10 +110,8 @@ function App() {
   const [visitedViews, setVisitedViews] = useState(['dashboard']);
 
   useEffect(() => {
-    if (!visitedViews.includes(currentView)) {
-      setVisitedViews(prev => [...prev, currentView]);
-    }
-  }, [currentView, visitedViews]);
+    setVisitedViews(prev => prev.includes(currentView) ? prev : [...prev, currentView]);
+  }, [currentView]);
 
   const currentViewRef = React.useRef(currentView);
   const isAdminRef = React.useRef(isAdmin);
