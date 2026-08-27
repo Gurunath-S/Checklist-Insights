@@ -97,7 +97,6 @@ function App() {
     resetData
   } = useDataStore();
 
-  const [isAdmin, setIsAdmin] = useState(false);
   const [error, setError] = useState(null);
 
   // Refs for scrolling to the ChecklistExplorer from InsightsChart bar clicks
@@ -105,9 +104,27 @@ function App() {
   const inspectExplorerRef = useRef(null);
   const overviewExplorerRef = useRef(null);
   
-  // Multi-view navigation
-  const [currentView, setCurrentView] = useState('dashboard');
-  const [visitedViews, setVisitedViews] = useState(['dashboard']);
+  // Multi-view navigation with URL & Session persistence
+  const [currentView, setCurrentView] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const viewFromUrl = params.get('view');
+    const viewFromStorage = sessionStorage.getItem('currentView');
+    return viewFromUrl || viewFromStorage || 'dashboard';
+  });
+
+  const [isAdmin, setIsAdmin] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const adminFromUrl = params.get('admin');
+    if (adminFromUrl !== null) return adminFromUrl === 'true';
+    const adminFromStorage = sessionStorage.getItem('isAdmin');
+    return adminFromStorage === 'true';
+  });
+
+  const [visitedViews, setVisitedViews] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const initialView = params.get('view') || sessionStorage.getItem('currentView') || 'dashboard';
+    return ['dashboard', initialView];
+  });
 
   useEffect(() => {
     setVisitedViews(prev => prev.includes(currentView) ? prev : [...prev, currentView]);
@@ -124,7 +141,17 @@ function App() {
   const navigateToView = (view, admin = false) => {
     setCurrentView(view);
     setIsAdmin(admin);
-    window.history.pushState({ view, isAdmin: admin }, '');
+    sessionStorage.setItem('currentView', view);
+    sessionStorage.setItem('isAdmin', String(admin));
+
+    const url = new URL(window.location.href);
+    url.searchParams.set('view', view);
+    if (admin) {
+      url.searchParams.set('admin', 'true');
+    } else {
+      url.searchParams.delete('admin');
+    }
+    window.history.pushState({ view, isAdmin: admin }, '', url.toString());
   };
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -223,7 +250,17 @@ function App() {
     logout();
     resetData();
     setThemeChangedOnLogin(false);
+    sessionStorage.removeItem('currentView');
+    sessionStorage.removeItem('isAdmin');
+    sessionStorage.removeItem('templateDashboardTab');
+    sessionStorage.removeItem('selectedDepartment');
+    const url = new URL(window.location.href);
+    url.searchParams.delete('view');
+    url.searchParams.delete('admin');
+    url.searchParams.delete('tab');
+    window.history.replaceState({}, '', url.pathname);
     setCurrentView('dashboard');
+    setIsAdmin(false);
     setVisitedViews(['dashboard']);
   }, [logout, resetData, setThemeChangedOnLogin]);
 
@@ -475,19 +512,35 @@ function App() {
   // Handle browser back button to navigate between subviews first, and prompt for sign-out only when exiting the project
   useEffect(() => {
     if (user && user.id) {
-      if (!window.history.state || !window.history.state.view) {
-        window.history.replaceState({ view: 'dashboard', isAdmin: false }, '');
+      const url = new URL(window.location.href);
+      if (currentView) {
+        url.searchParams.set('view', currentView);
       }
+      if (isAdmin) {
+        url.searchParams.set('admin', 'true');
+      }
+      window.history.replaceState({ view: currentView, isAdmin }, '', url.toString());
 
       const handlePopState = (event) => {
         const state = event.state;
         if (state && state.view) {
           setCurrentView(state.view);
           setIsAdmin(!!state.isAdmin);
+          sessionStorage.setItem('currentView', state.view);
+          sessionStorage.setItem('isAdmin', String(!!state.isAdmin));
         } else {
-          // Navigating back past the landing page - show Sign Out confirmation and restore history
-          window.history.pushState({ view: currentViewRef.current, isAdmin: isAdminRef.current }, '');
-          setShowLogoutConfirm(true);
+          const params = new URLSearchParams(window.location.search);
+          const view = params.get('view');
+          if (view) {
+            setCurrentView(view);
+            setIsAdmin(params.get('admin') === 'true');
+            sessionStorage.setItem('currentView', view);
+            sessionStorage.setItem('isAdmin', String(params.get('admin') === 'true'));
+          } else {
+            // Navigating back past the landing page - show Sign Out confirmation and restore history
+            window.history.pushState({ view: currentViewRef.current, isAdmin: isAdminRef.current }, '');
+            setShowLogoutConfirm(true);
+          }
         }
       };
 

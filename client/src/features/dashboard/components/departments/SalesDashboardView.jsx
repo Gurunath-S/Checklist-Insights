@@ -298,7 +298,7 @@ const SalesDashboardView = ({
             <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-5 shadow-xl flex flex-col items-center justify-center h-[280px] relative overflow-hidden">
               <h3 className="text-sm font-bold text-white mb-1 text-center">Has Budget?</h3>
               <div className="w-full flex-1 relative">
-                <ResponsiveContainer width="100%" height="100%" debounce={100}>
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
                   <PieChart>
                     <defs>
                       <linearGradient id="sqBudgetGrad" x1="0" y1="0" x2="1" y2="0">
@@ -333,7 +333,7 @@ const SalesDashboardView = ({
             <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-5 shadow-xl flex flex-col items-center justify-center h-[280px] relative overflow-hidden">
               <h3 className="text-sm font-bold text-white mb-1 text-center">Prospect Received Brochure?</h3>
               <div className="w-full flex-1 relative">
-                <ResponsiveContainer width="100%" height="100%" debounce={100}>
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
                   <PieChart>
                     <defs>
                       <linearGradient id="sqBrochureGrad" x1="0" y1="0" x2="1" y2="0">
@@ -368,7 +368,7 @@ const SalesDashboardView = ({
             <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-5 shadow-xl flex flex-col items-center justify-center h-[280px] relative overflow-hidden">
               <h3 className="text-sm font-bold text-white mb-1 text-center">Is a Referral?</h3>
               <div className="w-full flex-1 relative">
-                <ResponsiveContainer width="100%" height="100%" debounce={100}>
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={100}>
                   <PieChart>
                     <defs>
                       <linearGradient id="sqReferralGrad" x1="0" y1="0" x2="1" y2="0">
