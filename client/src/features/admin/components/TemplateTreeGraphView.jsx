@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   LayoutTemplate, Tag, Users, AlertTriangle, 
   ChevronDown, ChevronRight, Info, RefreshCw, 
-  Layers, X, Plus, Minus, Maximize2 
+  Layers, X, Plus, Minus, Maximize2, Palette, ArrowLeft
 } from 'lucide-react';
 
 // ── Read CSS variable helper ──────────────────────────────────────────────────
@@ -40,7 +40,7 @@ function getNodePalette(theme) {
 }
 
 // ── Radial Mind-Map SVG ──────────────────────────────────────────────────────
-const RadialMindMap = ({ centerLabel, centerSub, nodes, nodePalette: p, onNodeClick, accentColor, rootBg }) => {
+const RadialMindMap = ({ centerLabel, centerSub, nodes, nodePalette: p, onNodeClick, accentColor, rootBg, canvasBgStyle = 'grid' }) => {
   const svgRef = useRef(null);
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
   const [hovered, setHovered] = useState(null);
@@ -174,7 +174,7 @@ const RadialMindMap = ({ centerLabel, centerSub, nodes, nodePalette: p, onNodeCl
   };
 
   return (
-    <div className="relative w-full h-full">
+    <div className={`relative w-full h-full overflow-hidden ${p.isLight ? 'bg-slate-100' : 'bg-[#090d16]'}`}>
       <svg
         ref={svgRef}
         viewBox={`${-vbHalf} ${-vbHalf} ${vbSize} ${vbSize}`}
@@ -186,6 +186,10 @@ const RadialMindMap = ({ centerLabel, centerSub, nodes, nodePalette: p, onNodeCl
         onWheel={onWheel}
       >
         <defs>
+          <pattern id="tree-grid-pattern" width="36" height="36" patternUnits="userSpaceOnUse">
+            <path d="M 36 0 L 0 0 0 36" fill="none" stroke={p.isLight ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.06)"} strokeWidth="1"/>
+            <circle cx="36" cy="36" r="1.2" fill={p.isLight ? "rgba(0,0,0,0.15)" : "rgba(255,255,255,0.15)"} />
+          </pattern>
           <clipPath id="node-clip">
             <rect x={-NODE_W/2} y={-NODE_H/2} width={NODE_W} height={NODE_H} rx={12} />
           </clipPath>
@@ -193,12 +197,29 @@ const RadialMindMap = ({ centerLabel, centerSub, nodes, nodePalette: p, onNodeCl
             <rect x={-ROOT_W/2} y={-ROOT_H/2} width={ROOT_W} height={ROOT_H} rx={16} />
           </clipPath>
         </defs>
+
+        {/* Grid Canvas Background Layer */}
+        <rect
+          x={-20000}
+          y={-20000}
+          width={40000}
+          height={40000}
+          fill={p.isLight ? '#f1f5f9' : '#090d16'}
+        />
+        <rect
+          x={-20000}
+          y={-20000}
+          width={40000}
+          height={40000}
+          fill="url(#tree-grid-pattern)"
+        />
+
         <g transform={`translate(${transform.x},${transform.y}) scale(${transform.scale})`}>
           {positioned.map((n, i) => (
             <path
               key={i}
               d={makePath(n.nx, n.ny)}
-              stroke={hovered === i ? accentColor : (p.isLight ? 'rgba(100,116,139,0.45)' : 'rgba(148,163,184,0.3)')}
+              stroke={hovered === i ? accentColor : (p.isLight ? 'rgba(71,85,105,0.45)' : 'rgba(148,163,184,0.3)')}
               strokeWidth={hovered === i ? 2 : 1.4}
               fill="none"
               strokeLinecap="round"
@@ -212,7 +233,7 @@ const RadialMindMap = ({ centerLabel, centerSub, nodes, nodePalette: p, onNodeCl
             <rect x={-ROOT_W/2} y={-ROOT_H/2} width={6} height={ROOT_H}
               fill={accentColor} opacity={0.9} clipPath="url(#root-clip)" />
             <text x={-ROOT_W/2 + 16} y={-6} textAnchor="start"
-              style={{ fontSize: 13, fontWeight: 800, fill: p.textMain, fontFamily: 'Outfit,Inter,sans-serif' }}>
+              style={{ fontSize: 13, fontWeight: 800, fill: canvasBgStyle === 'dark' ? '#ffffff' : p.textMain, fontFamily: 'Outfit,Inter,sans-serif' }}>
               {centerLabel.length > 18 ? centerLabel.slice(0, 16) + '…' : centerLabel}
             </text>
             <text x={-ROOT_W/2 + 16} y={12} textAnchor="start"
@@ -258,7 +279,7 @@ const RadialMindMap = ({ centerLabel, centerSub, nodes, nodePalette: p, onNodeCl
                   <text x={-NODE_W/2 + 14} y={-NODE_H/2 + 35}
                     textAnchor="start"
                     style={{ fontSize: 9, fontWeight: 700, fill: p.tagAccent, fontFamily: 'Outfit,Inter,sans-serif', letterSpacing: '0.02em' }}>
-                    ⬥ {tagLabel}{n.recurrent && n.recurrent !== 'None' ? ` · ${n.recurrent}` : ''}
+                    {tagLabel}{n.recurrent && n.recurrent !== 'None' ? ` • ${n.recurrent}` : ''}
                   </text>
                 )}
                 <text x={-NODE_W/2 + 14} y={tagLabel ? -NODE_H/2 + 48 : -NODE_H/2 + 38}
@@ -279,26 +300,34 @@ const RadialMindMap = ({ centerLabel, centerSub, nodes, nodePalette: p, onNodeCl
         </g>
       </svg>
 
-      <div className="absolute bottom-4 right-4 flex flex-col gap-1 p-1 bg-white/5 border border-glass-border rounded-2xl shadow-xl backdrop-blur-md z-30">
+      <div className={`absolute bottom-4 right-4 flex flex-col gap-1 p-1 border rounded-2xl shadow-xl backdrop-blur-md z-30 ${
+        p.isLight ? 'bg-white/90 border-slate-200' : 'bg-white/5 border-glass-border'
+      }`}>
         <button
           onClick={handleZoomIn}
           title="Zoom In"
-          className="p-2 hover:bg-white/10 text-text-muted hover:text-white rounded-xl transition-all cursor-pointer flex items-center justify-center"
+          className={`p-2 rounded-xl transition-all cursor-pointer flex items-center justify-center ${
+            p.isLight ? 'hover:bg-slate-100 text-slate-700' : 'hover:bg-white/10 text-text-muted hover:text-white'
+          }`}
         >
           <Plus size={14} />
         </button>
         <button
           onClick={handleZoomOut}
           title="Zoom Out"
-          className="p-2 hover:bg-white/10 text-text-muted hover:text-white rounded-xl transition-all cursor-pointer flex items-center justify-center"
+          className={`p-2 rounded-xl transition-all cursor-pointer flex items-center justify-center ${
+            p.isLight ? 'hover:bg-slate-100 text-slate-700' : 'hover:bg-white/10 text-text-muted hover:text-white'
+          }`}
         >
           <Minus size={14} />
         </button>
-        <div className="h-px bg-white/10 my-0.5 mx-1" />
+        <div className={`h-px my-0.5 mx-1 ${p.isLight ? 'bg-slate-200' : 'bg-white/10'}`} />
         <button
           onClick={handleReset}
           title="Reset View"
-          className="p-2 hover:bg-white/10 text-text-muted hover:text-white rounded-xl transition-all cursor-pointer flex items-center justify-center"
+          className={`p-2 rounded-xl transition-all cursor-pointer flex items-center justify-center ${
+            p.isLight ? 'hover:bg-slate-100 text-slate-700' : 'hover:bg-white/10 text-text-muted hover:text-white'
+          }`}
         >
           <Maximize2 size={14} />
         </button>
@@ -310,7 +339,8 @@ const RadialMindMap = ({ centerLabel, centerSub, nodes, nodePalette: p, onNodeCl
 // ── Department Tree Component ───────────────────────────────────────────────
 const DepartmentTreeCard = ({
   dept, nodePalette, onNodeClick, onRemove, animDir,
-  graphViewMode, setGraphViewMode, focusedTag, setFocusedTag
+  graphViewMode, setGraphViewMode, focusedTag, setFocusedTag,
+  canvasBgStyle, setCanvasBgStyle
 }) => {
   const totalTemplates = useMemo(() =>
     dept.tags.reduce((sum, t) => sum + t.templates.length, 0),
@@ -376,20 +406,22 @@ const DepartmentTreeCard = ({
 
   return (
     <div
-      className={`bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-6 shadow-xl space-y-4 ${animClass}`}
+      className={`border rounded-3xl p-6 shadow-xl space-y-4 ${animClass} ${
+        nodePalette.isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-bg-card border-glass-border text-white'
+      }`}
       style={{
         animation: animDir === 'right'
           ? 'slideInFromRight 0.28s cubic-bezier(0.22,1,0.36,1) both'
           : 'slideInFromLeft 0.28s cubic-bezier(0.22,1,0.36,1) both'
       }}
     >
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h4 className="text-sm font-black text-white flex items-center gap-2">
+          <h4 className={`text-sm font-black flex items-center gap-2 ${nodePalette.isLight ? 'text-slate-900' : 'text-white'}`}>
             <span className="w-2.5 h-2.5 rounded-full bg-accent" />
             {focusedTag ? `Tag: ${focusedTag.tag_name}` : `${dept.label} Hierarchy`}
           </h4>
-          <p className="text-[11px] text-text-muted mt-0.5">
+          <p className={`text-[11px] mt-0.5 ${nodePalette.isLight ? 'text-slate-600' : 'text-text-muted'}`}>
             {focusedTag
               ? `${focusedTag.templates.length} Connected Templates`
               : `${dept.tags.length} Tag Classifications · ${totalTemplates} Connected Templates`
@@ -397,18 +429,28 @@ const DepartmentTreeCard = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           {!focusedTag && (
-            <div className="flex gap-1 p-1 bg-white/5 border border-glass-border rounded-xl">
+            <div className={`flex gap-1 p-1 rounded-xl border ${
+              nodePalette.isLight ? 'bg-slate-100 border-slate-200' : 'bg-white/5 border-glass-border'
+            }`}>
               <button
                 onClick={() => setGraphViewMode('templates')}
-                className={`px-3 py-1 text-[10px] font-black rounded-lg transition-all cursor-pointer ${graphViewMode === 'templates' ? 'bg-primary text-white' : 'text-text-muted hover:text-white hover:bg-white/5'}`}
+                className={`px-3 py-1 text-[10px] font-black rounded-lg transition-all cursor-pointer ${
+                  graphViewMode === 'templates'
+                    ? 'bg-primary text-white shadow-sm'
+                    : nodePalette.isLight ? 'text-slate-600 hover:text-slate-900' : 'text-text-muted hover:text-white hover:bg-white/5'
+                }`}
               >
                 Templates Map
               </button>
               <button
                 onClick={() => setGraphViewMode('tags')}
-                className={`px-3 py-1 text-[10px] font-black rounded-lg transition-all cursor-pointer ${graphViewMode === 'tags' ? 'bg-primary text-white' : 'text-text-muted hover:text-white hover:bg-white/5'}`}
+                className={`px-3 py-1 text-[10px] font-black rounded-lg transition-all cursor-pointer ${
+                  graphViewMode === 'tags'
+                    ? 'bg-primary text-white shadow-sm'
+                    : nodePalette.isLight ? 'text-slate-600 hover:text-slate-900' : 'text-text-muted hover:text-white hover:bg-white/5'
+                }`}
               >
                 Tags Map
               </button>
@@ -418,9 +460,9 @@ const DepartmentTreeCard = ({
           {focusedTag && (
             <button
               onClick={() => setFocusedTag(null)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/20 hover:bg-primary/30 border border-primary/30 text-white rounded-xl text-[10px] font-black transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/20 hover:bg-primary/30 border border-primary/30 text-primary rounded-xl text-[10px] font-black transition-all cursor-pointer"
             >
-              ← Back to Tags
+              <ArrowLeft size={12} /> Back to Tags
             </button>
           )}
 
@@ -428,7 +470,11 @@ const DepartmentTreeCard = ({
             <button
               onClick={onRemove}
               title="Hide this department from graph view"
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-red-500/15 border border-white/10 hover:border-red-500/30 text-text-muted hover:text-red-400 rounded-xl text-[11px] font-bold transition-all cursor-pointer"
+              className={`flex items-center gap-1.5 px-3 py-1.5 border rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+                nodePalette.isLight
+                  ? 'bg-slate-100 hover:bg-red-50 border-slate-200 hover:border-red-300 text-slate-600 hover:text-red-600'
+                  : 'bg-white/5 hover:bg-red-500/15 border-white/10 hover:border-red-500/30 text-text-muted hover:text-red-400'
+              }`}
             >
               <X size={12} /> Remove
             </button>
@@ -437,7 +483,9 @@ const DepartmentTreeCard = ({
       </div>
 
       <div 
-        className="w-full bg-white/1 border border-white/5 rounded-2xl overflow-hidden relative"
+        className={`w-full border rounded-2xl overflow-hidden relative ${
+          nodePalette.isLight ? 'border-slate-200' : 'border-white/5'
+        }`}
         style={{ height: `${cardHeight}px` }}
       >
         <RadialMindMap
@@ -448,53 +496,65 @@ const DepartmentTreeCard = ({
           onNodeClick={handleNodeClick}
           accentColor={focusedTag ? '#fbbf24' : cssVar('--color-accent')}
           rootBg={nodePalette.cardBg}
+          canvasBgStyle={canvasBgStyle}
         />
       </div>
     </div>
   );
 };
 
-// ── Orphaned Templates Tree Component ────────────────────────────────────────
-const OrphanedTreeCard = ({ templates, nodePalette, onNodeClick, onRemove, animDir }) => {
+// ── Standalone Templates Tree Component ────────────────────────────────────────
+const OrphanedTreeCard = ({ templates, nodePalette, onNodeClick, onRemove, animDir, canvasBgStyle, setCanvasBgStyle }) => {
   const totalTemplates = templates.length;
   const cardHeight = Math.max(520, Math.min(950, 480 + totalTemplates * 20));
 
   return (
     <div
-      className="bg-bg-card backdrop-blur-xl border border-red-500/20 rounded-3xl p-6 shadow-xl space-y-4"
+      className={`border rounded-3xl p-6 shadow-xl space-y-4 ${
+        nodePalette.isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-bg-card border-white/10 text-white'
+      }`}
       style={{
         animation: animDir === 'right'
           ? 'slideInFromRight 0.28s cubic-bezier(0.22,1,0.36,1) both'
           : 'slideInFromLeft 0.28s cubic-bezier(0.22,1,0.36,1) both'
       }}
     >
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h4 className="text-sm font-black text-white flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-red-400" />
-            Unconnected Templates
+          <h4 className={`text-sm font-black flex items-center gap-2 ${nodePalette.isLight ? 'text-slate-900' : 'text-white'}`}>
+            <span className="w-2.5 h-2.5 rounded-full bg-slate-500" />
+            Standalone Templates
           </h4>
-          <p className="text-[11px] text-text-muted mt-0.5">
-            {templates.length} Templates without any Tag classification
+          <p className={`text-[11px] mt-0.5 ${nodePalette.isLight ? 'text-slate-600' : 'text-text-muted'}`}>
+            {templates.length} Templates without Tag classification
           </p>
         </div>
-        {onRemove && (
-          <button
-            onClick={onRemove}
-            title="Hide orphans from graph view"
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-red-500/15 border border-white/10 hover:border-red-500/30 text-text-muted hover:text-red-400 rounded-xl text-[11px] font-bold transition-all cursor-pointer"
-          >
-            <X size={12} /> Remove
-          </button>
-        )}
+
+        <div className="flex items-center gap-2">
+          {onRemove && (
+            <button
+              onClick={onRemove}
+              title="Hide standalone templates from graph view"
+              className={`flex items-center gap-1.5 px-3 py-1.5 border rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+                nodePalette.isLight
+                  ? 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-600'
+                  : 'bg-white/5 hover:bg-white/10 border-white/10 text-text-muted hover:text-white'
+              }`}
+            >
+              <X size={12} /> Remove
+            </button>
+          )}
+        </div>
       </div>
 
       <div 
-        className="w-full bg-red-500/2 border border-red-500/10 rounded-2xl overflow-hidden relative"
+        className={`w-full border rounded-2xl overflow-hidden relative ${
+          nodePalette.isLight ? 'border-slate-200' : 'border-white/10'
+        }`}
         style={{ height: `${cardHeight}px` }}
       >
         <RadialMindMap
-          centerLabel="Unconnected"
+          centerLabel="Standalone"
           centerSub="NO TAG CLASSIFICATION"
           nodes={templates.map(tmpl => ({
             name: tmpl.template_name,
@@ -511,6 +571,7 @@ const OrphanedTreeCard = ({ templates, nodePalette, onNodeClick, onRemove, animD
           onNodeClick={onNodeClick}
           accentColor={nodePalette.orphanAccent}
           rootBg={nodePalette.cardBgOrphan}
+          canvasBgStyle={canvasBgStyle}
         />
       </div>
     </div>
@@ -541,6 +602,7 @@ const TemplateTreeGraphView = ({ filteredData, theme, onNodeClick }) => {
   const [animDir, setAnimDir] = useState('right');
   const [graphViewMode, setGraphViewMode] = useState('templates');
   const [focusedTag, setFocusedTag] = useState(null);
+  const [canvasBgStyle, setCanvasBgStyle] = useState('grid'); // 'grid' | 'slate' | 'dark' | 'plain'
 
   const nodePalette = useMemo(() => getNodePalette(theme), [theme]);
 
@@ -550,7 +612,7 @@ const TemplateTreeGraphView = ({ filteredData, theme, onNodeClick }) => {
       .filter(d => !hiddenDepts.has(d.name))
       .map(d => ({ key: d.name, label: d.label, isOrphan: false }));
     if (filteredData.orphanedTemplates.length > 0 && !hiddenDepts.has('__ORPHAN__')) {
-      tabs.push({ key: '__ORPHAN__', label: 'Unconnected', isOrphan: true });
+      tabs.push({ key: '__ORPHAN__', label: 'Standalone', isOrphan: true });
     }
     return tabs;
   }, [filteredData, hiddenDepts]);
@@ -589,22 +651,26 @@ const TemplateTreeGraphView = ({ filteredData, theme, onNodeClick }) => {
   return (
     <div className="space-y-4 animate-fade-in">
       {/* Legend Row */}
-      <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl shadow-xl px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className={`border rounded-3xl shadow-xl px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 ${
+        nodePalette.isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-bg-card border-glass-border text-white'
+      }`}>
         <div className="flex flex-wrap items-center gap-4">
           {[
             { label: 'Department', color: '#c084fc' },
             { label: 'Tag', color: '#fbbf24' },
             { label: 'Template', color: '#10b981' },
-            { label: 'Unconnected', color: '#f43f5e' },
+            { label: 'Standalone', color: '#64748b' },
           ].map(({ label, color }) => (
-            <div key={label} className="flex items-center gap-1.5 text-[11px] text-text-muted font-semibold">
+            <div key={label} className={`flex items-center gap-1.5 text-[11px] font-semibold ${nodePalette.isLight ? 'text-slate-600' : 'text-text-muted'}`}>
               <span className="w-3 h-3 rounded-sm" style={{ background: color, opacity: 0.85 }} />
               {label}
             </div>
           ))}
         </div>
         <div className="flex items-center gap-3">
-          <div className="hidden lg:flex items-center gap-1 text-[10px] text-text-muted bg-white/2 px-2 py-1 rounded-lg">
+          <div className={`hidden lg:flex items-center gap-1 text-[10px] px-2 py-1 rounded-lg ${
+            nodePalette.isLight ? 'bg-slate-100 text-slate-600' : 'bg-white/2 text-text-muted'
+          }`}>
             <Info size={10} /> Click a node to inspect · Drag to pan · Scroll to zoom
           </div>
           {hiddenDepts.size > 0 && (
@@ -620,8 +686,10 @@ const TemplateTreeGraphView = ({ filteredData, theme, onNodeClick }) => {
 
       {/* Pill Tab Bar */}
       {deptTabs.length > 0 && (
-        <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl shadow-xl px-5 py-3">
-          <div className="text-[10px] font-black uppercase tracking-widest text-text-muted mb-2.5 px-1">Department</div>
+        <div className={`border rounded-3xl shadow-xl px-5 py-3 ${
+          nodePalette.isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-bg-card border-glass-border text-white'
+        }`}>
+          <div className={`text-[10px] font-black uppercase tracking-widest mb-2.5 px-1 ${nodePalette.isLight ? 'text-slate-500' : 'text-text-muted'}`}>Department</div>
           <div className="flex flex-wrap gap-2">
             {deptTabs.map(tab => (
               <button
@@ -629,11 +697,11 @@ const TemplateTreeGraphView = ({ filteredData, theme, onNodeClick }) => {
                 onClick={() => switchTo(tab.key)}
                 className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all border cursor-pointer ${resolvedKey === tab.key
                     ? tab.isOrphan
-                      ? 'bg-red-500 text-white border-red-500 shadow-lg shadow-red-500/30'
+                      ? 'bg-slate-700 text-white border-slate-700 shadow-lg'
                       : 'bg-primary text-white border-primary shadow-lg shadow-primary/30'
                     : tab.isOrphan
-                      ? 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20'
-                      : 'bg-white/5 border-glass-border text-text-muted hover:text-white hover:bg-white/10'
+                      ? nodePalette.isLight ? 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200' : 'bg-white/5 border-white/10 text-text-muted hover:text-white'
+                      : nodePalette.isLight ? 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200' : 'bg-white/5 border-glass-border text-text-muted hover:text-white hover:bg-white/10'
                   }`}
               >
                 {tab.label}
@@ -645,7 +713,9 @@ const TemplateTreeGraphView = ({ filteredData, theme, onNodeClick }) => {
 
       {/* Main Tree Card */}
       {deptTabs.length === 0 ? (
-        <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-3xl p-16 text-center text-text-muted text-sm font-semibold">
+        <div className={`border rounded-3xl p-16 text-center text-sm font-semibold ${
+          nodePalette.isLight ? 'bg-white border-slate-200 text-slate-500' : 'bg-bg-card border-glass-border text-text-muted'
+        }`}>
           All departments are hidden. Click "Reset Hidden" to restore them.
         </div>
       ) : resolvedKey === '__ORPHAN__' ? (
@@ -656,6 +726,8 @@ const TemplateTreeGraphView = ({ filteredData, theme, onNodeClick }) => {
           animDir={animDir}
           onNodeClick={onNodeClick}
           onRemove={() => hideTab('__ORPHAN__')}
+          canvasBgStyle={canvasBgStyle}
+          setCanvasBgStyle={setCanvasBgStyle}
         />
       ) : (() => {
         const dept = filteredData.departments.find(d => d.name === resolvedKey);
@@ -672,6 +744,8 @@ const TemplateTreeGraphView = ({ filteredData, theme, onNodeClick }) => {
             setGraphViewMode={setGraphViewMode}
             focusedTag={focusedTag}
             setFocusedTag={setFocusedTag}
+            canvasBgStyle={canvasBgStyle}
+            setCanvasBgStyle={setCanvasBgStyle}
           />
         );
       })()}

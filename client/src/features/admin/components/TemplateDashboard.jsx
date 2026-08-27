@@ -75,18 +75,22 @@ const Notification = ({ notification, onClose }) => {
 
 // ── Node Detail Slide-Over Panel ──────────────────────────────────────────────
 const NodeDetailPanel = ({ node, onClose, onDisconnectTemplate }) => {
+  const { theme } = useThemeStore();
+  const isLight = theme === 'light';
   if (!node) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end pointer-events-none">
-      <div className="w-full max-w-md bg-[#0f172a]/95 backdrop-blur-xl border-l border-white/10 p-6 flex flex-col h-full shadow-2xl overflow-y-auto pointer-events-auto animate-slide-in-right">
+      <div className={`w-full max-w-md backdrop-blur-xl border-l p-6 flex flex-col h-full shadow-2xl overflow-y-auto pointer-events-auto animate-slide-in-right ${
+        isLight ? 'bg-white/95 border-slate-200 text-slate-900' : 'bg-[#0f172a]/95 border-white/10 text-white'
+      }`}>
         {/* Panel Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-6">
+        <div className={`flex items-center justify-between pb-4 border-b mb-6 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
           <div className="flex items-center gap-2.5">
             <div className={`p-2 rounded-xl border ${
-              node.isTag ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
-              node.isOrphan ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' :
-              'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+              node.isTag ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' :
+              node.isOrphan ? 'bg-rose-500/10 border-rose-500/20 text-rose-500' :
+              'bg-emerald-500/10 border-emerald-500/20 text-emerald-500'
             }`}>
               {node.isTag ? (
                 <Tag size={18} />
@@ -97,15 +101,17 @@ const NodeDetailPanel = ({ node, onClose, onDisconnectTemplate }) => {
               )}
             </div>
             <div>
-              <span className="text-[9px] font-black uppercase tracking-widest text-text-muted block">
+              <span className={`text-[9px] font-black uppercase tracking-widest block ${isLight ? 'text-slate-500' : 'text-text-muted'}`}>
                 {node.isTag ? 'Tag Classification' : node.isOrphan ? 'Unconnected Template' : 'Template Node'}
               </span>
-              <h3 className="text-sm font-extrabold text-white leading-tight mt-0.5">{node.name}</h3>
+              <h3 className={`text-sm font-extrabold leading-tight mt-0.5 ${isLight ? 'text-slate-900' : 'text-white'}`}>{node.name}</h3>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-text-muted hover:text-white bg-white/5 hover:bg-white/10 rounded-xl transition-all cursor-pointer"
+            className={`p-1.5 rounded-xl transition-all cursor-pointer ${
+              isLight ? 'text-slate-400 hover:text-slate-900 bg-slate-100 hover:bg-slate-200' : 'text-text-muted hover:text-white bg-white/5 hover:bg-white/10'
+            }`}
           >
             <X size={16} />
           </button>
@@ -140,26 +146,26 @@ const NodeDetailPanel = ({ node, onClose, onDisconnectTemplate }) => {
                       {node.priority || 'LOW'}
                     </span>
                   </div>
-                  <div className="bg-white/3 p-2.5 rounded-xl border border-white/5">
-                    <span className="text-[9px] text-text-muted font-bold uppercase tracking-wider block mb-1">Owner</span>
+                  <div className="bg-white/3 p-3 rounded-xl border border-white/5">
+                    <span className="text-xs text-text-muted font-extrabold uppercase tracking-wider block mb-1">Owner</span>
                     <span className={`text-xs font-bold ${node.owner ? 'text-emerald-400' : 'text-rose-400'}`}>
                       {node.owner || 'Unassigned'}
                     </span>
                   </div>
-                  <div className="bg-white/3 p-2.5 rounded-xl border border-white/5">
-                    <span className="text-[9px] text-text-muted font-bold uppercase tracking-wider block mb-1">Tag Classification</span>
+                  <div className="bg-white/3 p-3 rounded-xl border border-white/5">
+                    <span className="text-xs text-text-muted font-extrabold uppercase tracking-wider block mb-1">Tag Classification</span>
                     <span className="text-xs font-bold text-amber-400">{node.tag || 'Unconnected'}</span>
                   </div>
-                  <div className="bg-white/3 p-2.5 rounded-xl border border-white/5">
-                    <span className="text-[9px] text-text-muted font-bold uppercase tracking-wider block mb-1">Recurrence</span>
+                  <div className="bg-white/3 p-3 rounded-xl border border-white/5">
+                    <span className="text-xs text-text-muted font-extrabold uppercase tracking-wider block mb-1">Recurrence</span>
                     <span className="text-xs font-bold text-white">{node.recurrent || 'None'}</span>
                   </div>
-                  <div className="bg-white/3 p-2.5 rounded-xl border border-white/5">
-                    <span className="text-[9px] text-text-muted font-bold uppercase tracking-wider block mb-1">Checklist Questions</span>
+                  <div className="bg-white/3 p-3 rounded-xl border border-white/5">
+                    <span className="text-xs text-text-muted font-extrabold uppercase tracking-wider block mb-1">Checklist Questions</span>
                     <span className="text-xs font-black text-white">{node.items || 0}</span>
                   </div>
-                  <div className="bg-white/3 p-2.5 rounded-xl border border-white/5">
-                    <span className="text-[9px] text-text-muted font-bold uppercase tracking-wider block mb-1">Recipients Count</span>
+                  <div className="bg-white/3 p-3 rounded-xl border border-white/5">
+                    <span className="text-xs text-text-muted font-extrabold uppercase tracking-wider block mb-1">Recipients Count</span>
                     <span className="text-xs font-black text-white">{node.recipients || 0}</span>
                   </div>
                 </>
@@ -170,7 +176,7 @@ const NodeDetailPanel = ({ node, onClose, onDisconnectTemplate }) => {
           {/* List of Templates under Tag */}
           {node.isTag && node.rawTag?.templates && (
             <div className="bg-white/2 border border-white/5 rounded-2xl p-4 space-y-3">
-              <h4 className="text-[10px] font-black text-white uppercase tracking-widest">
+              <h4 className="text-xs font-black text-white uppercase tracking-widest">
                 Connected Templates ({node.rawTag.templates.length})
               </h4>
               <div className="space-y-2 max-h-56 overflow-y-auto pr-1 custom-scrollbar">
@@ -179,8 +185,8 @@ const NodeDetailPanel = ({ node, onClose, onDisconnectTemplate }) => {
                 ) : (
                   node.rawTag.templates.map(tmpl => (
                     <div key={tmpl.id} className="p-3 bg-white/3 border border-white/5 rounded-xl flex items-center justify-between text-xs">
-                      <span className="font-bold text-white truncate max-w-[220px]">{tmpl.template_name}</span>
-                      <span className="text-[9px] text-text-muted font-black uppercase bg-white/5 border border-white/10 px-2 py-0.5 rounded">
+                      <span className="font-bold text-white truncate max-w-[240px]">{tmpl.template_name}</span>
+                      <span className="text-xs text-text-muted font-black uppercase bg-white/5 border border-white/10 px-2.5 py-1 rounded">
                         {tmpl.itemCount || 0} items
                       </span>
                     </div>
@@ -193,7 +199,7 @@ const NodeDetailPanel = ({ node, onClose, onDisconnectTemplate }) => {
           {/* List of Items under Template */}
           {!node.isTag && node.itemsList && node.itemsList.length > 0 && (
             <div className="bg-white/2 border border-white/5 rounded-2xl p-4 space-y-3">
-              <h4 className="text-[10px] font-black text-white uppercase tracking-widest">
+              <h4 className="text-xs font-black text-white uppercase tracking-widest">
                 Checklist Questions ({node.itemsList.length})
               </h4>
               <div className="space-y-2 max-h-56 overflow-y-auto pr-1 custom-scrollbar">
@@ -202,13 +208,13 @@ const NodeDetailPanel = ({ node, onClose, onDisconnectTemplate }) => {
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-bold text-white line-clamp-1">{item.title || item.name || item.checklist_name || `Item ${idx + 1}`}</span>
                       {item.type && (
-                        <span className="text-[8px] font-black uppercase tracking-wider bg-white/5 border border-white/10 px-1.5 py-0.5 rounded text-text-muted shrink-0">
+                        <span className="text-xs font-black uppercase tracking-wider bg-white/5 border border-white/10 px-2 py-0.5 rounded text-text-muted shrink-0">
                           {item.type}
                         </span>
                       )}
                     </div>
                     {item.description && (
-                      <p className="text-[10px] text-text-muted leading-relaxed line-clamp-2">{item.description}</p>
+                      <p className="text-xs text-text-muted leading-relaxed line-clamp-2">{item.description}</p>
                     )}
                   </div>
                 ))}
@@ -225,9 +231,9 @@ const NodeDetailPanel = ({ node, onClose, onDisconnectTemplate }) => {
                 onDisconnectTemplate(node.id);
                 onClose();
               }}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-400 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-400 rounded-xl text-xs font-bold transition-all cursor-pointer"
             >
-              <Unlink size={13} /> Disconnect from Tag
+              <Unlink size={14} /> Disconnect from Tag
             </button>
           )}
           <button
@@ -245,12 +251,12 @@ const NodeDetailPanel = ({ node, onClose, onDisconnectTemplate }) => {
 // ── Stat card ─────────────────────────────────────────────────────────────────
 const StatCard = ({ icon, label, value, color }) => (
   <div className="bg-bg-card backdrop-blur-xl border border-glass-border rounded-2xl p-4 flex items-center gap-4 shadow-lg">
-    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${color}`}>
+    <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${color}`}>
       {icon}
     </div>
     <div>
       <p className="text-2xl font-extrabold text-text-main">{value ?? '—'}</p>
-      <p className="text-[11px] text-text-muted font-semibold uppercase tracking-wider">{label}</p>
+      <p className="text-xs text-text-muted font-bold uppercase tracking-wider">{label}</p>
     </div>
   </div>
 );
@@ -260,7 +266,7 @@ const PrioritySelector = ({ priority, onChange, disabled }) => (
     value={priority}
     onChange={(e) => onChange(e.target.value)}
     disabled={disabled}
-    className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-[11px] font-bold text-white focus:outline-none focus:border-primary/50 cursor-pointer disabled:opacity-50"
+    className="bg-white/5 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs font-bold text-white focus:outline-none focus:border-primary/50 cursor-pointer disabled:opacity-50"
   >
     <option value="LOW" className="bg-[#0f172a]">LOW</option>
     <option value="MEDIUM" className="bg-[#0f172a]">MEDIUM</option>
@@ -274,7 +280,7 @@ const RecurrenceSelector = ({ recurrent, onChange, disabled }) => (
     value={recurrent || 'None'}
     onChange={(e) => onChange(e.target.value)}
     disabled={disabled}
-    className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-[11px] font-bold text-white focus:outline-none focus:border-primary/50 cursor-pointer disabled:opacity-50"
+    className="bg-white/5 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs font-bold text-white focus:outline-none focus:border-primary/50 cursor-pointer disabled:opacity-50"
   >
     <option value="None" className="bg-[#0f172a]">None</option>
     <option value="Daily" className="bg-[#0f172a]">Daily</option>
@@ -572,14 +578,14 @@ const TemplateRow = ({ tmpl, tagId, users, allTags, onTemplateUpdate }) => {
   };
 
   return (
-    <div className={`flex flex-col lg:flex-row lg:items-center justify-between gap-3 px-6 py-3 transition-all ${updating ? 'opacity-50 pointer-events-none' : 'hover:bg-white/2'}`}>
+    <div className={`flex flex-col lg:flex-row lg:items-center justify-between gap-3 px-6 py-3.5 transition-all ${updating ? 'opacity-50 pointer-events-none' : 'hover:bg-white/2'}`}>
       <div className="flex items-center gap-2.5 min-w-0">
-        <LayoutTemplate size={12} className="text-text-muted shrink-0" />
-        <span className="text-xs text-white/95 font-semibold truncate max-w-[180px]" title={tmpl.template_name}>
+        <LayoutTemplate size={14} className="text-text-muted shrink-0" />
+        <span className="text-xs text-white font-bold truncate max-w-[280px]" title={tmpl.template_name}>
           {tmpl.template_name}
         </span>
         {tmpl.repeating && (
-          <span className="text-[9px] bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 px-1.5 py-0.5 rounded-full font-bold">Repeating</span>
+          <span className="text-xs bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded-full font-bold">Repeating</span>
         )}
       </div>
 
@@ -587,17 +593,17 @@ const TemplateRow = ({ tmpl, tagId, users, allTags, onTemplateUpdate }) => {
       <div className="flex flex-wrap items-center gap-3">
         {/* Priority */}
         <div className="flex items-center gap-1.5">
-          <span className="text-[10px] text-text-muted">Priority:</span>
+          <span className="text-xs text-text-muted font-bold">Priority:</span>
           <PrioritySelector priority={tmpl.priority} onChange={(priority) => handleUpdate({ priority })} />
         </div>
 
         {/* Owner Selector */}
         <div className="flex items-center gap-1.5">
-          <span className="text-[10px] text-text-muted">Owner:</span>
+          <span className="text-xs text-text-muted font-bold">Owner:</span>
           <select
             value={users.find(u => u.User?.name === tmpl.ownerName)?.id || 'null'}
             onChange={(e) => handleUpdate({ owner_id: e.target.value === 'null' ? null : e.target.value })}
-            className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-[11px] font-bold text-white focus:outline-none focus:border-primary/50 cursor-pointer"
+            className="bg-white/5 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs font-bold text-white focus:outline-none focus:border-primary/50 cursor-pointer max-w-[160px]"
           >
             <option value="null" className="bg-[#0f172a]">Unassigned</option>
             {users.map(user => (
@@ -610,11 +616,11 @@ const TemplateRow = ({ tmpl, tagId, users, allTags, onTemplateUpdate }) => {
 
         {/* Tag Classification Selector (to move between classifications) */}
         <div className="flex items-center gap-1.5">
-          <span className="text-[10px] text-text-muted">Tag:</span>
+          <span className="text-xs text-text-muted font-bold">Tag:</span>
           <select
             value={tagId}
             onChange={(e) => handleUpdate({ tag_id: parseInt(e.target.value) })}
-            className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-[11px] font-bold text-white focus:outline-none focus:border-primary/50 cursor-pointer max-w-[120px]"
+            className="bg-white/5 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs font-bold text-white focus:outline-none focus:border-primary/50 cursor-pointer max-w-[160px]"
           >
             {allTags.map(t => (
               <option key={t.id} value={t.id} className="bg-[#0f172a]">
@@ -625,17 +631,17 @@ const TemplateRow = ({ tmpl, tagId, users, allTags, onTemplateUpdate }) => {
         </div>
 
         {/* Metadata stats */}
-        <span className="text-[10px] text-text-muted flex items-center gap-1 px-1 py-0.5 rounded bg-white/2">
-          <Layers size={9} /> {tmpl.itemCount} items
+        <span className="text-xs text-text-muted flex items-center gap-1 px-2 py-1 rounded-lg bg-white/4 font-bold">
+          <Layers size={11} /> {tmpl.itemCount} items
         </span>
 
         {/* Disconnect Action → moves template to Unconnected area */}
         <button
           onClick={() => handleUpdate({ tag_id: null })}
-          className="flex items-center gap-1 px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-400 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+          className="flex items-center gap-1 px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-400 rounded-xl text-xs font-bold transition-all cursor-pointer"
           title="Disconnect from tag — template moves to Unconnected area"
         >
-          <Unlink size={10} /> Disconnect
+          <Unlink size={12} /> Disconnect
         </button>
       </div>
     </div>
@@ -651,7 +657,28 @@ export default function TemplateDashboard() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('table'); // 'table' | 'graph' | 'kpi-network'
+  const [activeTab, setActiveTabState] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tabFromUrl = params.get('tab');
+    const tabFromStorage = sessionStorage.getItem('templateDashboardTab');
+    return tabFromUrl || tabFromStorage || 'table';
+  });
+
+  const setActiveTab = useCallback((tab) => {
+    setActiveTabState(tab);
+    sessionStorage.setItem('templateDashboardTab', tab);
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', tab);
+    window.history.replaceState(window.history.state, '', url.toString());
+  }, []);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has('tab') && activeTab) {
+      url.searchParams.set('tab', activeTab);
+      window.history.replaceState(window.history.state, '', url.toString());
+    }
+  }, [activeTab]);
   const [selectedNode, setSelectedNode] = useState(null);
   const [notification, setNotification] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -1085,19 +1112,19 @@ export default function TemplateDashboard() {
           {filteredData.orphanedTemplates.length > 0 && (
             <div className="bg-bg-card backdrop-blur-xl border border-red-500/20 rounded-3xl p-6 shadow-xl">
               <h3 className="text-sm font-black text-white mb-4 flex items-center gap-2">
-                <AlertTriangle size={15} className="text-red-400" />
+                <AlertTriangle size={16} className="text-red-400" />
                 Unconnected Templates
-                <span className="ml-1 px-2 py-0.5 rounded-full bg-red-500/15 border border-red-500/30 text-red-400 text-[10px] font-black">
+                <span className="ml-1 px-2.5 py-0.5 rounded-full bg-red-500/15 border border-red-500/30 text-red-400 text-xs font-black">
                   {filteredData.orphanedTemplates.length}
                 </span>
               </h3>
               <div className="divide-y divide-white/5 rounded-xl overflow-hidden border border-white/5 bg-red-500/2">
                 {filteredData.orphanedTemplates.map(tmpl => (
-                  <div key={tmpl.id} className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 px-4 py-3 hover:bg-white/2 transition-all">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <AlertTriangle size={12} className="text-red-400 shrink-0" />
-                      <span className="text-xs font-semibold text-white/90 truncate max-w-[250px]">{tmpl.template_name}</span>
-                      <span className="text-[10px] text-text-muted uppercase bg-white/5 px-2 py-0.5 rounded-full">
+                  <div key={tmpl.id} className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 px-5 py-3.5 hover:bg-white/2 transition-all">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <AlertTriangle size={14} className="text-red-400 shrink-0" />
+                      <span className="text-xs font-bold text-white truncate max-w-[300px]">{tmpl.template_name}</span>
+                      <span className="text-xs text-text-muted uppercase bg-white/5 px-2.5 py-0.5 rounded-full font-bold">
                         {tmpl.departmentLabel}
                       </span>
                     </div>
@@ -1107,15 +1134,15 @@ export default function TemplateDashboard() {
                       <PrioritySelector priority={tmpl.priority} onChange={(priority) => handleTemplateUpdate(tmpl.id, { priority })} />
 
                       {/* Connect to tag classification select */}
-                      <div className="flex items-center gap-1">
-                        <span className="text-[10px] text-text-muted font-bold">Connect to tag:</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-text-muted font-bold">Connect to tag:</span>
                         <select
                           onChange={(e) => {
                             if (e.target.value) {
                               handleTemplateUpdate(tmpl.id, { tag_id: parseInt(e.target.value) });
                             }
                           }}
-                          className="bg-primary/20 border border-primary/30 rounded-lg px-2 py-1 text-[11px] font-bold text-white focus:outline-none focus:border-primary/50 cursor-pointer"
+                          className="bg-primary/20 border border-primary/30 rounded-xl px-2.5 py-1.5 text-xs font-bold text-white focus:outline-none focus:border-primary/50 cursor-pointer"
                           defaultValue=""
                         >
                           <option value="" disabled className="bg-[#0f172a] text-text-muted">-- Select classification tag --</option>
@@ -1125,7 +1152,9 @@ export default function TemplateDashboard() {
                         </select>
                       </div>
 
-                      <span className="text-[10px] text-text-muted flex items-center gap-1"><Layers size={10} /> {tmpl.itemCount} items</span>
+                      <span className="text-xs text-text-muted font-bold flex items-center gap-1 px-2 py-1 rounded-lg bg-white/4">
+                        <Layers size={11} /> {tmpl.itemCount} items
+                      </span>
                     </div>
                   </div>
                 ))}
