@@ -4,7 +4,7 @@ export const useFilterStore = create((set) => ({
   datePreset: 'all-time',
   startDate: '',
   endDate: '',
-  selectedDepartment: 'Overview',
+  selectedDepartment: sessionStorage.getItem('selectedDepartment') || 'Overview',
 
   deptDatePreset: 'all-time',
   deptStartDate: '',
@@ -13,7 +13,11 @@ export const useFilterStore = create((set) => ({
   setDatePreset: (datePreset) => set({ datePreset }),
   setStartDate: (startDate) => set({ startDate }),
   setEndDate: (endDate) => set({ endDate }),
-  setSelectedDepartment: (selectedDepartment) => set({ selectedDepartment }),
+  setSelectedDepartment: (selectedDepartment) => {
+    if (selectedDepartment) sessionStorage.setItem('selectedDepartment', selectedDepartment);
+    else sessionStorage.removeItem('selectedDepartment');
+    set({ selectedDepartment });
+  },
 
   setDeptDatePreset: (deptDatePreset) => set({ deptDatePreset }),
   setDeptStartDate: (deptStartDate) => set({ deptStartDate }),

@@ -139,6 +139,11 @@
   color: var(--color-text-main) !important;
 }
 
+[data-theme="light"] select option {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
 [data-theme="light"] input::placeholder,
 [data-theme="light"] select::placeholder,
 [data-theme="light"] textarea::placeholder,
@@ -148,32 +153,26 @@
   opacity: 0.75 !important;
 }
 
-/* Guard brand-solid components so their texts/icons remain crisp absolute white */
-[data-theme="light"] .bg-primary .text-white,
-[data-theme="light"] .bg-primary.text-white,
-[data-theme="light"] .bg-danger .text-white,
-[data-theme="light"] .bg-danger.text-white,
-[data-theme="light"] .bg-linear-to-br .text-white,
-[data-theme="light"] .bg-linear-to-br.text-white,
+/* Guard brand-solid components & buttons so their texts/icons remain crisp absolute white in light mode */
+[data-theme="light"] .bg-primary,
+[data-theme="light"] .bg-primary *,
+[data-theme="light"] .bg-emerald-500,
+[data-theme="light"] .bg-emerald-500 *,
+[data-theme="light"] .bg-emerald-600,
+[data-theme="light"] .bg-emerald-600 *,
+[data-theme="light"] .bg-amber-500,
+[data-theme="light"] .bg-amber-500 *,
+[data-theme="light"] .bg-indigo-600,
+[data-theme="light"] .bg-indigo-600 *,
+[data-theme="light"] .bg-cyan-500,
+[data-theme="light"] .bg-cyan-500 *,
+[data-theme="light"] .bg-rose-500,
+[data-theme="light"] .bg-rose-500 *,
+[data-theme="light"] .bg-danger,
+[data-theme="light"] .bg-danger *,
 [data-theme="light"] button.bg-primary,
-[data-theme="light"] button.bg-danger,
-[data-theme="light"] .rounded-full.bg-primary {
+[data-theme="light"] button.bg-danger {
   color: #ffffff !important;
-}
-
-/* Specific Lucide icons or checkmarks inside solid brand shapes */
-[data-theme="light"] .rounded-full.bg-primary svg,
-[data-theme="light"] .bg-linear-to-br svg,
-[data-theme="light"] .hover\:bg-danger:hover,
-[data-theme="light"] .hover\:bg-danger:hover * {
-  color: #ffffff !important;
-}
-
-[data-theme="light"] .hover\:text-white:hover,
-[data-theme="light"] .hover\:text-white\/90:hover,
-[data-theme="light"] .hover\:text-white\/80:hover,
-[data-theme="light"] .hover\:text-white\/70:hover {
-  color: var(--color-primary) !important;
 }
 
 [data-theme="light"] .bg-white\/5 {
