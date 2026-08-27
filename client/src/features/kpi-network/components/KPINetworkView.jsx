@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import {
   Search, Link2, Activity, Calendar,
   Plus, Minus, Maximize2, Trash2, ArrowUp, ArrowDown, RefreshCw,
-  LayoutTemplate, Tag, Move, ArrowRight, Layers, RotateCcw, Filter, CheckSquare, Square, Palette, X, Check, FilePlus, Link, LayoutGrid
+  LayoutTemplate, Tag, Move, ArrowRight, Layers, RotateCcw, Filter, CheckSquare, Square, Palette, X, Check, FilePlus, Link, LayoutGrid, ChevronDown, FolderOpen
 } from 'lucide-react';
 import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip
@@ -118,6 +118,26 @@ export default function KPINetworkView() {
       console.error('Failed to save layout positions to localStorage:', e);
     }
   }, [customPositions]);
+
+  // Saved Chart Canvas Views Persistence
+  const [savedCharts, setSavedCharts] = useState(() => {
+    try {
+      const saved = localStorage.getItem('kpi_network_saved_charts');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+  const [activeChartTitle, setActiveChartTitle] = useState('Default Chart');
+  const [showSavedChartsMenu, setShowSavedChartsMenu] = useState(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('kpi_network_saved_charts', JSON.stringify(savedCharts));
+    } catch (e) {
+      console.error('Failed to save charts to localStorage:', e);
+    }
+  }, [savedCharts]);
 
   const draggingCanvas = useRef(false);
   const draggingNodeId = useRef(null);
@@ -744,15 +764,48 @@ export default function KPINetworkView() {
     triggerNotification('Auto-arranged chart nodes into clean, balanced tiers.');
   };
 
-  // Create New Fresh Canvas / Reset Canvas Items
+  // Create New Fresh Canvas: Saves current active chart session first, then opens blank slate
   const handleStartNewChart = () => {
+    // If current chart has positions or canvas items, auto-save to Saved Charts list
+    if (Object.keys(customPositions).length > 0 || addedCanvasItemIds.size > 0) {
+      const nextNum = savedCharts.length + 1;
+      const chartTitle = `Saved Chart ${nextNum}`;
+      const savedEntry = {
+        id: Date.now().toString(),
+        name: chartTitle,
+        date: new Date().toLocaleDateString([], { month: 'short', day: 'numeric' }),
+        customPositions: { ...customPositions },
+        addedCanvasItemIds: Array.from(addedCanvasItemIds)
+      };
+      setSavedCharts(prev => [savedEntry, ...prev]);
+      triggerNotification(`Saved active layout as "${chartTitle}" & opened a fresh chart.`);
+    } else {
+      triggerNotification('Opened a fresh chart canvas.');
+    }
+
     setCustomPositions({});
     setAddedCanvasItemIds(new Set());
     setHighlightedNodeId(null);
     setDetailsNodeId(null);
     setConnectingParentNodeId(null);
     setIsFocusMode(false);
-    triggerNotification('Reset canvas layout positions.');
+    setActiveChartTitle(`Chart ${savedCharts.length + 2}`);
+  };
+
+  // Load a saved chart view from saved list
+  const handleLoadSavedChart = (chart) => {
+    setCustomPositions(chart.customPositions || {});
+    setAddedCanvasItemIds(new Set(chart.addedCanvasItemIds || []));
+    setActiveChartTitle(chart.name);
+    setShowSavedChartsMenu(false);
+    triggerNotification(`Loaded "${chart.name}".`);
+  };
+
+  // Delete a saved chart from saved list
+  const handleDeleteSavedChart = (chartId, e) => {
+    e.stopPropagation();
+    setSavedCharts(prev => prev.filter(c => c.id !== chartId));
+    triggerNotification('Deleted saved chart view.');
   };
 
   // Batch Relationship Linking Action
@@ -1148,16 +1201,64 @@ export default function KPINetworkView() {
               <span className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50" /> Details Selected</span>
             </div>
 
-            <div className="flex items-center gap-2.5 pointer-events-auto">
+            <div className="flex items-center gap-2.5 pointer-events-auto relative">
               <button
                 onClick={handleStartNewChart}
                 className={`border px-4 py-2 rounded-2xl text-xs font-extrabold flex items-center gap-2 transition-all cursor-pointer shadow-lg ${
                   isLight ? 'bg-white hover:bg-slate-100 border-slate-200 text-slate-900' : 'bg-slate-900/90 hover:bg-slate-900 border-white/10 text-white'
                 }`}
-                title="Clear canvas items to start a fresh chart view"
+                title="Saves active layout and opens a new blank chart view"
               >
                 <FilePlus size={14} className="text-primary" /> New Chart View
               </button>
+
+              {savedCharts.length > 0 && (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowSavedChartsMenu(!showSavedChartsMenu)}
+                    className={`border px-3.5 py-2 rounded-2xl text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer shadow-lg ${
+                      isLight ? 'bg-white hover:bg-slate-100 border-slate-200 text-slate-800' : 'bg-slate-900/90 hover:bg-slate-900 border-white/10 text-white'
+                    }`}
+                    title="View and switch between saved chart views"
+                  >
+                    <FolderOpen size={14} className="text-amber-500" /> Saved Views ({savedCharts.length}) <ChevronDown size={13} />
+                  </button>
+
+                  {showSavedChartsMenu && (
+                    <div className={`absolute top-full right-0 mt-2 w-64 border rounded-2xl p-2 shadow-2xl z-50 backdrop-blur-xl animate-in fade-in duration-150 ${
+                      isLight ? 'bg-white/98 border-slate-200 text-slate-900' : 'bg-slate-900/98 border-white/15 text-white'
+                    }`}>
+                      <div className="text-[10px] font-black uppercase tracking-wider text-text-muted px-2 py-1 border-b border-white/10 mb-1 flex items-center justify-between">
+                        <span>Saved Chart Canvas Views</span>
+                        <span className="text-primary">{savedCharts.length} Saved</span>
+                      </div>
+                      <div className="max-h-56 overflow-y-auto space-y-1 py-1">
+                        {savedCharts.map(c => (
+                          <div
+                            key={c.id}
+                            onClick={() => handleLoadSavedChart(c)}
+                            className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                              isLight ? 'hover:bg-slate-100 text-slate-800' : 'hover:bg-white/10 text-white'
+                            }`}
+                          >
+                            <div className="flex flex-col">
+                              <span>{c.name}</span>
+                              <span className="text-[10px] text-text-muted font-normal">{c.date} · {c.addedCanvasItemIds?.length || 0} nodes</span>
+                            </div>
+                            <button
+                              onClick={(e) => handleDeleteSavedChart(c.id, e)}
+                              className="text-text-muted hover:text-red-500 p-1 rounded-lg transition-colors cursor-pointer"
+                              title="Delete saved chart"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <button
                 onClick={handleAutoArrangeChart}
