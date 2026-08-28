@@ -1109,9 +1109,20 @@ export default function KPINetworkView() {
 
                     <div className={`flex items-center justify-between text-xs font-semibold mt-0.5 ${isLight ? 'text-slate-600' : 'text-text-sub'}`}>
                       <span className="font-bold">{item.input_type}</span>
-                      <span className={`px-2 py-0.5 rounded-md font-bold ${isLight ? 'bg-slate-100 text-slate-800 border border-slate-200' : 'bg-white/5 text-white'}`}>
-                        {item.total_count ?? 0} response{(item.total_count ?? 0) !== 1 ? 's' : ''}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`px-2 py-0.5 rounded-md font-black text-[10px] ${
+                          item.avg_value !== null
+                            ? item.input_type === 'Boolean'
+                              ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30'
+                              : 'bg-indigo-500/15 text-indigo-500 border border-indigo-500/30'
+                            : isLight ? 'bg-slate-100 text-slate-400 border border-slate-200' : 'bg-white/5 text-slate-500 border border-white/10'
+                        }`}>
+                          {item.avg_value !== null ? (item.input_type === 'Boolean' ? `${item.avg_value}% Avg` : `Avg: ${item.avg_value}`) : 'No Data'}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] ${isLight ? 'bg-slate-100 text-slate-800 border border-slate-200' : 'bg-white/5 text-white'}`}>
+                          {item.total_count ?? 0} resp
+                        </span>
+                      </div>
                     </div>
                   </div>
                 );
@@ -1482,11 +1493,52 @@ export default function KPINetworkView() {
                       fill={isLight ? '#0f172a' : '#ffffff'}
                       style={{ fontSize: 13, fontWeight: 800, fontFamily: 'Outfit,Inter,sans-serif' }}
                     >
-                      {node.checklist_name.length > 32
-                        ? node.checklist_name.slice(0, 30) + '...'
+                      {node.checklist_name.length > 24
+                        ? node.checklist_name.slice(0, 22) + '...'
                         : node.checklist_name
                       }
                     </text>
+
+                    {/* Average Value Pill Badge (Top-Right of Card) */}
+                    <g transform="translate(42, -22)" title={`Average value: ${node.avg_value ?? 'No responses'}`}>
+                      <rect
+                        x={-35}
+                        y={-10}
+                        width={70}
+                        height={20}
+                        rx={7}
+                        fill={
+                          node.avg_value !== null
+                            ? node.input_type === 'Boolean'
+                              ? (isLight ? "rgba(16, 185, 129, 0.15)" : "rgba(16, 185, 129, 0.22)")
+                              : (isLight ? "rgba(99, 102, 241, 0.15)" : "rgba(99, 102, 241, 0.22)")
+                            : (isLight ? "#f1f5f9" : "rgba(255,255,255,0.06)")
+                        }
+                        stroke={
+                          node.avg_value !== null
+                            ? node.input_type === 'Boolean'
+                              ? (isLight ? "rgba(16, 185, 129, 0.35)" : "rgba(16, 185, 129, 0.45)")
+                              : (isLight ? "rgba(99, 102, 241, 0.35)" : "rgba(99, 102, 241, 0.45)")
+                            : (isLight ? "#e2e8f0" : "rgba(255,255,255,0.12)")
+                        }
+                        strokeWidth={1}
+                      />
+                      <text
+                        x={0}
+                        y={3.5}
+                        textAnchor="middle"
+                        fill={
+                          node.avg_value !== null
+                            ? node.input_type === 'Boolean' ? "#10b981" : (isLight ? "#4f46e5" : "#818cf8")
+                            : (isLight ? "#94a3b8" : "#64748b")
+                        }
+                        style={{ fontSize: 9.5, fontWeight: 900, fontFamily: 'Outfit,Inter,sans-serif' }}
+                      >
+                        {node.avg_value !== null
+                          ? `${node.input_type === 'Boolean' ? `${node.avg_value}%` : node.avg_value} Avg`
+                          : 'No Data'}
+                      </text>
+                    </g>
 
                     {/* Node Type Metadata */}
                     <text
@@ -1633,24 +1685,37 @@ export default function KPINetworkView() {
                 </h5>
               </div>
 
-              {/* Response Stats Card */}
-              <div className={`border rounded-2xl p-4 flex items-center justify-between gap-4 ${
-                isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/60 border-white/5'
-              }`}>
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-xl bg-primary/15 border border-primary/25 text-primary">
-                    <Activity size={18} />
-                  </div>
-                  <div>
-                    <span className={`text-[10px] font-extrabold uppercase tracking-wider block ${isLight ? 'text-slate-500' : 'text-text-muted'}`}>
-                      Total Submissions
+              {/* Response & Avg Value Stats Grid */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className={`border rounded-2xl p-3.5 flex flex-col justify-between ${
+                  isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/60 border-white/5'
+                }`}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <Activity size={14} className="text-primary" />
+                    <span className={`text-[10px] font-extrabold uppercase tracking-wider ${isLight ? 'text-slate-500' : 'text-text-muted'}`}>
+                      Submissions
                     </span>
-                    <span className="text-[11px] font-bold text-emerald-500">Active Responses</span>
                   </div>
+                  <span className={`text-xl font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                    {detailsItem.total_count ?? 0}
+                  </span>
                 </div>
-                <span className={`text-2xl font-black text-primary ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                  {detailsItem.total_count ?? 0}
-                </span>
+
+                <div className={`border rounded-2xl p-3.5 flex flex-col justify-between ${
+                  isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/60 border-white/5'
+                }`}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <TrendingUp size={14} className="text-emerald-500" />
+                    <span className={`text-[10px] font-extrabold uppercase tracking-wider ${isLight ? 'text-slate-500' : 'text-text-muted'}`}>
+                      Avg Value
+                    </span>
+                  </div>
+                  <span className="text-xl font-black text-emerald-500">
+                    {detailsItem.avg_value !== null
+                      ? (detailsItem.input_type === 'Boolean' ? `${detailsItem.avg_value}%` : detailsItem.avg_value)
+                      : 'N/A'}
+                  </span>
+                </div>
               </div>
 
               {/* Preferred Granularity Period Card */}
