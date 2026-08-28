@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import {
   Search, Link2, Activity, Calendar,
   Plus, Minus, Maximize2, Trash2, ArrowUp, ArrowDown, RefreshCw,
-  LayoutTemplate, Tag, Move, ArrowRight, Layers, RotateCcw, Filter, CheckSquare, Square, Palette, X, Check, FilePlus, Link, LayoutGrid, ChevronDown, FolderOpen
+  LayoutTemplate, Tag, Move, ArrowRight, Layers, RotateCcw, Filter, CheckSquare, Square, Palette, X, Check, FilePlus, Link, LayoutGrid, ChevronDown, FolderOpen,
+  ArrowUpRight, ArrowDownRight, TrendingUp, BarChart2
 } from 'lucide-react';
 import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip
@@ -1560,36 +1561,76 @@ export default function KPINetworkView() {
 
         {/* Right Panel: KPI Node Details & Multi-Metric Combined Analytics */}
         {detailsItem && (
-          <div className={`w-full lg:w-96 border rounded-3xl p-4 flex flex-col shadow-xl shrink-0 animate-in slide-in-from-right duration-200 ${
-            isLight ? 'bg-white/95 border-slate-200 text-slate-900' : 'bg-bg-card border-glass-border text-white'
+          <div className={`w-full lg:w-[420px] border rounded-3xl p-5 flex flex-col shadow-2xl shrink-0 animate-in slide-in-from-right duration-200 backdrop-blur-2xl ${
+            isLight ? 'bg-white/98 border-slate-200 text-slate-900' : 'bg-[#0b1329]/95 border-white/10 text-white'
           }`}>
-            <div className={`flex items-center justify-between pb-3 border-b mb-3 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
-              <h4 className={`text-sm font-black uppercase tracking-wider ${isLight ? 'text-slate-900' : 'text-white'}`}>KPI Node Details</h4>
-              <button onClick={() => setDetailsNodeId(null)} className={`text-xs font-extrabold px-2.5 py-1 rounded-lg transition-all cursor-pointer ${isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700' : 'bg-white/5 hover:bg-white/10 text-white'}`}>Close</button>
+            {/* Header */}
+            <div className={`flex items-center justify-between pb-3.5 border-b mb-4 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
+              <div className="flex items-center gap-2.5">
+                <span className="relative flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                </span>
+                <h4 className={`text-xs font-black uppercase tracking-widest ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                  KPI Node Details
+                </h4>
+              </div>
+              <button 
+                onClick={() => setDetailsNodeId(null)} 
+                className={`p-1.5 rounded-xl transition-all cursor-pointer ${
+                  isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700' : 'bg-white/5 hover:bg-white/10 text-text-muted hover:text-white'
+                }`}
+                title="Close Node Details"
+              >
+                <X size={15} />
+              </button>
             </div>
 
             <div className="space-y-4 flex-1 overflow-y-auto pr-1 custom-scrollbar">
-              <div>
-                <span className="text-[10px] font-black uppercase tracking-wider bg-primary/10 border border-primary/20 text-primary px-2.5 py-0.5 rounded-md">
-                  {detailsItem.input_type} Node
+              {/* Title & Type Badge Card */}
+              <div className={`p-4 rounded-2xl border ${
+                isLight ? 'bg-indigo-50/60 border-indigo-100' : 'bg-white/3 border-white/5'
+              }`}>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="text-[10px] font-black uppercase tracking-wider bg-primary/15 border border-primary/30 text-primary px-2.5 py-0.5 rounded-md">
+                    {detailsItem.input_type} Metric Node
+                  </span>
+                </div>
+                <h5 className={`text-base font-extrabold leading-snug ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                  {detailsItem.checklist_name}
+                </h5>
+              </div>
+
+              {/* Response Stats Card */}
+              <div className={`border rounded-2xl p-4 flex items-center justify-between gap-4 ${
+                isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/60 border-white/5'
+              }`}>
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-primary/15 border border-primary/25 text-primary">
+                    <Activity size={18} />
+                  </div>
+                  <div>
+                    <span className={`text-[10px] font-extrabold uppercase tracking-wider block ${isLight ? 'text-slate-500' : 'text-text-muted'}`}>
+                      Total Submissions
+                    </span>
+                    <span className="text-[11px] font-bold text-emerald-500">Active Responses</span>
+                  </div>
+                </div>
+                <span className={`text-2xl font-black text-primary ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                  {detailsItem.total_count ?? 0}
                 </span>
-                <h5 className={`text-base font-extrabold mt-1.5 leading-snug ${isLight ? 'text-slate-900' : 'text-white'}`}>{detailsItem.checklist_name}</h5>
               </div>
 
-              {/* Response Stats */}
-              <div className={`border rounded-2xl p-3.5 text-center ${isLight ? 'bg-slate-50 border-slate-200' : 'bg-white/2 border-white/5'}`}>
-                <span className={`text-xs font-bold uppercase block mb-0.5 ${isLight ? 'text-slate-600' : 'text-text-muted'}`}>Total Response Submissions</span>
-                <span className={`text-lg font-black text-primary ${isLight ? 'text-slate-900' : 'text-white'}`}>{detailsItem.total_count ?? 0}</span>
-              </div>
-
-              {/* Preferred Granularity Period */}
-              <div className={`border rounded-2xl p-3.5 space-y-2 ${isLight ? 'bg-slate-50 border-slate-200' : 'bg-white/2 border-slate-200'}`}>
+              {/* Preferred Granularity Period Card */}
+              <div className={`border rounded-2xl p-4 space-y-2.5 ${
+                isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/60 border-white/5'
+              }`}>
                 <div className="flex items-center justify-between">
                   <span className={`text-xs font-black uppercase tracking-wider flex items-center gap-1.5 ${isLight ? 'text-slate-800' : 'text-white'}`}>
-                    <Calendar size={13} className="text-primary" /> Preferred Granularity
+                    <Calendar size={14} className="text-primary" /> Preferred Granularity
                   </span>
                   {savingPreference && (
-                    <span className="text-xs text-accent animate-pulse font-bold flex items-center gap-1">
+                    <span className="text-[11px] text-accent animate-pulse font-extrabold flex items-center gap-1">
                       <RefreshCw size={10} className="animate-spin" /> Saving...
                     </span>
                   )}
@@ -1600,23 +1641,25 @@ export default function KPINetworkView() {
                     onChange={(e) => handleUpdatePreferredAggregation(e.target.value)}
                     disabled={savingPreference}
                     className={`w-full border rounded-xl px-3.5 py-2 text-xs font-bold outline-none cursor-pointer disabled:opacity-50 appearance-none ${
-                      isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-900/70 border-glass-border text-white'
+                      isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-950/80 border-white/10 text-white'
                     }`}
                   >
-                    <option value="Daily" className={isLight ? 'bg-white text-slate-900' : 'bg-[#0f172a] text-white'}>Daily</option>
-                    <option value="Weekly" className={isLight ? 'bg-white text-slate-900' : 'bg-[#0f172a] text-white'}>Weekly</option>
-                    <option value="Monthly" className={isLight ? 'bg-white text-slate-900' : 'bg-[#0f172a] text-white'}>Monthly</option>
-                    <option value="Quarterly" className={isLight ? 'bg-white text-slate-900' : 'bg-[#0f172a] text-white'}>Quarterly</option>
+                    <option value="Daily" className={isLight ? 'bg-white text-slate-900' : 'bg-[#0f172a] text-white'}>Daily Aggregation</option>
+                    <option value="Weekly" className={isLight ? 'bg-white text-slate-900' : 'bg-[#0f172a] text-white'}>Weekly Aggregation</option>
+                    <option value="Monthly" className={isLight ? 'bg-white text-slate-900' : 'bg-[#0f172a] text-white'}>Monthly Aggregation</option>
+                    <option value="Quarterly" className={isLight ? 'bg-white text-slate-900' : 'bg-[#0f172a] text-white'}>Quarterly Aggregation</option>
                   </select>
                   <div className={`absolute right-3.5 top-3 pointer-events-none text-xs ${isLight ? 'text-slate-400' : 'text-text-muted'}`}>▼</div>
                 </div>
               </div>
 
-              {/* Analytics Trend Chart: Single vs Combined Multi-Metric */}
-              <div className={`border rounded-2xl p-3.5 space-y-3 ${isLight ? 'bg-slate-50 border-slate-200' : 'bg-white/2 border-white/5'}`}>
-                <div className="flex items-center justify-between">
+              {/* Performance Trend Chart Card */}
+              <div className={`border rounded-2xl p-4 space-y-3 ${
+                isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/60 border-white/5'
+              }`}>
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <span className={`text-xs font-black uppercase tracking-wider flex items-center gap-1.5 ${isLight ? 'text-slate-800' : 'text-white'}`}>
-                    <Activity size={13} className="text-accent" /> Performance Trend
+                    <TrendingUp size={14} className="text-indigo-500" /> Performance Trend
                   </span>
                   
                   {/* Aggregation interval buttons */}
@@ -1640,13 +1683,13 @@ export default function KPINetworkView() {
 
                 {/* Single vs Combined Overlay Chart Toggle */}
                 {Object.keys(linkedAnalyticsMap).length > 0 && (
-                  <div className={`flex items-center justify-between p-2 px-3 rounded-2xl border text-xs font-bold ${
+                  <div className={`flex items-center justify-between p-2 px-3 rounded-xl border text-xs font-bold ${
                     isLight ? 'bg-white border-slate-200' : 'bg-white/3 border-white/5'
                   }`}>
-                    <span className={isLight ? 'text-slate-700' : 'text-white'}>Multi-Metric View:</span>
+                    <span className={`text-[11px] ${isLight ? 'text-slate-700' : 'text-white'}`}>Multi-Metric View:</span>
                     <button
                       onClick={() => setIsCombinedView(prev => !prev)}
-                      className={`px-3 py-1 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 text-xs font-extrabold ${
+                      className={`px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 text-xs font-extrabold ${
                         isCombinedView
                           ? 'bg-indigo-600 text-white shadow'
                           : isLight ? 'bg-slate-100 text-slate-700 hover:bg-slate-200' : 'bg-white/5 text-text-muted hover:text-white'
@@ -1727,14 +1770,21 @@ export default function KPINetworkView() {
                 )}
               </div>
 
-              {/* Linked Items Detailed Directory & Performance Cards */}
+              {/* Linked Drivers (Parents) & Dependents (Children) Directory */}
               <div className="space-y-4">
                 {/* Parents (Linked Drivers) */}
-                <div>
-                  <span className={`text-xs font-black uppercase tracking-wider flex items-center gap-1.5 mb-2 ${isLight ? 'text-slate-800' : 'text-white'}`}>
-                    <ArrowUp size={13} className="text-indigo-500" /> Linked Driver Checklist Items ({detailsItem.parent_ids?.length || 0})
-                  </span>
-                  <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
+                <div className={`p-4 rounded-2xl border ${
+                  isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/60 border-white/5'
+                }`}>
+                  <div className="flex items-center justify-between mb-2.5">
+                    <span className={`text-xs font-black uppercase tracking-wider flex items-center gap-1.5 ${isLight ? 'text-slate-800' : 'text-white'}`}>
+                      <ArrowUpRight size={15} className="text-indigo-500" /> Driver Metrics ({detailsItem.parent_ids?.length || 0})
+                    </span>
+                    <span className="text-[9px] font-extrabold uppercase bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-0.5 rounded-full">
+                      Upstream Drivers
+                    </span>
+                  </div>
+                  <div className="max-h-56 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
                     {(detailsItem.parent_ids || []).map(pId => {
                       const pItem = items.find(i => i.id === pId);
                       if (!pItem) return null;
@@ -1743,31 +1793,45 @@ export default function KPINetworkView() {
                           key={pId}
                           onClick={() => handleSingleClickNode(pId)}
                           onDoubleClick={() => handleDoubleClickNode(pId)}
-                          className={`w-full text-left p-2.5 border rounded-xl text-xs transition-all cursor-pointer flex items-center justify-between ${
-                            isLight ? 'bg-white hover:bg-slate-100 border-slate-200' : 'bg-white/2 hover:bg-white/5 border-white/5'
+                          className={`w-full text-left p-3 border rounded-xl text-xs transition-all cursor-pointer flex items-center justify-between group ${
+                            isLight
+                              ? 'bg-white hover:bg-indigo-50/50 border-slate-200 hover:border-indigo-300'
+                              : 'bg-slate-950/60 hover:bg-white/5 border-white/5 hover:border-indigo-500/40'
                           }`}
                         >
-                          <span className={`font-bold truncate max-w-[260px] ${isLight ? 'text-slate-900' : 'text-white'}`} title={pItem.checklist_name}>
-                            {pItem.checklist_name}
-                          </span>
-                          <span className="text-indigo-600 font-extrabold shrink-0 bg-indigo-500/10 px-2 py-0.5 rounded text-[10px] border border-indigo-500/20">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <ArrowUpRight size={14} className="text-indigo-500 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                            <span className={`font-bold truncate max-w-[220px] ${isLight ? 'text-slate-900' : 'text-white'}`} title={pItem.checklist_name}>
+                              {pItem.checklist_name}
+                            </span>
+                          </div>
+                          <span className="text-indigo-500 font-black shrink-0 bg-indigo-500/10 px-2 py-0.5 rounded text-[9px] border border-indigo-500/20 uppercase">
                             {pItem.input_type}
                           </span>
                         </div>
                       );
                     })}
                     {(!detailsItem.parent_ids || detailsItem.parent_ids.length === 0) && (
-                      <p className={`text-xs italic px-1 ${isLight ? 'text-slate-400' : 'text-text-muted/60'}`}>No driver checklist item relationships connected.</p>
+                      <p className={`text-xs italic px-1 py-2 text-center ${isLight ? 'text-slate-400' : 'text-text-muted/60'}`}>
+                        No upstream driver metric relationships connected.
+                      </p>
                     )}
                   </div>
                 </div>
 
                 {/* Children (Dependent Metrics) */}
-                <div>
-                  <span className={`text-xs font-black uppercase tracking-wider flex items-center gap-1.5 mb-2 ${isLight ? 'text-slate-800' : 'text-white'}`}>
-                    <ArrowDown size={13} className="text-amber-500" /> Dependent Metric Checklist Items ({detailsItem.child_ids?.length || 0})
-                  </span>
-                  <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
+                <div className={`p-4 rounded-2xl border ${
+                  isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/60 border-white/5'
+                }`}>
+                  <div className="flex items-center justify-between mb-2.5">
+                    <span className={`text-xs font-black uppercase tracking-wider flex items-center gap-1.5 ${isLight ? 'text-slate-800' : 'text-white'}`}>
+                      <ArrowDownRight size={15} className="text-amber-500" /> Dependent Metrics ({detailsItem.child_ids?.length || 0})
+                    </span>
+                    <span className="text-[9px] font-extrabold uppercase bg-amber-500/10 text-amber-500 border border-amber-500/20 px-2 py-0.5 rounded-full">
+                      Downstream Impact
+                    </span>
+                  </div>
+                  <div className="max-h-56 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
                     {(detailsItem.child_ids || []).map(cId => {
                       const cItem = items.find(i => i.id === cId);
                       if (!cItem) return null;
@@ -1776,21 +1840,28 @@ export default function KPINetworkView() {
                           key={cId}
                           onClick={() => handleSingleClickNode(cId)}
                           onDoubleClick={() => handleDoubleClickNode(cId)}
-                          className={`w-full text-left p-2.5 border rounded-xl text-xs transition-all cursor-pointer flex items-center justify-between ${
-                            isLight ? 'bg-white hover:bg-slate-100 border-slate-200' : 'bg-white/2 hover:bg-white/5 border-white/5'
+                          className={`w-full text-left p-3 border rounded-xl text-xs transition-all cursor-pointer flex items-center justify-between group ${
+                            isLight
+                              ? 'bg-white hover:bg-amber-50/50 border-slate-200 hover:border-amber-300'
+                              : 'bg-slate-950/60 hover:bg-white/5 border-white/5 hover:border-amber-500/40'
                           }`}
                         >
-                          <span className={`font-bold truncate max-w-[260px] ${isLight ? 'text-slate-900' : 'text-white'}`} title={cItem.checklist_name}>
-                            {cItem.checklist_name}
-                          </span>
-                          <span className="text-amber-600 font-extrabold shrink-0 bg-amber-500/10 px-2 py-0.5 rounded text-[10px] border border-amber-500/20">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <ArrowDownRight size={14} className="text-amber-500 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                            <span className={`font-bold truncate max-w-[220px] ${isLight ? 'text-slate-900' : 'text-white'}`} title={cItem.checklist_name}>
+                              {cItem.checklist_name}
+                            </span>
+                          </div>
+                          <span className="text-amber-500 font-black shrink-0 bg-amber-500/10 px-2 py-0.5 rounded text-[9px] border border-amber-500/20 uppercase">
                             {cItem.input_type}
                           </span>
                         </div>
                       );
                     })}
                     {(!detailsItem.child_ids || detailsItem.child_ids.length === 0) && (
-                      <p className={`text-xs italic px-1 ${isLight ? 'text-slate-400' : 'text-text-muted/60'}`}>No dependent metric checklist item relationships connected.</p>
+                      <p className={`text-xs italic px-1 py-2 text-center ${isLight ? 'text-slate-400' : 'text-text-muted/60'}`}>
+                        No downstream dependent metric relationships connected.
+                      </p>
                     )}
                   </div>
                 </div>
