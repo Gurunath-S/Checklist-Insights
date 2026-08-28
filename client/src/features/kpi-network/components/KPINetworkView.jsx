@@ -17,6 +17,19 @@ import {
   deleteKPINetworkLinkApi
 } from '../services/kpiNetworkService';
 
+const MULTI_METRIC_COLORS = [
+  '#6366f1', // Indigo
+  '#f59e0b', // Amber
+  '#ec4899', // Pink
+  '#3b82f6', // Blue
+  '#10b981', // Emerald
+  '#8b5cf6', // Purple
+  '#06b6d4', // Cyan
+  '#f97316', // Orange
+  '#14b8a6', // Teal
+  '#eab308', // Yellow
+];
+
 // Custom Detailed Hover Tooltip for Single & Multi-Metric Performance Line Charts
 const CustomTrendTooltip = ({ active, payload, label, isLight }) => {
   if (!active || !payload || !payload.length) return null;
@@ -64,11 +77,30 @@ export default function KPINetworkView() {
   const [currentAggregation, setCurrentAggregation] = useState('Monthly');
   const [savingPreference, setSavingPreference] = useState(false);
 
-  // Multi-Metric Combined Trend State
+  // Multi-Metric Combined Trend State & Filter Controls
   const [isCombinedView, setIsCombinedView] = useState(false);
   const [combinedTrendData, setCombinedTrendData] = useState([]);
   const [linkedAnalyticsMap, setLinkedAnalyticsMap] = useState({});
   const [combinedLoading, setCombinedLoading] = useState(false);
+  const [hiddenMetricIds, setHiddenMetricIds] = useState(new Set());
+  const [hoveredMetricId, setHoveredMetricId] = useState(null);
+  const [isChartExpanded, setIsChartExpanded] = useState(false);
+
+  const toggleMetricVisibility = useCallback((id) => {
+    setHiddenMetricIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const resetMetricVisibility = useCallback(() => {
+    setHiddenMetricIds(new Set());
+  }, []);
 
   // UI & Node Selection State
   const [searchTerm, setSearchTerm] = useState('');
@@ -1654,7 +1686,7 @@ export default function KPINetworkView() {
               </div>
 
               {/* Performance Trend Chart Card */}
-              <div className={`border rounded-2xl p-4 space-y-3 ${
+              <div className={`border rounded-2xl p-4 space-y-3.5 ${
                 isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/60 border-white/5'
               }`}>
                 <div className="flex items-center justify-between flex-wrap gap-2">
@@ -1662,22 +1694,36 @@ export default function KPINetworkView() {
                     <TrendingUp size={14} className="text-indigo-500" /> Performance Trend
                   </span>
                   
-                  {/* Aggregation interval buttons */}
-                  <div className={`flex border rounded-xl p-0.5 gap-0.5 ${isLight ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10'}`}>
-                    {['Daily', 'Weekly', 'Monthly', 'Quarterly'].map((mode) => (
-                      <button
-                        key={mode}
-                        type="button"
-                        onClick={() => setCurrentAggregation(mode)}
-                        className={`px-2 py-1 text-xs font-black rounded-lg transition-all cursor-pointer ${
-                          currentAggregation === mode
-                            ? 'bg-primary text-white shadow-sm'
-                            : isLight ? 'text-slate-600 hover:text-slate-900' : 'text-text-muted hover:text-white'
-                        }`}
-                      >
-                        {mode[0]}
-                      </button>
-                    ))}
+                  <div className="flex items-center gap-1.5">
+                    {/* Aggregation interval buttons */}
+                    <div className={`flex border rounded-xl p-0.5 gap-0.5 ${isLight ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10'}`}>
+                      {['Daily', 'Weekly', 'Monthly', 'Quarterly'].map((mode) => (
+                        <button
+                          key={mode}
+                          type="button"
+                          onClick={() => setCurrentAggregation(mode)}
+                          className={`px-2 py-1 text-xs font-black rounded-lg transition-all cursor-pointer ${
+                            currentAggregation === mode
+                              ? 'bg-primary text-white shadow-sm'
+                              : isLight ? 'text-slate-600 hover:text-slate-900' : 'text-text-muted hover:text-white'
+                          }`}
+                        >
+                          {mode[0]}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Fullscreen Expand Chart Button */}
+                    <button
+                      type="button"
+                      onClick={() => setIsChartExpanded(true)}
+                      className={`p-1.5 rounded-xl border transition-all cursor-pointer ${
+                        isLight ? 'bg-white hover:bg-slate-100 border-slate-200 text-slate-700' : 'bg-white/5 hover:bg-white/10 border-white/10 text-white'
+                      }`}
+                      title="Expand Chart Fullscreen"
+                    >
+                      <Maximize2 size={13} />
+                    </button>
                   </div>
                 </div>
 
@@ -1686,7 +1732,7 @@ export default function KPINetworkView() {
                   <div className={`flex items-center justify-between p-2 px-3 rounded-xl border text-xs font-bold ${
                     isLight ? 'bg-white border-slate-200' : 'bg-white/3 border-white/5'
                   }`}>
-                    <span className={`text-[11px] ${isLight ? 'text-slate-700' : 'text-white'}`}>Multi-Metric View:</span>
+                    <span className={`text-[11px] ${isLight ? 'text-slate-700' : 'text-white'}`}>Multi-Metric Overlay:</span>
                     <button
                       onClick={() => setIsCombinedView(prev => !prev)}
                       className={`px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 text-xs font-extrabold ${
@@ -1696,62 +1742,137 @@ export default function KPINetworkView() {
                       }`}
                     >
                       {isCombinedView && <Check size={12} />}
-                      {isCombinedView ? 'Overlay Linked Trends' : 'Show Combined Graph'}
+                      {isCombinedView ? 'Overlay Active' : 'Show Combined Graph'}
                     </button>
                   </div>
                 )}
 
+                {/* Interactive Metric Selection Legend Chips (Visible in Combined View) */}
+                {isCombinedView && Object.keys(linkedAnalyticsMap).length > 0 && (
+                  <div className="space-y-2 pt-1 border-t border-white/5">
+                    <div className="flex items-center justify-between">
+                      <span className={`text-[10px] font-black uppercase tracking-wider ${isLight ? 'text-slate-500' : 'text-text-muted'}`}>
+                        Toggle Metric Visibility ({Object.keys(linkedAnalyticsMap).length + 1})
+                      </span>
+                      {hiddenMetricIds.size > 0 && (
+                        <button
+                          onClick={resetMetricVisibility}
+                          className="text-[10px] font-bold text-primary hover:underline cursor-pointer"
+                        >
+                          Show All
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto custom-scrollbar p-1">
+                      {/* Target node chip */}
+                      <button
+                        type="button"
+                        onClick={() => toggleMetricVisibility('target')}
+                        onMouseEnter={() => setHoveredMetricId('target')}
+                        onMouseLeave={() => setHoveredMetricId(null)}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold border flex items-center gap-1.5 transition-all cursor-pointer ${
+                          hiddenMetricIds.has('target')
+                            ? 'opacity-40 line-through bg-slate-500/10 border-slate-500/20 text-slate-400'
+                            : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-500 shadow-sm'
+                        }`}
+                      >
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                        <span className="truncate max-w-[130px]">{detailsItem.checklist_name} (Target)</span>
+                      </button>
+
+                      {/* Linked metric chips */}
+                      {Object.values(linkedAnalyticsMap).map((lData, idx) => {
+                        const color = MULTI_METRIC_COLORS[idx % MULTI_METRIC_COLORS.length];
+                        const isHidden = hiddenMetricIds.has(`node_${lData.id}`);
+                        const metricKey = `node_${lData.id}`;
+                        return (
+                          <button
+                            key={lData.id}
+                            type="button"
+                            onClick={() => toggleMetricVisibility(metricKey)}
+                            onMouseEnter={() => setHoveredMetricId(metricKey)}
+                            onMouseLeave={() => setHoveredMetricId(null)}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold border flex items-center gap-1.5 transition-all cursor-pointer ${
+                              isHidden
+                                ? 'opacity-40 line-through bg-slate-500/10 border-slate-500/20 text-slate-400'
+                                : isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-slate-900 border-white/10 text-white'
+                            }`}
+                          >
+                            <span className="w-2 h-2 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: color }} />
+                            <span className="truncate max-w-[130px]" title={lData.name}>{lData.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {selectedItemTrendLoading || combinedLoading ? (
-                  <div className={`h-28 flex flex-col items-center justify-center gap-2 ${isLight ? 'text-slate-500' : 'text-text-muted'}`}>
-                    <RefreshCw size={14} className="animate-spin text-accent" />
-                    <span className="text-[10px] font-bold">Loading trend analytics...</span>
+                  <div className={`h-36 flex flex-col items-center justify-center gap-2 ${isLight ? 'text-slate-500' : 'text-text-muted'}`}>
+                    <RefreshCw size={16} className="animate-spin text-accent" />
+                    <span className="text-[11px] font-bold">Loading trend analytics...</span>
                   </div>
                 ) : selectedItemTrendError ? (
-                  <div className="h-28 flex items-center justify-center text-center p-2">
-                    <p className="text-[9px] text-rose-500 font-semibold">{selectedItemTrendError}</p>
+                  <div className="h-36 flex items-center justify-center text-center p-2">
+                    <p className="text-[10px] text-rose-500 font-semibold">{selectedItemTrendError}</p>
                   </div>
                 ) : isCombinedView && combinedTrendData.length > 0 ? (
                   // Multi-Line Combined Overlaid Performance Chart
-                  <div className="h-36 w-full -ml-4 pr-1 mt-1">
+                  <div className="h-52 w-full -ml-4 pr-1 mt-2">
                     <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                       <LineChart data={combinedTrendData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke={isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.03)'} vertical={false} />
+                        <CartesianGrid strokeDasharray="3 3" stroke={isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.04)'} vertical={false} />
                         <XAxis dataKey="period" stroke={isLight ? '#64748b' : 'rgba(255,255,255,0.4)'} fontSize={9} tickLine={false} axisLine={false} />
                         <YAxis stroke={isLight ? '#64748b' : 'rgba(255,255,255,0.4)'} fontSize={9} tickLine={false} axisLine={false} />
                         <RechartsTooltip content={<CustomTrendTooltip isLight={isLight} />} />
+                        
                         {/* Target Node Line */}
-                        <Line
-                          type="monotone"
-                          dataKey="target"
-                          name={detailsItem.checklist_name}
-                          stroke="#10b981"
-                          strokeWidth={2.5}
-                          dot={{ r: 3, strokeWidth: 1 }}
-                          activeDot={{ r: 6, strokeWidth: 2, stroke: '#fff' }}
-                        />
-                        {/* Linked Parent & Child Lines */}
-                        {Object.values(linkedAnalyticsMap).map((lData, idx) => (
+                        {!hiddenMetricIds.has('target') && (
                           <Line
-                            key={lData.id}
                             type="monotone"
-                            dataKey={`node_${lData.id}`}
-                            name={lData.name}
-                            stroke={idx % 2 === 0 ? '#6366f1' : '#f59e0b'}
-                            strokeDasharray="4 4"
-                            strokeWidth={2}
-                            dot={{ r: 3, strokeWidth: 1 }}
-                            activeDot={{ r: 6, strokeWidth: 2, stroke: '#fff' }}
+                            dataKey="target"
+                            name={`${detailsItem.checklist_name} (Target)`}
+                            stroke="#10b981"
+                            strokeWidth={hoveredMetricId === 'target' ? 4 : 3}
+                            strokeOpacity={hoveredMetricId && hoveredMetricId !== 'target' ? 0.15 : 1}
+                            dot={{ r: 3.5, strokeWidth: 1.5, stroke: '#10b981', fill: '#fff' }}
+                            activeDot={{ r: 7, strokeWidth: 2, stroke: '#fff' }}
                           />
-                        ))}
+                        )}
+
+                        {/* Linked Parent & Child Lines */}
+                        {Object.values(linkedAnalyticsMap).map((lData, idx) => {
+                          const metricKey = `node_${lData.id}`;
+                          if (hiddenMetricIds.has(metricKey)) return null;
+                          const color = MULTI_METRIC_COLORS[idx % MULTI_METRIC_COLORS.length];
+                          const isHovered = hoveredMetricId === metricKey;
+                          const isDimmed = hoveredMetricId && !isHovered;
+
+                          return (
+                            <Line
+                              key={lData.id}
+                              type="monotone"
+                              dataKey={metricKey}
+                              name={lData.name}
+                              stroke={color}
+                              strokeDasharray="4 4"
+                              strokeWidth={isHovered ? 3.5 : 2}
+                              strokeOpacity={isDimmed ? 0.15 : 0.85}
+                              dot={{ r: 3, strokeWidth: 1, stroke: color, fill: '#fff' }}
+                              activeDot={{ r: 6, strokeWidth: 2, stroke: '#fff' }}
+                            />
+                          );
+                        })}
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
                 ) : (
                   // Single Metric Performance Line Chart
-                  <div className="h-32 w-full -ml-4 pr-2 mt-1">
+                  <div className="h-36 w-full -ml-4 pr-2 mt-1">
                     <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                       <LineChart data={selectedItemTrend}>
-                        <CartesianGrid strokeDasharray="3 3" stroke={isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.03)'} vertical={false} />
+                        <CartesianGrid strokeDasharray="3 3" stroke={isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.04)'} vertical={false} />
                         <XAxis dataKey="period" stroke={isLight ? '#64748b' : 'rgba(255,255,255,0.4)'} fontSize={9} tickLine={false} axisLine={false} />
                         <YAxis stroke={isLight ? '#64748b' : 'rgba(255,255,255,0.4)'} fontSize={9} tickLine={false} axisLine={false} />
                         <RechartsTooltip content={<CustomTrendTooltip isLight={isLight} />} />
@@ -1760,9 +1881,9 @@ export default function KPINetworkView() {
                           dataKey="avg_value"
                           name={detailsItem.checklist_name}
                           stroke="#6366f1"
-                          strokeWidth={2.5}
-                          dot={{ r: 3, strokeWidth: 1 }}
-                          activeDot={{ r: 6, strokeWidth: 2, stroke: '#fff' }}
+                          strokeWidth={3}
+                          dot={{ r: 3.5, strokeWidth: 1.5, stroke: '#6366f1', fill: '#fff' }}
+                          activeDot={{ r: 7, strokeWidth: 2, stroke: '#fff' }}
                         />
                       </LineChart>
                     </ResponsiveContainer>
@@ -1997,6 +2118,156 @@ export default function KPINetworkView() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Expanded Fullscreen Performance Trend Modal */}
+      {isChartExpanded && detailsItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className={`w-full max-w-5xl rounded-3xl border shadow-2xl p-6 flex flex-col h-[650px] ${
+            isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#0b1329] border-white/10 text-white'
+          }`}>
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-4">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-primary block mb-0.5">
+                  Expanded Performance Trend Analytics
+                </span>
+                <h3 className="text-lg font-extrabold flex items-center gap-2">
+                  <TrendingUp size={20} className="text-primary" /> {detailsItem.checklist_name}
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsChartExpanded(false)}
+                className={`p-2 rounded-xl transition-all cursor-pointer ${
+                  isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700' : 'bg-white/10 hover:bg-white/15 text-white'
+                }`}
+                title="Close Fullscreen View"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Interactive Legend Chips */}
+            {isCombinedView && Object.keys(linkedAnalyticsMap).length > 0 && (
+              <div className="flex items-center justify-between gap-3 mb-4 flex-wrap bg-white/3 p-3 rounded-2xl border border-white/5">
+                <div className="flex items-center gap-2 flex-wrap flex-1">
+                  <span className={`text-xs font-black uppercase tracking-wider mr-1 ${isLight ? 'text-slate-600' : 'text-text-muted'}`}>
+                    Active Metrics:
+                  </span>
+                  
+                  {/* Target Node Tag */}
+                  <button
+                    type="button"
+                    onClick={() => toggleMetricVisibility('target')}
+                    onMouseEnter={() => setHoveredMetricId('target')}
+                    onMouseLeave={() => setHoveredMetricId(null)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-black border flex items-center gap-2 transition-all cursor-pointer ${
+                      hiddenMetricIds.has('target')
+                        ? 'opacity-40 line-through bg-slate-500/10 border-slate-500/20 text-slate-400'
+                        : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-500 shadow-sm'
+                    }`}
+                  >
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+                    {detailsItem.checklist_name} (Target)
+                  </button>
+
+                  {/* Linked Metrics Tags */}
+                  {Object.values(linkedAnalyticsMap).map((lData, idx) => {
+                    const color = MULTI_METRIC_COLORS[idx % MULTI_METRIC_COLORS.length];
+                    const metricKey = `node_${lData.id}`;
+                    const isHidden = hiddenMetricIds.has(metricKey);
+                    return (
+                      <button
+                        key={lData.id}
+                        type="button"
+                        onClick={() => toggleMetricVisibility(metricKey)}
+                        onMouseEnter={() => setHoveredMetricId(metricKey)}
+                        onMouseLeave={() => setHoveredMetricId(null)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-black border flex items-center gap-2 transition-all cursor-pointer ${
+                          isHidden
+                            ? 'opacity-40 line-through bg-slate-500/10 border-slate-500/20 text-slate-400'
+                            : isLight ? 'bg-slate-100 border-slate-200 text-slate-800' : 'bg-slate-900 border-white/10 text-white'
+                        }`}
+                      >
+                        <span className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: color }} />
+                        {lData.name}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {hiddenMetricIds.size > 0 && (
+                  <button
+                    onClick={resetMetricVisibility}
+                    className="px-3 py-1 bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 rounded-xl text-xs font-black transition-all cursor-pointer"
+                  >
+                    Reset & Show All
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Modal Large High-Res Chart Canvas */}
+            <div className="flex-1 w-full -ml-3 pr-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={isCombinedView ? combinedTrendData : selectedItemTrend}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.06)'} />
+                  <XAxis dataKey="period" stroke={isLight ? '#64748b' : 'rgba(255,255,255,0.5)'} fontSize={11} />
+                  <YAxis stroke={isLight ? '#64748b' : 'rgba(255,255,255,0.5)'} fontSize={11} />
+                  <RechartsTooltip content={<CustomTrendTooltip isLight={isLight} />} />
+
+                  {isCombinedView ? (
+                    <>
+                      {!hiddenMetricIds.has('target') && (
+                        <Line
+                          type="monotone"
+                          dataKey="target"
+                          name={`${detailsItem.checklist_name} (Target)`}
+                          stroke="#10b981"
+                          strokeWidth={hoveredMetricId === 'target' ? 4.5 : 3.5}
+                          strokeOpacity={hoveredMetricId && hoveredMetricId !== 'target' ? 0.15 : 1}
+                          dot={{ r: 4.5, strokeWidth: 2, stroke: '#10b981', fill: '#fff' }}
+                          activeDot={{ r: 8, strokeWidth: 2, stroke: '#fff' }}
+                        />
+                      )}
+                      {Object.values(linkedAnalyticsMap).map((lData, idx) => {
+                        const metricKey = `node_${lData.id}`;
+                        if (hiddenMetricIds.has(metricKey)) return null;
+                        const color = MULTI_METRIC_COLORS[idx % MULTI_METRIC_COLORS.length];
+                        const isHovered = hoveredMetricId === metricKey;
+                        const isDimmed = hoveredMetricId && !isHovered;
+                        return (
+                          <Line
+                            key={lData.id}
+                            type="monotone"
+                            dataKey={metricKey}
+                            name={lData.name}
+                            stroke={color}
+                            strokeDasharray="5 5"
+                            strokeWidth={isHovered ? 4.5 : 2.5}
+                            strokeOpacity={isDimmed ? 0.15 : 0.9}
+                            dot={{ r: 3.5, strokeWidth: 1.5, stroke: color, fill: '#fff' }}
+                            activeDot={{ r: 7, strokeWidth: 2, stroke: '#fff' }}
+                          />
+                        );
+                      })}
+                    </>
+                  ) : (
+                    <Line
+                      type="monotone"
+                      dataKey="avg_value"
+                      name={detailsItem.checklist_name}
+                      stroke="#6366f1"
+                      strokeWidth={3.5}
+                      dot={{ r: 4.5, strokeWidth: 2, stroke: '#6366f1', fill: '#fff' }}
+                      activeDot={{ r: 8, strokeWidth: 2, stroke: '#fff' }}
+                    />
+                  )}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         </div>
       )}
     </div>
