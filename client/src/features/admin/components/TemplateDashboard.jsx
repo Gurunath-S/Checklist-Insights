@@ -11,7 +11,8 @@ import {
   LayoutTemplate, Tag, Users, AlertTriangle, CheckCircle,
   ChevronDown, ChevronRight, Info, GitBranch, List,
   RefreshCw, Layers, Shield, Repeat, Clock, Edit2,
-  Check, X, Plus, Minus, Maximize2, Trash2, Link, Unlink, UserPlus, Save
+  Check, X, Plus, Minus, Maximize2, Trash2, Link, Unlink, UserPlus, Save,
+  HelpCircle, User, FileText, Sparkles
 } from 'lucide-react';
 import { useThemeStore } from '../../../store/useThemeStore';
 const KPINetworkView = React.lazy(() => import('../../kpi-network/components/KPINetworkView'));
@@ -77,172 +78,419 @@ const Notification = ({ notification, onClose }) => {
 const NodeDetailPanel = ({ node, onClose, onDisconnectTemplate }) => {
   const { theme } = useThemeStore();
   const isLight = theme === 'light';
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'items' | 'templates'
+  const [itemSearch, setItemSearch] = useState('');
+
   if (!node) return null;
+
+  const hasItems = !node.isTag && node.itemsList && node.itemsList.length > 0;
+  const hasTemplates = node.isTag && node.rawTag?.templates && node.rawTag.templates.length > 0;
+
+  // Filtered items if searching
+  const filteredItems = (node.itemsList || []).filter(item => {
+    if (!itemSearch.trim()) return true;
+    const q = itemSearch.toLowerCase();
+    const title = (item.title || item.name || item.checklist_name || '').toLowerCase();
+    const desc = (item.description || '').toLowerCase();
+    const type = (item.type || '').toLowerCase();
+    return title.includes(q) || desc.includes(q) || type.includes(q);
+  });
+
+  // Header accent styles based on node category
+  const accentBorder = node.isTag
+    ? 'border-amber-500/30'
+    : node.isOrphan
+    ? 'border-rose-500/30'
+    : 'border-emerald-500/30';
+
+  const accentBg = node.isTag
+    ? (isLight ? 'bg-amber-500/10 text-amber-700' : 'bg-amber-500/15 text-amber-400')
+    : node.isOrphan
+    ? (isLight ? 'bg-rose-500/10 text-rose-700' : 'bg-rose-500/15 text-rose-400')
+    : (isLight ? 'bg-emerald-500/10 text-emerald-700' : 'bg-emerald-500/15 text-emerald-400');
+
+  const gradientHeader = node.isTag
+    ? (isLight ? 'bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent' : 'bg-gradient-to-r from-amber-500/20 via-amber-500/5 to-transparent')
+    : node.isOrphan
+    ? (isLight ? 'bg-gradient-to-r from-rose-500/10 via-rose-500/5 to-transparent' : 'bg-gradient-to-r from-rose-500/20 via-rose-500/5 to-transparent')
+    : (isLight ? 'bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-transparent' : 'bg-gradient-to-r from-emerald-500/20 via-teal-500/5 to-transparent');
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end pointer-events-none">
-      <div className={`w-full max-w-md backdrop-blur-xl border-l p-6 flex flex-col h-full shadow-2xl overflow-y-auto pointer-events-auto animate-slide-in-right ${
-        isLight ? 'bg-white/95 border-slate-200 text-slate-900' : 'bg-[#0f172a]/95 border-white/10 text-white'
+      {/* Backdrop overlay */}
+      <div 
+        className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm pointer-events-auto animate-fade-in"
+        onClick={onClose}
+      />
+
+      {/* Slide-over panel */}
+      <div className={`relative w-full max-w-md backdrop-blur-2xl border-l flex flex-col h-full shadow-2xl overflow-hidden pointer-events-auto animate-slide-in-right z-10 ${
+        isLight ? 'bg-white/95 border-slate-200 text-slate-900' : 'bg-[#0b1329]/95 border-white/10 text-white'
       }`}>
+        
         {/* Panel Header */}
-        <div className={`flex items-center justify-between pb-4 border-b mb-6 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
-          <div className="flex items-center gap-2.5">
-            <div className={`p-2 rounded-xl border ${
-              node.isTag ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' :
-              node.isOrphan ? 'bg-rose-500/10 border-rose-500/20 text-rose-500' :
-              'bg-emerald-500/10 border-emerald-500/20 text-emerald-500'
-            }`}>
-              {node.isTag ? (
-                <Tag size={18} />
-              ) : node.isOrphan ? (
-                <AlertTriangle size={18} />
-              ) : (
-                <LayoutTemplate size={18} />
-              )}
+        <div className={`p-6 pb-4 border-b ${gradientHeader} ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className={`p-3 rounded-2xl border ${accentBg} ${accentBorder} shadow-sm shrink-0`}>
+                {node.isTag ? (
+                  <Tag size={20} />
+                ) : node.isOrphan ? (
+                  <AlertTriangle size={20} />
+                ) : (
+                  <LayoutTemplate size={20} />
+                )}
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full border ${accentBg} ${accentBorder}`}>
+                    {node.isTag ? 'Tag Classification' : node.isOrphan ? 'Unconnected Template' : 'Template Node'}
+                  </span>
+                </div>
+                <h3 className={`text-base font-extrabold leading-tight truncate max-w-[280px] ${isLight ? 'text-slate-900' : 'text-white'}`} title={node.name}>
+                  {node.name}
+                </h3>
+              </div>
             </div>
-            <div>
-              <span className={`text-[9px] font-black uppercase tracking-widest block ${isLight ? 'text-slate-500' : 'text-text-muted'}`}>
-                {node.isTag ? 'Tag Classification' : node.isOrphan ? 'Unconnected Template' : 'Template Node'}
-              </span>
-              <h3 className={`text-sm font-extrabold leading-tight mt-0.5 ${isLight ? 'text-slate-900' : 'text-white'}`}>{node.name}</h3>
-            </div>
+            <button
+              onClick={onClose}
+              className={`p-2 rounded-xl transition-all cursor-pointer shrink-0 ${
+                isLight ? 'text-slate-400 hover:text-slate-900 bg-slate-100 hover:bg-slate-200' : 'text-text-muted hover:text-white bg-white/5 hover:bg-white/10'
+              }`}
+              title="Close panel"
+            >
+              <X size={16} />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className={`p-1.5 rounded-xl transition-all cursor-pointer ${
-              isLight ? 'text-slate-400 hover:text-slate-900 bg-slate-100 hover:bg-slate-200' : 'text-text-muted hover:text-white bg-white/5 hover:bg-white/10'
-            }`}
-          >
-            <X size={16} />
-          </button>
+
+          {/* Navigation Sub-Tabs */}
+          <div className={`flex items-center gap-1.5 p-1 rounded-2xl border mt-5 ${
+            isLight ? 'bg-slate-100 border-slate-200' : 'bg-slate-900/80 border-white/10'
+          }`}>
+            <button
+              onClick={() => setActiveTab('overview')}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                activeTab === 'overview'
+                  ? 'bg-primary text-white shadow-md'
+                  : isLight ? 'text-slate-600 hover:text-slate-900' : 'text-text-muted hover:text-white'
+              }`}
+            >
+              <Info size={13} /> Overview
+            </button>
+
+            {!node.isTag && (
+              <button
+                onClick={() => setActiveTab('items')}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                  activeTab === 'items'
+                    ? 'bg-primary text-white shadow-md'
+                    : isLight ? 'text-slate-600 hover:text-slate-900' : 'text-text-muted hover:text-white'
+                }`}
+              >
+                <HelpCircle size={13} /> Questions
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${
+                  activeTab === 'items' ? 'bg-white/20 text-white' : isLight ? 'bg-slate-200 text-slate-700' : 'bg-white/10 text-white'
+                }`}>
+                  {node.itemsList?.length || node.items || 0}
+                </span>
+              </button>
+            )}
+
+            {node.isTag && (
+              <button
+                onClick={() => setActiveTab('templates')}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                  activeTab === 'templates'
+                    ? 'bg-primary text-white shadow-md'
+                    : isLight ? 'text-slate-600 hover:text-slate-900' : 'text-text-muted hover:text-white'
+                }`}
+              >
+                <LayoutTemplate size={13} /> Templates
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${
+                  activeTab === 'templates' ? 'bg-white/20 text-white' : isLight ? 'bg-slate-200 text-slate-700' : 'bg-white/10 text-white'
+                }`}>
+                  {node.rawTag?.templates?.length || node.templatesCount || 0}
+                </span>
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Content Details */}
-        <div className="space-y-5 flex-1">
-          {/* Attributes Grid */}
-          <div className="bg-white/2 border border-white/5 rounded-2xl p-4 space-y-3">
-            <h4 className="text-[10px] font-black text-white uppercase tracking-widest">Node Properties</h4>
-            <div className="grid grid-cols-2 gap-2.5 text-xs">
-              {node.isTag ? (
-                <>
-                  <div className="bg-white/3 p-2.5 rounded-xl border border-white/5">
-                    <span className="text-[9px] text-text-muted font-bold uppercase tracking-wider block mb-1">Recurrence</span>
-                    <span className="text-xs font-black text-amber-400">{node.recurrent || 'None'}</span>
-                  </div>
-                  <div className="bg-white/3 p-2.5 rounded-xl border border-white/5">
-                    <span className="text-[9px] text-text-muted font-bold uppercase tracking-wider block mb-1">Templates Count</span>
-                    <span className="text-xs font-black text-white">{node.templatesCount || 0}</span>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="bg-white/3 p-2.5 rounded-xl border border-white/5">
-                    <span className="text-[9px] text-text-muted font-bold uppercase tracking-wider block mb-1">Priority</span>
-                    <span className={`text-xs font-black ${
-                      node.priority === 'HIGH' ? 'text-rose-400' :
-                      node.priority === 'MEDIUM' ? 'text-amber-400' :
-                      'text-emerald-400'
-                    }`}>
-                      {node.priority || 'LOW'}
-                    </span>
-                  </div>
-                  <div className="bg-white/3 p-3 rounded-xl border border-white/5">
-                    <span className="text-xs text-text-muted font-extrabold uppercase tracking-wider block mb-1">Owner</span>
-                    <span className={`text-xs font-bold ${node.owner ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {node.owner || 'Unassigned'}
-                    </span>
-                  </div>
-                  <div className="bg-white/3 p-3 rounded-xl border border-white/5">
-                    <span className="text-xs text-text-muted font-extrabold uppercase tracking-wider block mb-1">Tag Classification</span>
-                    <span className="text-xs font-bold text-amber-400">{node.tag || 'Unconnected'}</span>
-                  </div>
-                  <div className="bg-white/3 p-3 rounded-xl border border-white/5">
-                    <span className="text-xs text-text-muted font-extrabold uppercase tracking-wider block mb-1">Recurrence</span>
-                    <span className="text-xs font-bold text-white">{node.recurrent || 'None'}</span>
-                  </div>
-                  <div className="bg-white/3 p-3 rounded-xl border border-white/5">
-                    <span className="text-xs text-text-muted font-extrabold uppercase tracking-wider block mb-1">Checklist Questions</span>
-                    <span className="text-xs font-black text-white">{node.items || 0}</span>
-                  </div>
-                  <div className="bg-white/3 p-3 rounded-xl border border-white/5">
-                    <span className="text-xs text-text-muted font-extrabold uppercase tracking-wider block mb-1">Recipients Count</span>
-                    <span className="text-xs font-black text-white">{node.recipients || 0}</span>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
+        {/* Panel Content Body */}
+        <div className="p-6 flex-1 overflow-y-auto custom-scrollbar space-y-5">
+          {activeTab === 'overview' && (
+            <div className="space-y-5">
+              {/* Properties Matrix Card */}
+              <div className={`p-4 rounded-3xl border ${
+                isLight ? 'bg-slate-50/80 border-slate-200' : 'bg-white/2 border-white/5'
+              }`}>
+                <div className="flex items-center justify-between mb-3.5">
+                  <h4 className={`text-xs font-black uppercase tracking-wider flex items-center gap-1.5 ${
+                    isLight ? 'text-slate-800' : 'text-white'
+                  }`}>
+                    <Shield size={14} className="text-primary" /> Node Properties & Configuration
+                  </h4>
+                  <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full ${
+                    isLight ? 'bg-slate-200 text-slate-600' : 'bg-white/5 text-text-muted'
+                  }`}>
+                    Live Attributes
+                  </span>
+                </div>
 
-          {/* List of Templates under Tag */}
-          {node.isTag && node.rawTag?.templates && (
-            <div className="bg-white/2 border border-white/5 rounded-2xl p-4 space-y-3">
-              <h4 className="text-xs font-black text-white uppercase tracking-widest">
-                Connected Templates ({node.rawTag.templates.length})
-              </h4>
-              <div className="space-y-2 max-h-56 overflow-y-auto pr-1 custom-scrollbar">
-                {node.rawTag.templates.length === 0 ? (
-                  <p className="text-xs text-text-muted italic">No templates connected to this tag.</p>
-                ) : (
-                  node.rawTag.templates.map(tmpl => (
-                    <div key={tmpl.id} className="p-3 bg-white/3 border border-white/5 rounded-xl flex items-center justify-between text-xs">
-                      <span className="font-bold text-white truncate max-w-[240px]">{tmpl.template_name}</span>
-                      <span className="text-xs text-text-muted font-black uppercase bg-white/5 border border-white/10 px-2.5 py-1 rounded">
-                        {tmpl.itemCount || 0} items
-                      </span>
-                    </div>
-                  ))
-                )}
+                <div className="grid grid-cols-2 gap-3">
+                  {node.isTag ? (
+                    <>
+                      <div className={`p-3 rounded-2xl border ${
+                        isLight ? 'bg-white border-slate-200' : 'bg-slate-900/60 border-white/5'
+                      }`}>
+                        <span className={`text-[10px] font-extrabold uppercase tracking-wider block mb-1 flex items-center gap-1 ${
+                          isLight ? 'text-slate-500' : 'text-text-muted'
+                        }`}>
+                          <Clock size={11} /> Recurrence Period
+                        </span>
+                        <span className="text-xs font-black text-amber-500">{node.recurrent || 'None'}</span>
+                      </div>
+
+                      <div className={`p-3 rounded-2xl border ${
+                        isLight ? 'bg-white border-slate-200' : 'bg-slate-900/60 border-white/5'
+                      }`}>
+                        <span className={`text-[10px] font-extrabold uppercase tracking-wider block mb-1 flex items-center gap-1 ${
+                          isLight ? 'text-slate-500' : 'text-text-muted'
+                        }`}>
+                          <LayoutTemplate size={11} /> Connected Templates
+                        </span>
+                        <span className={`text-xs font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>{node.templatesCount || 0}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className={`p-3 rounded-2xl border ${
+                        isLight ? 'bg-white border-slate-200' : 'bg-slate-900/60 border-white/5'
+                      }`}>
+                        <span className={`text-[10px] font-extrabold uppercase tracking-wider block mb-1 flex items-center gap-1 ${
+                          isLight ? 'text-slate-500' : 'text-text-muted'
+                        }`}>
+                          <Shield size={11} /> Priority Level
+                        </span>
+                        <span className={`text-xs font-black px-2 py-0.5 rounded-md inline-block ${
+                          node.priority === 'HIGH' ? 'bg-rose-500/15 text-rose-500 border border-rose-500/20' :
+                          node.priority === 'MEDIUM' ? 'bg-amber-500/15 text-amber-500 border border-amber-500/20' :
+                          'bg-emerald-500/15 text-emerald-500 border border-emerald-500/20'
+                        }`}>
+                          {node.priority || 'LOW'}
+                        </span>
+                      </div>
+
+                      <div className={`p-3 rounded-2xl border ${
+                        isLight ? 'bg-white border-slate-200' : 'bg-slate-900/60 border-white/5'
+                      }`}>
+                        <span className={`text-[10px] font-extrabold uppercase tracking-wider block mb-1 flex items-center gap-1 ${
+                          isLight ? 'text-slate-500' : 'text-text-muted'
+                        }`}>
+                          <User size={11} /> Assigned Owner
+                        </span>
+                        <span className={`text-xs font-extrabold ${node.owner ? (isLight ? 'text-emerald-700' : 'text-emerald-400') : 'text-rose-500'}`}>
+                          {node.owner || 'Unassigned'}
+                        </span>
+                      </div>
+
+                      <div className={`p-3 rounded-2xl border ${
+                        isLight ? 'bg-white border-slate-200' : 'bg-slate-900/60 border-white/5'
+                      }`}>
+                        <span className={`text-[10px] font-extrabold uppercase tracking-wider block mb-1 flex items-center gap-1 ${
+                          isLight ? 'text-slate-500' : 'text-text-muted'
+                        }`}>
+                          <Tag size={11} /> Tag Classification
+                        </span>
+                        <span className={`text-xs font-extrabold truncate block ${
+                          node.tag ? (isLight ? 'text-amber-700' : 'text-amber-400') : 'text-rose-500'
+                        }`}>
+                          {node.tag || 'Unconnected'}
+                        </span>
+                      </div>
+
+                      <div className={`p-3 rounded-2xl border ${
+                        isLight ? 'bg-white border-slate-200' : 'bg-slate-900/60 border-white/5'
+                      }`}>
+                        <span className={`text-[10px] font-extrabold uppercase tracking-wider block mb-1 flex items-center gap-1 ${
+                          isLight ? 'text-slate-500' : 'text-text-muted'
+                        }`}>
+                          <Repeat size={11} /> Tag Frequency
+                        </span>
+                        <span className={`text-xs font-extrabold ${isLight ? 'text-slate-800' : 'text-white'}`}>{node.recurrent || 'None'}</span>
+                      </div>
+
+                      <div className={`p-3 rounded-2xl border ${
+                        isLight ? 'bg-white border-slate-200' : 'bg-slate-900/60 border-white/5'
+                      }`}>
+                        <span className={`text-[10px] font-extrabold uppercase tracking-wider block mb-1 flex items-center gap-1 ${
+                          isLight ? 'text-slate-500' : 'text-text-muted'
+                        }`}>
+                          <HelpCircle size={11} /> Checklist Items
+                        </span>
+                        <span className="text-xs font-black text-primary">{node.items || 0} Questions</span>
+                      </div>
+
+                      <div className={`p-3 rounded-2xl border ${
+                        isLight ? 'bg-white border-slate-200' : 'bg-slate-900/60 border-white/5'
+                      }`}>
+                        <span className={`text-[10px] font-extrabold uppercase tracking-wider block mb-1 flex items-center gap-1 ${
+                          isLight ? 'text-slate-500' : 'text-text-muted'
+                        }`}>
+                          <Users size={11} /> Recipients
+                        </span>
+                        <span className={`text-xs font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>{node.recipients || 0}</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Status Summary Banner */}
+              <div className={`p-4 rounded-3xl border flex items-start gap-3 ${
+                node.isOrphan 
+                  ? isLight ? 'bg-rose-50 border-rose-200 text-rose-800' : 'bg-rose-500/10 border-rose-500/20 text-rose-300'
+                  : isLight ? 'bg-indigo-50 border-indigo-200 text-indigo-900' : 'bg-indigo-500/10 border-indigo-500/20 text-indigo-200'
+              }`}>
+                <Info size={16} className="shrink-0 mt-0.5 text-primary" />
+                <div className="text-xs space-y-1">
+                  <span className="font-extrabold block">
+                    {node.isTag ? 'Classification Tag Summary' : node.isOrphan ? 'Unconnected Template Warning' : 'Active Template Summary'}
+                  </span>
+                  <p className="leading-relaxed opacity-90 text-[11px]">
+                    {node.isTag
+                      ? `This tag groups ${node.templatesCount || 0} templates under the ${node.recurrent || 'custom'} recurrence schedule.`
+                      : node.isOrphan
+                      ? 'This template is currently unassigned to any department tag classification. Connect it to ensure automated reporting.'
+                      : `Configured under ${node.tag || 'department tag'} with ${node.items || 0} evaluation question metrics.`}
+                  </p>
+                </div>
               </div>
             </div>
           )}
 
-          {/* List of Items under Template */}
-          {!node.isTag && node.itemsList && node.itemsList.length > 0 && (
-            <div className="bg-white/2 border border-white/5 rounded-2xl p-4 space-y-3">
-              <h4 className="text-xs font-black text-white uppercase tracking-widest">
-                Checklist Questions ({node.itemsList.length})
-              </h4>
-              <div className="space-y-2 max-h-56 overflow-y-auto pr-1 custom-scrollbar">
-                {node.itemsList.map((item, idx) => (
-                  <div key={idx} className="p-3 bg-white/3 border border-white/5 rounded-xl text-xs space-y-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-bold text-white line-clamp-1">{item.title || item.name || item.checklist_name || `Item ${idx + 1}`}</span>
-                      {item.type && (
-                        <span className="text-xs font-black uppercase tracking-wider bg-white/5 border border-white/10 px-2 py-0.5 rounded text-text-muted shrink-0">
-                          {item.type}
-                        </span>
+          {activeTab === 'items' && !node.isTag && (
+            <div className="space-y-4">
+              {/* Question search input */}
+              {hasItems && node.itemsList.length > 3 && (
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search questions..."
+                    value={itemSearch}
+                    onChange={(e) => setItemSearch(e.target.value)}
+                    className={`w-full pl-9 pr-3 py-2 text-xs font-bold rounded-2xl border outline-none transition-all ${
+                      isLight
+                        ? 'bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-primary'
+                        : 'bg-slate-900/60 border-white/10 text-white placeholder:text-text-muted focus:border-primary'
+                    }`}
+                  />
+                  <HelpCircle size={14} className="absolute left-3 top-2.5 text-text-muted" />
+                </div>
+              )}
+
+              {/* Items List */}
+              {filteredItems.length === 0 ? (
+                <div className={`p-8 text-center rounded-3xl border ${
+                  isLight ? 'bg-slate-50 border-slate-200 text-slate-500' : 'bg-white/2 border-white/5 text-text-muted'
+                }`}>
+                  <HelpCircle size={28} className="mx-auto mb-2 opacity-50 text-primary" />
+                  <p className="text-xs font-extrabold">No checklist questions found</p>
+                  <p className="text-[10px] opacity-75 mt-0.5">This template has no configured questions or none match your search.</p>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {filteredItems.map((item, idx) => (
+                    <div key={idx} className={`p-3.5 rounded-2xl border transition-all ${
+                      isLight ? 'bg-slate-50/90 hover:bg-slate-100 border-slate-200' : 'bg-slate-900/50 hover:bg-slate-900/80 border-white/5'
+                    }`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-2.5 min-w-0">
+                          <span className="w-5 h-5 rounded-lg bg-primary/15 border border-primary/30 text-primary text-[10px] font-black flex items-center justify-center shrink-0 mt-0.5">
+                            {idx + 1}
+                          </span>
+                          <span className={`text-xs font-extrabold leading-snug ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                            {item.title || item.name || item.checklist_name || `Question ${idx + 1}`}
+                          </span>
+                        </div>
+                        {item.type && (
+                          <span className="text-[9px] font-black uppercase tracking-wider bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded-md shrink-0">
+                            {item.type}
+                          </span>
+                        )}
+                      </div>
+                      {item.description && (
+                        <p className={`text-[11px] mt-2 pl-7 leading-relaxed ${isLight ? 'text-slate-600' : 'text-text-muted'}`}>
+                          {item.description}
+                        </p>
                       )}
                     </div>
-                    {item.description && (
-                      <p className="text-xs text-text-muted leading-relaxed line-clamp-2">{item.description}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'templates' && node.isTag && (
+            <div className="space-y-3">
+              {!hasTemplates ? (
+                <div className={`p-8 text-center rounded-3xl border ${
+                  isLight ? 'bg-slate-50 border-slate-200 text-slate-500' : 'bg-white/2 border-white/5 text-text-muted'
+                }`}>
+                  <LayoutTemplate size={28} className="mx-auto mb-2 opacity-50 text-amber-500" />
+                  <p className="text-xs font-extrabold">No connected templates</p>
+                  <p className="text-[10px] opacity-75 mt-0.5">No templates are assigned to this tag classification yet.</p>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {node.rawTag.templates.map(tmpl => (
+                    <div key={tmpl.id} className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 transition-all ${
+                      isLight ? 'bg-slate-50/90 hover:bg-slate-100 border-slate-200' : 'bg-slate-900/50 hover:bg-slate-900/80 border-white/5'
+                    }`}>
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <LayoutTemplate size={15} className="text-amber-500 shrink-0" />
+                        <span className={`text-xs font-bold truncate max-w-[220px] ${isLight ? 'text-slate-900' : 'text-white'}`} title={tmpl.template_name}>
+                          {tmpl.template_name}
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-black uppercase bg-primary/10 border border-primary/20 text-primary px-2.5 py-1 rounded-lg shrink-0">
+                        {tmpl.itemCount || 0} items
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
 
         {/* Panel Footer Actions */}
-        <div className="pt-4 border-t border-white/10 mt-5 flex items-center justify-between gap-3">
+        <div className={`p-4 px-6 border-t flex items-center justify-between gap-3 ${
+          isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/80 border-white/10'
+        }`}>
           {!node.isTag && !node.isOrphan && node.id && onDisconnectTemplate && (
             <button
               onClick={() => {
                 onDisconnectTemplate(node.id);
                 onClose();
               }}
-              className="flex items-center gap-1.5 px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-400 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 text-amber-500 rounded-xl text-xs font-extrabold transition-all cursor-pointer"
             >
-              <Unlink size={14} /> Disconnect from Tag
+              <Unlink size={13} /> Disconnect Tag
             </button>
           )}
           <button
             onClick={onClose}
-            className="ml-auto px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+            className={`ml-auto px-5 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+              isLight
+                ? 'bg-slate-200 hover:bg-slate-300 text-slate-800'
+                : 'bg-white/10 hover:bg-white/15 text-white border border-white/10'
+            }`}
           >
-            Close
+            Close Panel
           </button>
         </div>
+
       </div>
     </div>
   );
