@@ -1109,15 +1109,20 @@ export default function KPINetworkView() {
 
                     <div className={`flex items-center justify-between text-xs font-semibold mt-0.5 ${isLight ? 'text-slate-600' : 'text-text-sub'}`}>
                       <span className="font-bold">{item.input_type}</span>
-                      <span className={`px-2 py-0.5 rounded-md font-black text-[10px] ${
-                        item.avg_value !== null
-                          ? item.input_type === 'Boolean'
-                            ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30'
-                            : 'bg-indigo-500/15 text-indigo-500 border border-indigo-500/30'
-                          : isLight ? 'bg-slate-100 text-slate-400 border border-slate-200' : 'bg-white/5 text-slate-500 border border-white/10'
-                      }`}>
-                        {item.avg_value !== null ? (item.input_type === 'Boolean' ? `${item.avg_value}% Avg` : `Avg: ${item.avg_value}`) : 'No Data'}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`px-2 py-0.5 rounded-md font-black text-[10px] ${
+                          item.avg_value !== null
+                            ? item.input_type === 'Boolean'
+                              ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30'
+                              : 'bg-indigo-500/15 text-indigo-500 border border-indigo-500/30'
+                            : isLight ? 'bg-slate-100 text-slate-400 border border-slate-200' : 'bg-white/5 text-slate-500 border border-white/10'
+                        }`}>
+                          {item.avg_value !== null ? (item.input_type === 'Boolean' ? `${item.avg_value}% Avg` : `Avg: ${item.avg_value}`) : 'No Data'}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] ${isLight ? 'bg-slate-100 text-slate-800 border border-slate-200' : 'bg-white/5 text-white'}`}>
+                          {item.total_count ?? 0} resp
+                        </span>
+                      </div>
                     </div>
                   </div>
                 );
@@ -1488,61 +1493,34 @@ export default function KPINetworkView() {
                       fill={isLight ? '#0f172a' : '#ffffff'}
                       style={{ fontSize: 13, fontWeight: 800, fontFamily: 'Outfit,Inter,sans-serif' }}
                     >
-                      {node.checklist_name.length > 24
-                        ? node.checklist_name.slice(0, 22) + '...'
+                      {node.checklist_name.length > 32
+                        ? node.checklist_name.slice(0, 30) + '...'
                         : node.checklist_name
                       }
                     </text>
 
-                    {/* Average Value Pill Badge (Top-Right of Card) */}
-                    <g transform="translate(42, -22)" title={`Average value: ${node.avg_value ?? 'No responses'}`}>
-                      <rect
-                        x={-35}
-                        y={-10}
-                        width={70}
-                        height={20}
-                        rx={7}
-                        fill={
-                          node.avg_value !== null
-                            ? node.input_type === 'Boolean'
-                              ? (isLight ? "rgba(16, 185, 129, 0.15)" : "rgba(16, 185, 129, 0.22)")
-                              : (isLight ? "rgba(99, 102, 241, 0.15)" : "rgba(99, 102, 241, 0.22)")
-                            : (isLight ? "#f1f5f9" : "rgba(255,255,255,0.06)")
-                        }
-                        stroke={
-                          node.avg_value !== null
-                            ? node.input_type === 'Boolean'
-                              ? (isLight ? "rgba(16, 185, 129, 0.35)" : "rgba(16, 185, 129, 0.45)")
-                              : (isLight ? "rgba(99, 102, 241, 0.35)" : "rgba(99, 102, 241, 0.45)")
-                            : (isLight ? "#e2e8f0" : "rgba(255,255,255,0.12)")
-                        }
-                        strokeWidth={1}
-                      />
-                      <text
-                        x={0}
-                        y={3.5}
-                        textAnchor="middle"
-                        fill={
-                          node.avg_value !== null
-                            ? node.input_type === 'Boolean' ? "#10b981" : (isLight ? "#4f46e5" : "#818cf8")
-                            : (isLight ? "#94a3b8" : "#64748b")
-                        }
-                        style={{ fontSize: 9.5, fontWeight: 900, fontFamily: 'Outfit,Inter,sans-serif' }}
-                      >
-                        {node.avg_value !== null
-                          ? `${node.input_type === 'Boolean' ? `${node.avg_value}%` : node.avg_value} Avg`
-                          : 'No Data'}
-                      </text>
-                    </g>
-
                     {/* Node Type Metadata */}
                     <text
                       x={-110}
-                      y={10}
+                      y={6}
                       fill={isLight ? '#475569' : '#94a3b8'}
                       style={{ fontSize: 11, fontWeight: 700, fontFamily: 'Outfit,Inter,sans-serif' }}
                     >
                       {node.input_type} Metric
+                    </text>
+
+                    {/* Node Average Value & Aggregation (Replaces old Monthly Responses line) */}
+                    <text
+                      x={-110}
+                      y={24}
+                      fill={
+                        node.avg_value !== null
+                          ? node.input_type === 'Boolean' ? '#10b981' : (isLight ? '#4f46e5' : '#818cf8')
+                          : (isLight ? '#64748b' : '#94a3b8')
+                      }
+                      style={{ fontSize: 10.5, fontWeight: 800, fontFamily: 'Outfit,Inter,sans-serif' }}
+                    >
+                      Avg: {node.avg_value !== null ? (node.input_type === 'Boolean' ? `${node.avg_value}%` : node.avg_value) : 'No Data'} • {node.aggregation}
                     </text>
 
                     {/* Remove Node Button (Top Right of Card) */}
