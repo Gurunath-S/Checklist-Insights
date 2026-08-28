@@ -1109,20 +1109,15 @@ export default function KPINetworkView() {
 
                     <div className={`flex items-center justify-between text-xs font-semibold mt-0.5 ${isLight ? 'text-slate-600' : 'text-text-sub'}`}>
                       <span className="font-bold">{item.input_type}</span>
-                      <div className="flex items-center gap-1.5">
-                        <span className={`px-2 py-0.5 rounded-md font-black text-[10px] ${
-                          item.avg_value !== null
-                            ? item.input_type === 'Boolean'
-                              ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30'
-                              : 'bg-indigo-500/15 text-indigo-500 border border-indigo-500/30'
-                            : isLight ? 'bg-slate-100 text-slate-400 border border-slate-200' : 'bg-white/5 text-slate-500 border border-white/10'
-                        }`}>
-                          {item.avg_value !== null ? (item.input_type === 'Boolean' ? `${item.avg_value}% Avg` : `Avg: ${item.avg_value}`) : 'No Data'}
-                        </span>
-                        <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] ${isLight ? 'bg-slate-100 text-slate-800 border border-slate-200' : 'bg-white/5 text-white'}`}>
-                          {item.total_count ?? 0} resp
-                        </span>
-                      </div>
+                      <span className={`px-2 py-0.5 rounded-md font-black text-[10px] ${
+                        item.avg_value !== null
+                          ? item.input_type === 'Boolean'
+                            ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30'
+                            : 'bg-indigo-500/15 text-indigo-500 border border-indigo-500/30'
+                          : isLight ? 'bg-slate-100 text-slate-400 border border-slate-200' : 'bg-white/5 text-slate-500 border border-white/10'
+                      }`}>
+                        {item.avg_value !== null ? (item.input_type === 'Boolean' ? `${item.avg_value}% Avg` : `Avg: ${item.avg_value}`) : 'No Data'}
+                      </span>
                     </div>
                   </div>
                 );
@@ -1543,21 +1538,11 @@ export default function KPINetworkView() {
                     {/* Node Type Metadata */}
                     <text
                       x={-110}
-                      y={6}
+                      y={10}
                       fill={isLight ? '#475569' : '#94a3b8'}
                       style={{ fontSize: 11, fontWeight: 700, fontFamily: 'Outfit,Inter,sans-serif' }}
                     >
                       {node.input_type} Metric
-                    </text>
-
-                    {/* Node Aggregation & Response Count */}
-                    <text
-                      x={-110}
-                      y={24}
-                      fill={isLight ? '#64748b' : '#cbd5e1'}
-                      style={{ fontSize: 10, fontWeight: 700, fontFamily: 'Outfit,Inter,sans-serif' }}
-                    >
-                      {node.aggregation} • {node.total_count ?? 0} response{(node.total_count ?? 0) !== 1 ? 's' : ''}
                     </text>
 
                     {/* Remove Node Button (Top Right of Card) */}
