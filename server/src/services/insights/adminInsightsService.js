@@ -9,10 +9,7 @@ const checkRequesterAdmin = async (authUserId) => {
     }
   });
   
-  return (
-    requester?.user_type?.trim() === 'ADMIN' || 
-    requester?.User?.email === 'gururider35@gmail.com'
-  );
+  return requester?.user_type?.trim() === 'ADMIN';
 };
 
 const getAdminSummary = async (startDate, endDate) => {

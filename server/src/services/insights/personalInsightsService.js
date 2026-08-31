@@ -19,9 +19,7 @@ const checkRequesterAuthorized = async (authUserId, targetUserId) => {
     }
   });
 
-  const isRequesterAdmin = 
-    requester?.user_type?.trim() === 'ADMIN' || 
-    requester?.User?.email === 'gururider35@gmail.com';
+  const isRequesterAdmin = requester?.user_type?.trim() === 'ADMIN';
 
   return !!isRequesterAdmin;
 };
