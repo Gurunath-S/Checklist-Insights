@@ -7,6 +7,15 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Otp {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  otp       String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 model User {
   id                         Int                          @id @default(autoincrement())
   email                      String                       @unique
@@ -161,10 +170,12 @@ model Organisation_Users {
   checklist_template_owners  checklist_template_owners[]
   checklist_template_version checklist_template_version[]
   tags                       tags[]
+  sessions                   Session[]
 
   @@index([organisation_id], map: "Organisation_Users_organisation_id_fkey")
   @@index([user_id], map: "Organisation_Users_user_id_fkey")
   @@index([exclude_from_reports], map: "idx_organisation_users_exclude_from_reports")
+  @@index([user_type], map: "idx_organisation_users_user_type")
 }
 
 model TemplateRecipients {
@@ -263,3 +274,23 @@ model checklist_item_kpi_config {
 
   @@index([item_id])
 }
+
+// ── Session & Token Security ──────────────────────────────────────────────────
+
+model Session {
+  id                   String             @id @default(uuid())
+  organisation_user_id Int
+  refreshTokenHash     String             @db.VarChar(255)
+  userAgent            String?            @db.VarChar(500)
+  ipAddress            String?            @db.VarChar(45)
+  isRevoked            Boolean            @default(false)
+  expiresAt            DateTime
+  createdAt            DateTime           @default(now())
+  lastUsedAt           DateTime           @default(now()) @updatedAt
+  user                 Organisation_Users @relation(fields: [organisation_user_id], references: [id], onDelete: Cascade)
+
+  @@index([organisation_user_id])
+  @@index([refreshTokenHash])
+  @@index([expiresAt])
+}
+
