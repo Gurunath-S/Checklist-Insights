@@ -12,19 +12,21 @@ const app = express();
 // Enable trust proxy for Render / Vercel reverse proxies
 app.set('trust proxy', 1);
 
-const allowedOrigins = [
+// Exact allowed origins only - no wildcard subdomains allowed!
+const allowedOrigins = new Set([
   'https://checklist-insights.vercel.app',
   'http://localhost:5173',
   'http://localhost:3000'
-];
+]);
 
 if (process.env.CLIENT_URL) {
-  allowedOrigins.push(process.env.CLIENT_URL.trim());
+  allowedOrigins.add(process.env.CLIENT_URL.trim());
 }
 
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
+    // Allow non-browser tools (e.g. mobile apps/Postman when origin is undefined) or exact whitelisted domains
+    if (!origin || allowedOrigins.has(origin)) {
       callback(null, true);
     } else {
       callback(null, false);
