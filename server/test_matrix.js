@@ -182,7 +182,7 @@ async function runTestMatrix() {
       method: 'POST',
       headers: { Origin: 'http://malicious-attacker-domain.com' }
     });
-    assert(corsRes.statusCode === 500 || corsRes.data.includes('CORS'), 'CORS rejects unknown origin http://malicious-attacker-domain.com');
+    assert(!corsRes.headers['access-control-allow-origin'], 'CORS rejects unknown origin http://malicious-attacker-domain.com');
 
     // ----------------------------------------------------
     // TEST SECTION 5: Concurrent Requests & Single Refresh Execution
