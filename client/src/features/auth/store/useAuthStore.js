@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { googleLoginApi, microsoftLoginApi } from '../services/authService';
+import apiClient, { setAccessToken } from '../../../services/apiClient';
 
 export const useAuthStore = create((set) => ({
   user: (() => {
@@ -11,8 +12,8 @@ export const useAuthStore = create((set) => ({
       return null;
     }
   })(),
-  loading: !!localStorage.getItem('token'),
-  isValidatingSession: !!localStorage.getItem('token'),
+  loading: true,
+  isValidatingSession: true,
   loginError: null,
   isGoogleLoading: false,
   isMicrosoftLoading: false,
@@ -45,7 +46,7 @@ export const useAuthStore = create((set) => ({
       const data = await googleLoginApi(tokenToSend, isAccessToken);
       const { token, user: loggedUser } = data;
       
-      localStorage.setItem('token', token);
+      setAccessToken(token);
       localStorage.setItem('user', JSON.stringify(loggedUser));
       set({ user: loggedUser, loginError: null });
       return loggedUser;
@@ -62,7 +63,7 @@ export const useAuthStore = create((set) => ({
       const data = await microsoftLoginApi(accessToken);
       const { token, user: loggedUser } = data;
       
-      localStorage.setItem('token', token);
+      setAccessToken(token);
       localStorage.setItem('user', JSON.stringify(loggedUser));
       set({ user: loggedUser, loginError: null });
       return loggedUser;
@@ -74,9 +75,27 @@ export const useAuthStore = create((set) => ({
     }
   },
 
-  logout: () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    set({ user: null, loading: false });
+  logout: async () => {
+    try {
+      await apiClient.post('/auth/logout');
+    } catch (err) {
+      console.error('Logout error on server:', err);
+    } finally {
+      setAccessToken(null);
+      localStorage.removeItem('user');
+      set({ user: null, loading: false });
+    }
+  },
+
+  logoutAll: async () => {
+    try {
+      await apiClient.post('/auth/logout-all');
+    } catch (err) {
+      console.error('Logout all error on server:', err);
+    } finally {
+      setAccessToken(null);
+      localStorage.removeItem('user');
+      set({ user: null, loading: false });
+    }
   }
 }));

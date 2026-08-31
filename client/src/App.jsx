@@ -347,25 +347,13 @@ function App() {
         return;
       }
 
-      const token = localStorage.getItem('token');
-      const savedUser = localStorage.getItem('user');
-      
-      if (!token || !savedUser) {
-        handleLogout();
-        setIsValidatingSession(false);
-        return;
-      }
-
       try {
-        // Call the new verify endpoint
-        const res = await apiClient.get('/auth/verify');
-        const { user: verifiedUser, token: newToken } = res.data;
-        
+        const res = await apiClient.post('/auth/refresh');
+        const { user: verifiedUser } = res.data;
         setUser(verifiedUser);
         localStorage.setItem('user', JSON.stringify(verifiedUser));
-        localStorage.setItem('token', newToken);
       } catch (err) {
-        console.error('Session validation failed:', err);
+        console.error('Session validation / refresh failed on mount:', err);
         handleLogout();
       } finally {
         setLoading(false);
