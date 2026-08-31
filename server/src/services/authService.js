@@ -1,6 +1,7 @@
 const { OAuth2Client } = require('google-auth-library');
-const jwt = require('jsonwebtoken');
 const prisma = require('../config/prisma');
+const { generateAccessToken } = require('../utils/token');
+const sessionService = require('./sessionService');
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -51,7 +52,7 @@ const verifyMicrosoftToken = async (accessToken) => {
   return { email, name, picture };
 };
 
-const upsertAndGetUserData = async (email, name, picture) => {
+const upsertAndGetUserData = async (email, name, picture, userAgent, ipAddress) => {
   const userRecord = await prisma.user.upsert({
     where: { email },
     update: { image: picture, name: name },
@@ -95,13 +96,13 @@ const upsertAndGetUserData = async (email, name, picture) => {
     doj: orgUser.created_at
   };
 
-  const sessionToken = jwt.sign(
-    { userId: userData.id, email: userData.email },
-    process.env.JWT_SECRET,
-    { expiresIn: '6h' }
-  );
+  // Generate 15-minute Access Token
+  const accessToken = generateAccessToken(userData);
 
-  return { token: sessionToken, user: userData };
+  // Create Server-Side Session & Generate 7-day Refresh Token
+  const { rawRefreshToken } = await sessionService.createSession(orgUser.id, userAgent, ipAddress);
+
+  return { accessToken, refreshToken: rawRefreshToken, user: userData };
 };
 
 const verifySessionUser = async (userId, email) => {
@@ -128,13 +129,10 @@ const verifySessionUser = async (userId, email) => {
     doj: user.created_at
   };
 
-  const newToken = jwt.sign(
-    { userId: userData.id, email: userData.email },
-    process.env.JWT_SECRET,
-    { expiresIn: '6h' }
-  );
+  // Only re-issue access token if session is valid
+  const token = generateAccessToken(userData);
 
-  return { user: userData, token: newToken };
+  return { user: userData, token };
 };
 
 module.exports = {
