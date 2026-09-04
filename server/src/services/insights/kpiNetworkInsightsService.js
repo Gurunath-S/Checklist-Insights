@@ -472,6 +472,10 @@ const getItemAnalytics = async (itemId, aggregation) => {
       groupFormat = `CONCAT(YEAR(r.created_at), '-Q', QUARTER(r.created_at))`;
       labelFormat = `CONCAT('Q', QUARTER(r.created_at), ' ', YEAR(r.created_at))`;
       break;
+    case 'Yearly':
+      groupFormat = `DATE_FORMAT(r.created_at, '%Y')`;
+      labelFormat = `DATE_FORMAT(r.created_at, '%Y')`;
+      break;
     default:
       groupFormat = `DATE_FORMAT(r.created_at, '%Y-%m')`;
       labelFormat = `DATE_FORMAT(r.created_at, '%b %Y')`;

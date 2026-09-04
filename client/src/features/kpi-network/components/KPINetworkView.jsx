@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import {
   Search, Link2, Activity, Calendar,
   Plus, Minus, Maximize2, Trash2, ArrowUp, ArrowDown, RefreshCw,
-  LayoutTemplate, Tag, Move, ArrowRight, Layers, RotateCcw, Filter, CheckSquare, Square, Palette, X, Check, FilePlus, Link, LayoutGrid, ChevronDown, FolderOpen,
+  LayoutTemplate, Tag, Move, ArrowRight, Layers, RotateCcw, Filter, CheckSquare, Square, Palette, X, Check, FilePlus, Link, LayoutGrid, ChevronDown, FolderOpen, Pencil, Save, AlertTriangle, PanelLeftClose, PanelLeftOpen, ChevronLeft, ChevronRight,
   ArrowUpRight, ArrowDownRight, TrendingUp, BarChart2
 } from 'lucide-react';
 import {
@@ -163,6 +163,27 @@ export default function KPINetworkView() {
   });
   const [activeChartTitle, setActiveChartTitle] = useState('Default Chart');
   const [showSavedChartsMenu, setShowSavedChartsMenu] = useState(false);
+  const [editingChartId, setEditingChartId] = useState(null);
+  const [editingChartName, setEditingChartName] = useState('');
+  const [savedViewSearch, setSavedViewSearch] = useState('');
+
+  // Rich Modal Dialog States
+  const [saveModalConfig, setSaveModalConfig] = useState(null);
+  const [confirmModalConfig, setConfirmModalConfig] = useState(null);
+
+  // Left Panel Explorer Collapse State (Initially Collapsed by Default)
+  const [isExplorerCollapsed, setIsExplorerCollapsed] = useState(() => {
+    const saved = localStorage.getItem('kpi_network_explorer_collapsed');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  const toggleExplorer = () => {
+    setIsExplorerCollapsed(prev => {
+      const next = !prev;
+      localStorage.setItem('kpi_network_explorer_collapsed', String(next));
+      return next;
+    });
+  };
 
   useEffect(() => {
     try {
@@ -354,6 +375,19 @@ export default function KPINetworkView() {
 
     fetchAnalytics();
   }, [detailsNodeId, currentAggregation, detailsItem, items]);
+
+  // Dynamic Average Value computation based on selected period aggregation filter
+  const dynamicAvgValue = useMemo(() => {
+    if (selectedItemTrend && selectedItemTrend.length > 0) {
+      const validPoints = selectedItemTrend.filter(t => t.avg_value !== null && t.avg_value !== undefined);
+      if (validPoints.length > 0) {
+        const sum = validPoints.reduce((acc, p) => acc + Number(p.avg_value), 0);
+        const avg = sum / validPoints.length;
+        return detailsItem?.input_type === 'Boolean' ? Number(avg.toFixed(1)) : Number(avg.toFixed(2));
+      }
+    }
+    return detailsItem?.avg_value ?? null;
+  }, [selectedItemTrend, detailsItem]);
 
   // Update Preferred Granularity for Selected Node
   const handleUpdatePreferredAggregation = async (newAggregation) => {
@@ -797,32 +831,91 @@ export default function KPINetworkView() {
     triggerNotification('Auto-arranged chart nodes into clean, balanced tiers.');
   };
 
-  // Create New Fresh Canvas: Saves current active chart session first, then opens blank slate
-  const handleStartNewChart = () => {
-    // If current chart has positions or canvas items, auto-save to Saved Charts list
-    if (Object.keys(customPositions).length > 0 || addedCanvasItemIds.size > 0) {
-      const nextNum = savedCharts.length + 1;
-      const chartTitle = `Saved Chart ${nextNum}`;
-      const savedEntry = {
-        id: Date.now().toString(),
-        name: chartTitle,
-        date: new Date().toLocaleDateString([], { month: 'short', day: 'numeric' }),
-        customPositions: { ...customPositions },
-        addedCanvasItemIds: Array.from(addedCanvasItemIds)
-      };
-      setSavedCharts(prev => [savedEntry, ...prev]);
-      triggerNotification(`Saved active layout as "${chartTitle}" & opened a fresh chart.`);
-    } else {
-      triggerNotification('Opened a fresh chart canvas.');
-    }
-
+  // Helper to reset canvas layout to blank
+  const resetCanvasToBlank = () => {
     setCustomPositions({});
     setAddedCanvasItemIds(new Set());
     setHighlightedNodeId(null);
     setDetailsNodeId(null);
     setConnectingParentNodeId(null);
     setIsFocusMode(false);
-    setActiveChartTitle(`Chart ${savedCharts.length + 2}`);
+    setActiveChartTitle(`Default View ${savedCharts.length + 1}`);
+  };
+
+  // Create New Fresh Canvas: Uses rich custom modal to save current active view first if needed
+  const handleStartNewChart = () => {
+    if (Object.keys(customPositions).length > 0 || addedCanvasItemIds.size > 0) {
+      const defaultName = `Saved View ${savedCharts.length + 1}`;
+      setSaveModalConfig({
+        title: 'Save Current View?',
+        subtitle: 'You have active metrics on canvas. Enter a view name to save before creating a new view.',
+        value: defaultName,
+        saveButtonText: 'Save & Open New View',
+        onSave: (enteredName) => {
+          const finalTitle = enteredName.trim() || defaultName;
+          const savedEntry = {
+            id: Date.now().toString(),
+            name: finalTitle,
+            date: new Date().toLocaleDateString([], { month: 'short', day: 'numeric' }),
+            customPositions: { ...customPositions },
+            addedCanvasItemIds: Array.from(addedCanvasItemIds)
+          };
+          setSavedCharts(prev => [savedEntry, ...prev]);
+          triggerNotification(`Saved view as "${finalTitle}" & opened fresh chart.`);
+          resetCanvasToBlank();
+        },
+        onCancel: () => {
+          resetCanvasToBlank();
+          triggerNotification('Opened a fresh chart canvas.');
+        }
+      });
+    } else {
+      resetCanvasToBlank();
+      triggerNotification('Opened a fresh chart canvas.');
+    }
+  };
+
+  // Explicitly Save Current View using rich modal
+  const handleSaveCurrentView = () => {
+    if (Object.keys(customPositions).length === 0 && addedCanvasItemIds.size === 0) {
+      triggerNotification('Canvas is empty. Add metrics or arrange nodes before saving.', 'error');
+      return;
+    }
+    const defaultName = activeChartTitle !== 'Default Chart' ? activeChartTitle : `Saved View ${savedCharts.length + 1}`;
+    setSaveModalConfig({
+      title: 'Save View',
+      subtitle: 'Enter a name to save or update your canvas layout.',
+      value: defaultName,
+      saveButtonText: 'Save View',
+      onSave: (enteredName) => {
+        const finalTitle = enteredName.trim() || defaultName;
+        const existingIndex = savedCharts.findIndex(c => c.name.toLowerCase() === finalTitle.toLowerCase());
+        if (existingIndex >= 0) {
+          setSavedCharts(prev => {
+            const copy = [...prev];
+            copy[existingIndex] = {
+              ...copy[existingIndex],
+              date: new Date().toLocaleDateString([], { month: 'short', day: 'numeric' }),
+              customPositions: { ...customPositions },
+              addedCanvasItemIds: Array.from(addedCanvasItemIds)
+            };
+            return copy;
+          });
+          triggerNotification(`Updated saved view "${finalTitle}".`);
+        } else {
+          const savedEntry = {
+            id: Date.now().toString(),
+            name: finalTitle,
+            date: new Date().toLocaleDateString([], { month: 'short', day: 'numeric' }),
+            customPositions: { ...customPositions },
+            addedCanvasItemIds: Array.from(addedCanvasItemIds)
+          };
+          setSavedCharts(prev => [savedEntry, ...prev]);
+          triggerNotification(`Saved view as "${finalTitle}".`);
+        }
+        setActiveChartTitle(finalTitle);
+      }
+    });
   };
 
   // Load a saved chart view from saved list
@@ -831,14 +924,53 @@ export default function KPINetworkView() {
     setAddedCanvasItemIds(new Set(chart.addedCanvasItemIds || []));
     setActiveChartTitle(chart.name);
     setShowSavedChartsMenu(false);
-    triggerNotification(`Loaded "${chart.name}".`);
+    setEditingChartId(null);
+    triggerNotification(`Loaded view "${chart.name}".`);
   };
 
-  // Delete a saved chart from saved list
-  const handleDeleteSavedChart = (chartId, e) => {
+  // Inline Rename Saved View
+  const handleStartRenameChart = (chart, e) => {
     e.stopPropagation();
-    setSavedCharts(prev => prev.filter(c => c.id !== chartId));
-    triggerNotification('Deleted saved chart view.');
+    setEditingChartId(chart.id);
+    setEditingChartName(chart.name);
+  };
+
+  const handleConfirmRenameChart = (chartId, e) => {
+    if (e) e.stopPropagation();
+    if (!editingChartName.trim()) return;
+    const oldChart = savedCharts.find(c => c.id === chartId);
+    const newName = editingChartName.trim();
+    setSavedCharts(prev => prev.map(c => c.id === chartId ? { ...c, name: newName } : c));
+    if (oldChart && activeChartTitle === oldChart.name) {
+      setActiveChartTitle(newName);
+    }
+    setEditingChartId(null);
+    setEditingChartName('');
+    triggerNotification(`Renamed view to "${newName}".`);
+  };
+
+  const handleCancelRenameChart = (e) => {
+    if (e) e.stopPropagation();
+    setEditingChartId(null);
+    setEditingChartName('');
+  };
+
+  // Delete a saved chart using rich confirmation modal
+  const handleDeleteSavedChart = (chartId, e) => {
+    if (e) e.stopPropagation();
+    const chartToDelete = savedCharts.find(c => c.id === chartId);
+    setConfirmModalConfig({
+      title: 'Delete Saved View',
+      message: `Are you sure you want to delete "${chartToDelete?.name || 'this saved view'}"? This action cannot be undone.`,
+      confirmText: 'Delete View',
+      onConfirm: () => {
+        setSavedCharts(prev => prev.filter(c => c.id !== chartId));
+        if (chartToDelete && activeChartTitle === chartToDelete.name) {
+          setActiveChartTitle('Default View');
+        }
+        triggerNotification('Deleted saved view.');
+      }
+    });
   };
 
   // Batch Relationship Linking Action
@@ -870,17 +1002,28 @@ export default function KPINetworkView() {
     }
   };
 
-  // Delete Link Trigger
-  const handleDeleteLink = async (linkId) => {
-    if (!window.confirm('Are you sure you want to remove this connection?')) return;
-    try {
-      await deleteKPINetworkLinkApi(linkId);
-      triggerNotification('Relationship removed successfully.');
-      fetchData();
-    } catch (err) {
-      console.error(err);
-      triggerNotification('Failed to remove link.', 'error');
-    }
+  // Delete Link Trigger with rich confirmation modal
+  const handleDeleteLink = (linkId) => {
+    const rel = relationships.find(r => r.id === linkId);
+    const parentNode = items.find(i => i.id === rel?.parent_item_id);
+    const childNode = items.find(i => i.id === rel?.child_item_id);
+    const connLabel = parentNode && childNode ? `between "${parentNode.checklist_name}" and "${childNode.checklist_name}"` : 'this connection';
+
+    setConfirmModalConfig({
+      title: 'Remove Connection',
+      message: `Are you sure you want to remove the relationship connection ${connLabel}?`,
+      confirmText: 'Remove Connection',
+      onConfirm: async () => {
+        try {
+          await deleteKPINetworkLinkApi(linkId);
+          triggerNotification('Relationship removed successfully.');
+          fetchData();
+        } catch (err) {
+          console.error(err);
+          triggerNotification('Failed to remove link.', 'error');
+        }
+      }
+    });
   };
 
   // Clean, Unified Node Styles
@@ -929,20 +1072,56 @@ export default function KPINetworkView() {
       )}
 
       {/* Left Panel: Search, Filter, Sort & Explorer */}
-      <div className={`w-full lg:w-96 border rounded-3xl p-4.5 flex flex-col shadow-xl shrink-0 ${
-        isLight ? 'bg-white/90 border-slate-200 text-slate-900' : 'bg-bg-card border-glass-border text-white'
-      }`}>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className={`text-sm font-black flex items-center gap-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
-            <Activity size={16} className="text-primary" />
-            Checklist Explorer
-          </h3>
-          <span className={`text-xs border px-2.5 py-0.5 rounded-full font-bold ${
+      {isExplorerCollapsed ? (
+        <div 
+          onClick={toggleExplorer}
+          className={`w-full lg:w-14 border rounded-3xl p-3 flex lg:flex-col items-center justify-between shadow-xl shrink-0 cursor-pointer transition-all duration-300 group hover:border-primary/50 ${
+            isLight ? 'bg-white/90 border-slate-200 text-slate-900' : 'bg-bg-card border-glass-border text-white'
+          }`}
+          title="Click to expand Checklist Explorer"
+        >
+          <div className="flex lg:flex-col items-center gap-3">
+            <button
+              type="button"
+              className="p-2 rounded-2xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-all cursor-pointer shadow-sm"
+              title="Expand Checklist Explorer"
+            >
+              <PanelLeftOpen size={16} />
+            </button>
+            <span className="text-[11px] font-black uppercase tracking-wider text-text-muted group-hover:text-primary transition-colors hidden lg:block [writing-mode:vertical-lr] rotate-180 py-4">
+              Checklist Explorer
+            </span>
+          </div>
+          <span className={`text-[10px] font-black border px-2 py-0.5 rounded-full ${
             isLight ? 'bg-slate-100 border-slate-200 text-slate-700' : 'bg-white/5 border-white/10 text-text-muted'
           }`}>
-            {leftTab === 'items' ? `${filteredItems.length} items` : leftTab === 'templates' ? `${filteredTemplates.length} tmpls` : `${filteredTags.length} tags`}
+            {leftTab === 'items' ? filteredItems.length : leftTab === 'templates' ? filteredTemplates.length : filteredTags.length}
           </span>
         </div>
+      ) : (
+        <div className={`w-full lg:w-96 border rounded-3xl p-4.5 flex flex-col shadow-xl shrink-0 transition-all duration-300 ${
+          isLight ? 'bg-white/90 border-slate-200 text-slate-900' : 'bg-bg-card border-glass-border text-white'
+        }`}>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className={`text-sm font-black flex items-center gap-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
+              <Activity size={16} className="text-primary" />
+              Checklist Explorer
+            </h3>
+            <div className="flex items-center gap-2">
+              <span className={`text-xs border px-2.5 py-0.5 rounded-full font-bold ${
+                isLight ? 'bg-slate-100 border-slate-200 text-slate-700' : 'bg-white/5 border-white/10 text-text-muted'
+              }`}>
+                {leftTab === 'items' ? `${filteredItems.length} items` : leftTab === 'templates' ? `${filteredTemplates.length} tmpls` : `${filteredTags.length} tags`}
+              </span>
+              <button
+                onClick={toggleExplorer}
+                className="p-1.5 rounded-xl bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-600 hover:text-white transition-all cursor-pointer"
+                title="Collapse Checklist Explorer to expand graph canvas"
+              >
+                <PanelLeftClose size={16} />
+              </button>
+            </div>
+          </div>
 
         {/* View Switcher Tabs: Items | Templates | Tags */}
         <div className={`grid grid-cols-3 gap-1 p-1 rounded-2xl mb-3 text-xs font-bold border ${
@@ -1204,9 +1383,8 @@ export default function KPINetworkView() {
             )
           )}
         </div>
-
-
       </div>
+    )}
 
       {/* Center Panel: SVG Graph Canvas */}
       <div className="flex-1 flex flex-col lg:flex-row gap-6 relative">
@@ -1237,23 +1415,27 @@ export default function KPINetworkView() {
           )}
 
           {/* Top Bar Info & Canvas Actions */}
-          <div className="absolute top-4 left-4 right-4 flex flex-wrap items-center justify-between gap-3 z-20 pointer-events-none">
-            <div className={`backdrop-blur-md border px-4 py-2 rounded-2xl text-xs font-black flex items-center gap-4 pointer-events-auto shadow-lg ${
-              isLight ? 'bg-white/95 border-slate-200 text-slate-800' : 'bg-slate-900/90 border-white/10 text-white'
-            }`}>
-              <span className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-indigo-500 shadow-sm shadow-indigo-500/50" /> KPI Metric Card</span>
-              <span className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50" /> Details Selected</span>
-            </div>
+          <div className="absolute top-4 left-4 right-4 flex items-center justify-end gap-3 z-20 pointer-events-none">
 
             <div className="flex items-center gap-2.5 pointer-events-auto relative">
               <button
+                onClick={handleSaveCurrentView}
+                className={`border px-3.5 py-2 rounded-2xl text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer shadow-lg ${
+                  isLight ? 'bg-white hover:bg-slate-100 border-slate-200 text-emerald-700' : 'bg-slate-900 hover:bg-slate-950 border-white/10 text-emerald-400'
+                }`}
+                title="Save active layout as a named view"
+              >
+                <Save size={14} className="text-emerald-500" /> Save View
+              </button>
+
+              <button
                 onClick={handleStartNewChart}
                 className={`border px-4 py-2 rounded-2xl text-xs font-extrabold flex items-center gap-2 transition-all cursor-pointer shadow-lg ${
-                  isLight ? 'bg-white hover:bg-slate-100 border-slate-200 text-slate-900' : 'bg-slate-900/90 hover:bg-slate-900 border-white/10 text-white'
+                  isLight ? 'bg-white hover:bg-slate-100 border-slate-200 text-slate-900' : 'bg-slate-900 hover:bg-slate-950 border-white/10 text-white'
                 }`}
-                title="Saves active layout and opens a new blank chart view"
+                title="Save current layout & open a new blank view"
               >
-                <FilePlus size={14} className="text-primary" /> New Chart View
+                <FilePlus size={14} className="text-primary" /> New View
               </button>
 
               {savedCharts.length > 0 && (
@@ -1261,7 +1443,7 @@ export default function KPINetworkView() {
                   <button
                     onClick={() => setShowSavedChartsMenu(!showSavedChartsMenu)}
                     className={`border px-3.5 py-2 rounded-2xl text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer shadow-lg ${
-                      isLight ? 'bg-white hover:bg-slate-100 border-slate-200 text-slate-800' : 'bg-slate-900/90 hover:bg-slate-900 border-white/10 text-white'
+                      isLight ? 'bg-white hover:bg-slate-100 border-slate-200 text-slate-800' : 'bg-slate-900 hover:bg-slate-950 border-white/10 text-white'
                     }`}
                     title="View and switch between saved chart views"
                   >
@@ -1269,35 +1451,112 @@ export default function KPINetworkView() {
                   </button>
 
                   {showSavedChartsMenu && (
-                    <div className={`absolute top-full right-0 mt-2 w-64 border rounded-2xl p-2 shadow-2xl z-50 backdrop-blur-xl animate-in fade-in duration-150 ${
-                      isLight ? 'bg-white/98 border-slate-200 text-slate-900' : 'bg-slate-900/98 border-white/15 text-white'
+                    <div className={`absolute top-full right-0 mt-2 w-72 border rounded-2xl p-2.5 shadow-2xl z-50 animate-in fade-in duration-150 ${
+                      isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-white/15 text-white'
                     }`}>
-                      <div className="text-[10px] font-black uppercase tracking-wider text-text-muted px-2 py-1 border-b border-white/10 mb-1 flex items-center justify-between">
-                        <span>Saved Chart Canvas Views</span>
-                        <span className="text-primary">{savedCharts.length} Saved</span>
+                      <div className="text-[10px] font-black uppercase tracking-wider text-text-muted px-2 py-1 border-b border-white/10 mb-2 flex items-center justify-between">
+                        <span className="truncate max-w-[170px]" title={activeChartTitle}>Active: {activeChartTitle}</span>
+                        <span className="text-primary shrink-0">{savedCharts.length} Saved</span>
                       </div>
-                      <div className="max-h-56 overflow-y-auto space-y-1 py-1">
-                        {savedCharts.map(c => (
-                          <div
-                            key={c.id}
-                            onClick={() => handleLoadSavedChart(c)}
-                            className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                              isLight ? 'hover:bg-slate-100 text-slate-800' : 'hover:bg-white/10 text-white'
+
+                      {/* Filter Search inside Saved Views if list exceeds 3 items */}
+                      {savedCharts.length > 3 && (
+                        <div className="relative mb-2">
+                          <input
+                            type="text"
+                            placeholder="Filter saved views..."
+                            value={savedViewSearch}
+                            onChange={(e) => setSavedViewSearch(e.target.value)}
+                            className={`w-full pl-7 pr-6 py-1 text-[11px] font-bold border rounded-xl outline-none ${
+                              isLight ? 'bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400' : 'bg-white/5 border-white/10 text-white placeholder:text-text-muted'
                             }`}
-                          >
-                            <div className="flex flex-col">
-                              <span>{c.name}</span>
-                              <span className="text-[10px] text-text-muted font-normal">{c.date} · {c.addedCanvasItemIds?.length || 0} nodes</span>
-                            </div>
-                            <button
-                              onClick={(e) => handleDeleteSavedChart(c.id, e)}
-                              className="text-text-muted hover:text-red-500 p-1 rounded-lg transition-colors cursor-pointer"
-                              title="Delete saved chart"
-                            >
-                              <Trash2 size={12} />
+                          />
+                          <Search size={12} className="absolute left-2.5 top-2 text-text-muted" />
+                          {savedViewSearch && (
+                            <button onClick={() => setSavedViewSearch('')} className="absolute right-2.5 top-2 text-text-muted hover:text-white">
+                              <X size={10} />
                             </button>
-                          </div>
-                        ))}
+                          )}
+                        </div>
+                      )}
+
+                      {/* Scrollable Container with Max Height Limit (max-h-52 ~ 4-5 items visible) */}
+                      <div className="max-h-52 overflow-y-auto space-y-1 py-0.5 custom-scrollbar pr-0.5">
+                        {savedCharts
+                          .filter(c => !savedViewSearch || c.name.toLowerCase().includes(savedViewSearch.toLowerCase()))
+                          .map(c => {
+                            const isEditing = editingChartId === c.id;
+                            const isActiveView = activeChartTitle === c.name;
+                            return (
+                              <div
+                                key={c.id}
+                                onClick={() => !isEditing && handleLoadSavedChart(c)}
+                                className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                                  isActiveView
+                                    ? isLight ? 'bg-indigo-50 border border-primary/40 text-primary shadow-xs' : 'bg-primary/20 border border-primary/40 text-white shadow-xs'
+                                    : isLight ? 'hover:bg-slate-100 text-slate-800' : 'hover:bg-white/10 text-white'
+                                }`}
+                              >
+                                {isEditing ? (
+                                  <div className="flex items-center gap-1.5 w-full" onClick={(e) => e.stopPropagation()}>
+                                    <input
+                                      type="text"
+                                      value={editingChartName}
+                                      onChange={(e) => setEditingChartName(e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') handleConfirmRenameChart(c.id, e);
+                                        if (e.key === 'Escape') handleCancelRenameChart(e);
+                                      }}
+                                      autoFocus
+                                      className={`flex-1 px-2 py-1 text-xs font-bold border rounded-lg outline-none ${
+                                        isLight ? 'bg-white border-primary text-slate-900' : 'bg-slate-800 border-primary text-white'
+                                      }`}
+                                    />
+                                    <button
+                                      onClick={(e) => handleConfirmRenameChart(c.id, e)}
+                                      className="text-emerald-500 hover:text-emerald-400 p-1 cursor-pointer"
+                                      title="Save name"
+                                    >
+                                      <Check size={14} />
+                                    </button>
+                                    <button
+                                      onClick={handleCancelRenameChart}
+                                      className="text-red-400 hover:text-red-300 p-1 cursor-pointer"
+                                      title="Cancel"
+                                    >
+                                      <X size={14} />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <div className="flex flex-col min-w-0 pr-2">
+                                      <span className="truncate flex items-center gap-1.5">
+                                        {c.name}
+                                        {isActiveView && <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />}
+                                      </span>
+                                      <span className="text-[10px] text-text-muted font-normal">{c.date} · {c.addedCanvasItemIds?.length || 0} nodes</span>
+                                    </div>
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      <button
+                                        onClick={(e) => handleStartRenameChart(c, e)}
+                                        className="text-text-muted hover:text-primary p-1 rounded-lg transition-colors cursor-pointer"
+                                        title="Rename saved view"
+                                      >
+                                        <Pencil size={12} />
+                                      </button>
+                                      <button
+                                        onClick={(e) => handleDeleteSavedChart(c.id, e)}
+                                        className="text-text-muted hover:text-red-500 p-1 rounded-lg transition-colors cursor-pointer"
+                                        title="Delete saved view"
+                                      >
+                                        <Trash2 size={12} />
+                                      </button>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            );
+                          })}
                       </div>
                     </div>
                   )}
@@ -1667,49 +1926,59 @@ export default function KPINetworkView() {
                 <div className={`border rounded-2xl p-3.5 flex flex-col justify-between ${
                   isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/60 border-white/5'
                 }`}>
-                  <div className="flex items-center gap-2 mb-1">
-                    <TrendingUp size={14} className="text-emerald-500" />
-                    <span className={`text-[10px] font-extrabold uppercase tracking-wider ${isLight ? 'text-slate-500' : 'text-text-muted'}`}>
-                      Avg Value
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-1.5">
+                      <TrendingUp size={14} className="text-emerald-500" />
+                      <span className={`text-[10px] font-extrabold uppercase tracking-wider ${isLight ? 'text-slate-500' : 'text-text-muted'}`}>
+                        Avg Value
+                      </span>
+                    </div>
+                    <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                      {currentAggregation}
                     </span>
                   </div>
                   <span className="text-xl font-black text-emerald-500">
-                    {detailsItem.avg_value !== null
-                      ? (detailsItem.input_type === 'Boolean' ? `${detailsItem.avg_value}%` : detailsItem.avg_value)
+                    {dynamicAvgValue !== null
+                      ? (detailsItem.input_type === 'Boolean' ? `${dynamicAvgValue}%` : dynamicAvgValue)
                       : 'N/A'}
                   </span>
                 </div>
               </div>
 
-              {/* Preferred Granularity Period Card */}
-              <div className={`border rounded-2xl p-4 space-y-2.5 ${
+              {/* Time Granularity Filter Bar */}
+              <div className={`border rounded-2xl p-3.5 space-y-2 ${
                 isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/60 border-white/5'
               }`}>
                 <div className="flex items-center justify-between">
                   <span className={`text-xs font-black uppercase tracking-wider flex items-center gap-1.5 ${isLight ? 'text-slate-800' : 'text-white'}`}>
-                    <Calendar size={14} className="text-primary" /> Preferred Granularity
+                    <Calendar size={14} className="text-primary" /> Time Granularity Filter
                   </span>
-                  {savingPreference && (
-                    <span className="text-[11px] text-accent animate-pulse font-extrabold flex items-center gap-1">
-                      <RefreshCw size={10} className="animate-spin" /> Saving...
+                  {selectedItemTrendLoading && (
+                    <span className="text-[10px] text-primary animate-pulse font-extrabold flex items-center gap-1">
+                      <RefreshCw size={10} className="animate-spin" /> Updating...
                     </span>
                   )}
                 </div>
-                <div className="relative">
-                  <select
-                    value={detailsItem.aggregation || 'Monthly'}
-                    onChange={(e) => handleUpdatePreferredAggregation(e.target.value)}
-                    disabled={savingPreference}
-                    className={`w-full border rounded-xl px-3.5 py-2 text-xs font-bold outline-none cursor-pointer disabled:opacity-50 appearance-none ${
-                      isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-950/80 border-white/10 text-white'
-                    }`}
-                  >
-                    <option value="Daily" className={isLight ? 'bg-white text-slate-900' : 'bg-[#0f172a] text-white'}>Daily Aggregation</option>
-                    <option value="Weekly" className={isLight ? 'bg-white text-slate-900' : 'bg-[#0f172a] text-white'}>Weekly Aggregation</option>
-                    <option value="Monthly" className={isLight ? 'bg-white text-slate-900' : 'bg-[#0f172a] text-white'}>Monthly Aggregation</option>
-                    <option value="Quarterly" className={isLight ? 'bg-white text-slate-900' : 'bg-[#0f172a] text-white'}>Quarterly Aggregation</option>
-                  </select>
-                  <div className={`absolute right-3.5 top-3 pointer-events-none text-xs ${isLight ? 'text-slate-400' : 'text-text-muted'}`}>▼</div>
+
+                <div className={`grid grid-cols-5 gap-1.5 p-1.5 rounded-2xl border ${
+                  isLight ? 'bg-slate-100/90 border-slate-300/80' : 'bg-slate-950/80 border-white/10'
+                }`}>
+                  {['Daily', 'Weekly', 'Monthly', 'Quarterly', 'Yearly'].map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setCurrentAggregation(mode)}
+                      className={`py-2 px-1 text-xs font-black rounded-xl transition-all text-center cursor-pointer ${
+                        currentAggregation === mode
+                          ? 'bg-primary text-white shadow-md shadow-primary/30 scale-[1.03] ring-2 ring-primary/40'
+                          : isLight 
+                            ? 'bg-white text-slate-800 hover:text-slate-950 hover:bg-slate-50 border border-slate-200/80 shadow-xs' 
+                            : 'bg-slate-900/90 text-slate-200 hover:text-white hover:bg-slate-800 border border-white/10'
+                      }`}
+                    >
+                      {mode}
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -1723,24 +1992,6 @@ export default function KPINetworkView() {
                   </span>
                   
                   <div className="flex items-center gap-1.5">
-                    {/* Aggregation interval buttons */}
-                    <div className={`flex border rounded-xl p-0.5 gap-0.5 ${isLight ? 'bg-white border-slate-200' : 'bg-white/5 border-white/10'}`}>
-                      {['Daily', 'Weekly', 'Monthly', 'Quarterly'].map((mode) => (
-                        <button
-                          key={mode}
-                          type="button"
-                          onClick={() => setCurrentAggregation(mode)}
-                          className={`px-2 py-1 text-xs font-black rounded-lg transition-all cursor-pointer ${
-                            currentAggregation === mode
-                              ? 'bg-primary text-white shadow-sm'
-                              : isLight ? 'text-slate-600 hover:text-slate-900' : 'text-text-muted hover:text-white'
-                          }`}
-                        >
-                          {mode[0]}
-                        </button>
-                      ))}
-                    </div>
-
                     {/* Fullscreen Expand Chart Button */}
                     <button
                       type="button"
@@ -2294,6 +2545,145 @@ export default function KPINetworkView() {
                   )}
                 </LineChart>
               </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rich Custom Modal for Saving Canvas Views */}
+      {saveModalConfig && (
+        <div 
+          className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200"
+          onClick={() => {
+            if (saveModalConfig.onCancel) saveModalConfig.onCancel();
+            setSaveModalConfig(null);
+          }}
+        >
+          <div 
+            className={`w-full max-w-md border rounded-3xl p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200 ${
+              isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-glass-border text-white'
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-primary/20 border border-primary/30 flex items-center justify-center text-primary shadow-inner">
+                  <Save size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-black tracking-tight">{saveModalConfig.title || 'Save Canvas View'}</h3>
+                  <p className="text-xs text-text-muted font-medium">{saveModalConfig.subtitle || 'Enter a custom name for your saved layout.'}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  if (saveModalConfig.onCancel) saveModalConfig.onCancel();
+                  setSaveModalConfig(null);
+                }}
+                className="text-text-muted hover:text-white p-1 rounded-xl transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider pl-1">View Name</label>
+              <input
+                type="text"
+                value={saveModalConfig.value}
+                onChange={(e) => setSaveModalConfig(prev => ({ ...prev, value: e.target.value }))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    if (saveModalConfig.onSave) saveModalConfig.onSave(saveModalConfig.value);
+                    setSaveModalConfig(null);
+                  }
+                  if (e.key === 'Escape') {
+                    if (saveModalConfig.onCancel) saveModalConfig.onCancel();
+                    setSaveModalConfig(null);
+                  }
+                }}
+                autoFocus
+                placeholder="e.g. Executive Overview"
+                className={`w-full px-4 py-3 text-sm font-bold border rounded-2xl outline-none transition-all ${
+                  isLight
+                    ? 'bg-slate-50 border-slate-300 text-slate-900 focus:border-primary focus:bg-white'
+                    : 'bg-white/5 border-glass-border text-white focus:border-primary focus:bg-white/10'
+                }`}
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (saveModalConfig.onCancel) saveModalConfig.onCancel();
+                  setSaveModalConfig(null);
+                }}
+                className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
+                  isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700' : 'bg-white/5 hover:bg-white/10 text-text-muted hover:text-white'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (saveModalConfig.onSave) saveModalConfig.onSave(saveModalConfig.value);
+                  setSaveModalConfig(null);
+                }}
+                className="px-5 py-2.5 rounded-2xl text-xs font-black bg-gradient-to-r from-primary to-accent text-white shadow-lg shadow-primary/25 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer flex items-center gap-2"
+              >
+                <Save size={15} />
+                {saveModalConfig.saveButtonText || 'Save View'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rich Custom Confirmation Modal for Deletions & Destructive Actions */}
+      {confirmModalConfig && (
+        <div 
+          className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200"
+          onClick={() => setConfirmModalConfig(null)}
+        >
+          <div 
+            className={`w-full max-w-md border rounded-3xl p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200 ${
+              isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-glass-border text-white'
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-4">
+              <div className="w-11 h-11 rounded-2xl bg-red-500/15 border border-red-500/30 flex items-center justify-center text-red-500 shrink-0 shadow-inner">
+                <AlertTriangle size={22} />
+              </div>
+              <div className="flex-1 space-y-1">
+                <h3 className="text-base font-black tracking-tight">{confirmModalConfig.title || 'Confirm Action'}</h3>
+                <p className="text-xs text-text-muted font-medium leading-relaxed">{confirmModalConfig.message}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2 border-t border-white/5">
+              <button
+                type="button"
+                onClick={() => setConfirmModalConfig(null)}
+                className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
+                  isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700' : 'bg-white/5 hover:bg-white/10 text-text-muted hover:text-white'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirmModalConfig.onConfirm) confirmModalConfig.onConfirm();
+                  setConfirmModalConfig(null);
+                }}
+                className="px-5 py-2.5 rounded-2xl text-xs font-black bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-lg shadow-red-500/25 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer flex items-center gap-2"
+              >
+                <Trash2 size={15} />
+                {confirmModalConfig.confirmText || 'Confirm'}
+              </button>
             </div>
           </div>
         </div>
