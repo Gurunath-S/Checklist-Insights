@@ -355,13 +355,22 @@ function App() {
 
       try {
         const savedToken = localStorage.getItem('token');
+        let sessionVerified = false;
+
         if (savedToken) {
-          setAccessToken(savedToken);
-          const res = await apiClient.get('/auth/verify');
-          const verifiedUser = res.data.user || res.data;
-          setUser(verifiedUser);
-          localStorage.setItem('user', JSON.stringify(verifiedUser));
-        } else {
+          try {
+            setAccessToken(savedToken);
+            const res = await apiClient.get('/auth/verify');
+            const verifiedUser = res.data.user || res.data;
+            setUser(verifiedUser);
+            localStorage.setItem('user', JSON.stringify(verifiedUser));
+            sessionVerified = true;
+          } catch (verifyErr) {
+            console.warn('Saved access token expired or invalid, attempting session refresh...', verifyErr);
+          }
+        }
+
+        if (!sessionVerified) {
           const res = await apiClient.post('/auth/refresh');
           const { token: newAccessToken, user: verifiedUser } = res.data;
           if (newAccessToken) {
@@ -371,7 +380,7 @@ function App() {
           localStorage.setItem('user', JSON.stringify(verifiedUser));
         }
       } catch (err) {
-        console.error('Session validation failed on mount:', err);
+        console.error('Session validation and refresh failed on mount:', err);
         handleLogout();
       } finally {
         setLoading(false);
@@ -648,8 +657,8 @@ function App() {
 
 
 
-  // Prevent flash of login page while validating session
-  if (loading && !user && !isGoogleLoading && !isMicrosoftLoading) {
+  // Prevent flash of login page or premature component API calls while validating session
+  if ((loading || isValidatingSession) && !isGoogleLoading && !isMicrosoftLoading) {
     return <LoadingState />;
   }
 

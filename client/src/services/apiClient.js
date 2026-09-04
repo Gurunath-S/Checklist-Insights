@@ -101,12 +101,16 @@ apiClient.interceptors.response.use(
       } catch (refreshErr) {
         processQueue(refreshErr, null);
         isRefreshing = false;
-        setAccessToken(null);
 
-        if (globalLogout) {
-          globalLogout();
-        } else {
-          localStorage.removeItem('user');
+        // Only log out if refresh explicitly fails with 401 (invalid/expired refresh token)
+        if (refreshErr.response && refreshErr.response.status === 401) {
+          setAccessToken(null);
+          if (globalLogout) {
+            globalLogout();
+          } else {
+            localStorage.removeItem('user');
+            localStorage.removeItem('token');
+          }
         }
         return Promise.reject(refreshErr);
       }
