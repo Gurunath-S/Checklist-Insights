@@ -2,13 +2,18 @@ import axios from 'axios';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
 
-let inMemoryToken = null;
+let inMemoryToken = localStorage.getItem('token') || null;
 let globalLogout = null;
 let isRefreshing = false;
 let failedQueue = [];
 
 export const setAccessToken = (token) => {
   inMemoryToken = token;
+  if (token) {
+    localStorage.setItem('token', token);
+  } else {
+    localStorage.removeItem('token');
+  }
 };
 
 export const getAccessToken = () => inMemoryToken;

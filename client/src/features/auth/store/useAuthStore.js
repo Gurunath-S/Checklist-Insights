@@ -83,6 +83,7 @@ export const useAuthStore = create((set) => ({
     } finally {
       setAccessToken(null);
       localStorage.removeItem('user');
+      localStorage.removeItem('token');
       set({ user: null, loading: false });
     }
   },
@@ -95,6 +96,7 @@ export const useAuthStore = create((set) => ({
     } finally {
       setAccessToken(null);
       localStorage.removeItem('user');
+      localStorage.removeItem('token');
       set({ user: null, loading: false });
     }
   }
