@@ -381,7 +381,20 @@ function App() {
         }
       } catch (err) {
         console.error('Session validation and refresh failed on mount:', err);
-        handleLogout();
+        // Only force logout if the server explicitly rejected the refresh token with 401
+        if (err.response && err.response.status === 401) {
+          handleLogout();
+        } else {
+          // Keep cached user from localStorage on temporary network glitches/server restarts
+          const cachedUser = localStorage.getItem('user');
+          if (cachedUser) {
+            try {
+              setUser(JSON.parse(cachedUser));
+            } catch (e) {
+              console.error(e);
+            }
+          }
+        }
       } finally {
         setLoading(false);
         setIsValidatingSession(false);

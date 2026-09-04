@@ -58,7 +58,7 @@ apiClient.interceptors.response.use(
     // Avoid infinite loops if refresh or login endpoints return 401
     if (
       error.response &&
-      error.response.status === 401 &&
+      (error.response.status === 401 || error.response.status === 403) &&
       !originalRequest._retry &&
       !originalRequest.url.includes('/auth/refresh') &&
       !originalRequest.url.includes('/auth/google') &&
