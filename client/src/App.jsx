@@ -103,6 +103,7 @@ function App() {
   const personalExplorerRef = useRef(null);
   const inspectExplorerRef = useRef(null);
   const overviewExplorerRef = useRef(null);
+  const sessionValidationRunningRef = useRef(false);
   
   // Multi-view navigation with URL & Session persistence
   const [currentView, setCurrentView] = useState(() => {
@@ -221,28 +222,24 @@ function App() {
     }
   }, [data, isAdmin]);
 
-  // Load user-specific theme on login or fallback to general theme
+  // Load user-specific theme on login or enforce Genie theme for login page
   useEffect(() => {
     if (user && user.id) {
-      if (themeChangedOnLogin) {
-        localStorage.setItem(`theme_${user.id}`, theme);
-        setThemeChangedOnLogin(false);
-      } else {
-        const userTheme = localStorage.getItem(`theme_${user.id}`) || localStorage.getItem('theme') || 'classic';
-        setTheme(userTheme);
-      }
+      const userTheme = localStorage.getItem(`theme_${user.id}`) || localStorage.getItem('theme') || 'classic';
+      setTheme(userTheme);
     } else {
-      const generalTheme = localStorage.getItem('theme') || 'classic';
-      setTheme(generalTheme);
+      document.documentElement.setAttribute('data-theme', 'genie');
     }
   }, [user]);
 
-  // Apply and persist selected theme
+  // Apply and persist selected theme when logged in
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('theme', theme);
     if (user && user.id) {
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem('theme', theme);
       localStorage.setItem(`theme_${user.id}`, theme);
+    } else {
+      document.documentElement.setAttribute('data-theme', 'genie');
     }
   }, [theme, user]);
 
@@ -273,6 +270,10 @@ function App() {
   }, [handleLogout]);
 
   useEffect(() => {
+    // Prevent duplicate concurrent validation in React StrictMode or fast re-renders
+    if (sessionValidationRunningRef.current) return;
+    sessionValidationRunningRef.current = true;
+
     // Professional Session Validation (Verify Token with Backend)
     const validateSession = async () => {
       setIsValidatingSession(true);
@@ -296,6 +297,7 @@ function App() {
           setLoginError('Authentication failed: Secure session validation mismatch (CSRF alert).');
           setGoogleLoading(false);
           setIsValidatingSession(false);
+          sessionValidationRunningRef.current = false;
           return;
         }
 
@@ -307,6 +309,7 @@ function App() {
           const { token, user: loggedUser } = res.data;
           
           setUser(loggedUser);
+          setAccessToken(token);
           localStorage.setItem('token', token);
           localStorage.setItem('user', JSON.stringify(loggedUser));
         } catch (err) {
@@ -317,6 +320,7 @@ function App() {
           setGoogleLoading(false);
           setLoading(false);
           setIsValidatingSession(false);
+          sessionValidationRunningRef.current = false;
         }
         return;
       }
@@ -333,6 +337,7 @@ function App() {
           const { token, user: loggedUser } = res.data;
           
           setUser(loggedUser);
+          setAccessToken(token);
           localStorage.setItem('token', token);
           localStorage.setItem('user', JSON.stringify(loggedUser));
         } catch (err) {
@@ -343,21 +348,35 @@ function App() {
           setMicrosoftLoading(false);
           setLoading(false);
           setIsValidatingSession(false);
+          sessionValidationRunningRef.current = false;
         }
         return;
       }
 
       try {
-        const res = await apiClient.post('/auth/refresh');
-        const { user: verifiedUser } = res.data;
-        setUser(verifiedUser);
-        localStorage.setItem('user', JSON.stringify(verifiedUser));
+        const savedToken = localStorage.getItem('token');
+        if (savedToken) {
+          setAccessToken(savedToken);
+          const res = await apiClient.get('/auth/verify');
+          const verifiedUser = res.data.user || res.data;
+          setUser(verifiedUser);
+          localStorage.setItem('user', JSON.stringify(verifiedUser));
+        } else {
+          const res = await apiClient.post('/auth/refresh');
+          const { token: newAccessToken, user: verifiedUser } = res.data;
+          if (newAccessToken) {
+            setAccessToken(newAccessToken);
+          }
+          setUser(verifiedUser);
+          localStorage.setItem('user', JSON.stringify(verifiedUser));
+        }
       } catch (err) {
-        console.error('Session validation / refresh failed on mount:', err);
+        console.error('Session validation failed on mount:', err);
         handleLogout();
       } finally {
         setLoading(false);
         setIsValidatingSession(false);
+        sessionValidationRunningRef.current = false;
       }
     };
 
